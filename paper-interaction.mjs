@@ -3,6 +3,7 @@ import { paperTarget, advancePaper, paperContains } from './paper-motion.mjs';
 export class PaperInteraction {
   constructor(element, { requestFrame, reduced = false } = {}) {
     this.element = element;
+    this.image = element.querySelector('img') ?? element;
     this.requestFrame = requestFrame;
     this.state = { x: 0, y: 0, hovered: false, pressed: false, reduced };
     this.current = paperTarget(this.state);
@@ -14,12 +15,12 @@ export class PaperInteraction {
     this.loadMask().catch(error => console.error('Paper outline:', error));
   }
   async loadMask() {
-    await this.element.decode();
+    await this.image.decode();
     const canvas = document.createElement('canvas');
     canvas.width = 224;
-    canvas.height = Math.round(224 * this.element.naturalHeight / this.element.naturalWidth);
+    canvas.height = Math.round(224 * this.image.naturalHeight / this.image.naturalWidth);
     const context = canvas.getContext('2d', { willReadFrequently: true });
-    context.drawImage(this.element, 0, 0, canvas.width, canvas.height);
+    context.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
     const alpha = new Uint8Array(canvas.width * canvas.height);
     for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];

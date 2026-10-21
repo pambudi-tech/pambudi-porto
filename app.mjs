@@ -6,6 +6,7 @@ import { StitchWordmark } from './wordmark.mjs';
 import { StitchEntrance } from './stitch-entrance.mjs';
 import { PaperInteraction } from './paper-interaction.mjs';
 import { DotClock } from './clock.mjs';
+import { paperInkEntrance } from './paper-ink.mjs';
 
 const $ = id => document.getElementById(id);
 const surface = $('surface');
@@ -14,6 +15,7 @@ const storageKey = 'kruissteek.surface.v4-corners';
 // Disposable preview sessions let us test without touching a visitor's work.
 const scratch = new URLSearchParams(location.search).has('scratch');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+paperInkEntrance(document.querySelector('.paper-copy'), { motionPreference });
 let stored = null, storedRecord = null;
 try { if (!scratch) { storedRecord = JSON.parse(localStorage.getItem(storageKey)); stored = readStored(storedRecord); } } catch { /* A fresh surface also works with storage disabled. */ }
 const initial = cornerPattern();
@@ -38,7 +40,7 @@ const touchHold = new TouchHold(({ x, y }) => {
   activePointer = null;
   openControls(x, y);
 });
-const paper = new PaperInteraction(document.querySelector('.portfolio-frame'), { requestFrame, reduced: motionPreference.matches });
+const paper = new PaperInteraction(document.querySelector('.portfolio-paper'), { requestFrame, reduced: motionPreference.matches });
 
 function announce(message) { $('announcement').textContent = message; }
 function closeControls({ focus = false } = {}) {
@@ -110,7 +112,7 @@ function layoutSurface() {
   view.x = Math.round(innerWidth / 2);
   view.y = Math.round((innerHeight - (innerWidth <= 540 ? 130 : 80)) / 2);
   clock.resize(innerWidth, innerHeight, view);
-  corners = model.layout.mode === 'corners' ? cornerPositions(innerWidth, innerHeight, view, GRID).slice(innerWidth <= 540 ? 0 : 2) : [];
+  corners = model.layout.mode === 'corners' ? cornerPositions(innerWidth, innerHeight, view, GRID).slice(2) : [];
   renderer.resolveCell = (col, row) => toVisibleCell(col, row, corners);
   renderer.isCellVisible = (col, row) => cornerCellVisible(col, row, innerWidth);
   updateControls();
@@ -205,6 +207,7 @@ function startStrokeAt(x, y) {
 }
 
 surface.addEventListener('pointerdown', event => {
+  if (event.target.closest('.works-seal')) return;
   if (event.button !== 0 || (event.pointerType === 'mouse' && event.ctrlKey)) return;
   if (paper.contains(event.clientX, event.clientY)) {
     event.preventDefault();
@@ -306,6 +309,7 @@ function keyboardPreview() {
   requestFrame();
 }
 surface.addEventListener('keydown', event => {
+  if (event.target.closest('.works-seal')) return;
   if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
     event.preventDefault();
     const step = GRID * view.scale;

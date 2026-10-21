@@ -1,5 +1,8 @@
 import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR, BIRD_FRAME_MS } from './bird-data.mjs';
 import { GRID, surfaceSpacing, keyOf } from './model.mjs';
+import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
+
+export const BIRD_GREEN = '#5d914b';
 
 export function flightAt(elapsed, { width, height, birdWidth, birdHeight }) {
   const legMs = Math.max(7000, (width + birdWidth * 2) / .13);
@@ -87,6 +90,7 @@ export class BirdFlight {
     this.travelTime = 0;
     this.lastTime = null;
     this.transitions = new StitchTransitions();
+    this.entrance = new StitchEntrance({ sweep: ENTRANCE.wordmark, reduced: paused });
     this.resize(width, height, view);
   }
   resize(width, height, view) {
@@ -103,12 +107,19 @@ export class BirdFlight {
     this.columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / sourceSide));
     this.rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide));
     this.frames = BIRD_POSES.map(pose => samplePose(pose, this.columns, this.rows));
+    if (previousStage) this.entrance.finish();
+    else {
+      // Plan in bird-local coordinates across every pose, so the front travels
+      // with the bird and remains coherent while the wings change shape.
+      const silhouette = new Map(this.frames.flat().map(cell => [keyOf(...cell), cell]));
+      this.entrance.plan([flameEntranceOrder([...silhouette.values()], { origin: 'center' })]);
+    }
     this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch };
     if (previousStage) this.travelTime = rebaseFlightTime(this.travelTime, previousStage, this.stage);
     const { cells, signature } = this.targetAt();
     this.signature = signature;
     this.transitions.setTarget(cells, this.elapsed, true);
-    this.cells = this.transitions.sample(this.elapsed);
+    this.cells = this.colorize(this.reveal(this.transitions.sample(this.elapsed)));
     this.lastTime = null;
   }
   targetAt() {
@@ -122,8 +133,35 @@ export class BirdFlight {
       signature: `${pose}:${col}:${row}:${direction}`,
     };
   }
+  reveal(cells) {
+    if (!this.entrance.active(this.elapsed)) {
+      this.entrance.finish();
+      return cells;
+    }
+    const visible = new Map();
+    for (const [key, cell] of cells) {
+      const x = cell.col - this.position.col;
+      const localCol = this.position.direction === 1 ? x : this.columns - 1 - x;
+      const localKey = keyOf(localCol, cell.row - this.position.row);
+      if (!this.entrance.offsets.has(localKey)) continue;
+      const progress = cell.progress * this.entrance.progress(localKey, this.elapsed);
+      if (progress > 0) visible.set(key, { ...cell, progress });
+    }
+    return visible;
+  }
+  colorize(cells) {
+    // The centered paper hides the boundary in both directions: green on
+    // its right, original red on its left, including the returning bird.
+    const middle = this.stage.width / 2;
+    for (const cell of cells.values()) {
+      const passed = this.view.x + (cell.col + .5) * this.pitch >= middle;
+      cell.color = passed ? BIRD_GREEN : BIRD_COLOR;
+    }
+    return cells;
+  }
   update(now) {
     if (this.paused) { this.lastTime = null; return false; }
+    const wasEntering = this.entrance.active(this.elapsed);
     const delta = this.lastTime === null ? 0 : Math.min(Math.max(0, now - this.lastTime), 100);
     this.lastTime = now;
     this.elapsed += delta;
@@ -133,16 +171,17 @@ export class BirdFlight {
     const wasAnimating = this.transitions.animating;
     if (changed) this.transitions.setTarget(cells, this.elapsed);
     this.signature = signature;
-    this.cells = this.transitions.sample(this.elapsed);
-    return changed || wasAnimating || this.transitions.animating;
+    this.cells = this.colorize(this.reveal(this.transitions.sample(this.elapsed)));
+    return changed || wasAnimating || this.transitions.animating || wasEntering;
   }
   suspend() { this.lastTime = null; }
   setPaused(paused) {
     this.paused = paused;
     this.lastTime = null;
     if (paused) {
+      this.entrance.finish();
       this.transitions.setTarget(this.transitions.target, this.elapsed, true);
-      this.cells = this.transitions.sample(this.elapsed);
+      this.cells = this.colorize(this.transitions.sample(this.elapsed));
     }
   }
 }

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const types = { '.html': 'text/html', '.css': 'text/css', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const types = { '.html': 'text/html', '.css': 'text/css', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
@@ -13,7 +13,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404).end('Not found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': types[path.extname(filename)] + '; charset=utf-8', 'Cache-Control': 'no-store' });
+    const contentType = types[path.extname(filename)];
+    res.writeHead(200, { 'Content-Type': contentType.startsWith('text/') ? `${contentType}; charset=utf-8` : contentType, 'Cache-Control': 'no-store' });
     res.end(await readFile(filename));
   } catch {
     res.writeHead(404).end('Not found');

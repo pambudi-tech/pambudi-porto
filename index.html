@@ -7,13 +7,24 @@
     <meta name="description" content="Ivan Pambudi's portfolio. A white surface, embroidered details, and room to make something." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ffffff'/%3E%3Cpath d='m9 9 14 14m0-14L9 23' stroke='%23952e40' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
     <title>Ivan Pambudi - The Portfolio</title>
+    <link rel="preload" href="./assets/fonts/syne-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <main id="surface" tabindex="0" role="application" aria-label="Cross-stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls">
       <canvas id="cloth" aria-hidden="true"></canvas>
       <canvas id="embroidery" aria-hidden="true"></canvas>
-      <img class="portfolio-frame" src="./assets/embossed-paper-frame.png" width="1122" height="1402" alt="" aria-hidden="true" draggable="false" fetchpriority="high" />
+      <div class="portfolio-paper">
+        <img class="portfolio-frame" src="./assets/embossed-paper-frame.png" width="1122" height="1402" alt="" aria-hidden="true" draggable="false" fetchpriority="high" />
+        <div class="paper-copy">
+          <p>ivan is a dumba*s perfectionist designer who might screw your timeline but loves seeing what you care about turn out perfectly (on time, don't worry), down to the tiniest detail.</p>
+          <p>mostly corporate work lately, but his dream of working in sports hasn’t faded one bit</p>
+        </div>
+        <button class="works-seal" type="button" aria-label="works">
+          <img src="./assets/works-wax-seal.png" width="2076" height="758" alt="" aria-hidden="true" draggable="false" />
+          <span class="works-seal-label">works</span>
+        </button>
+      </div>
       <canvas id="wordmark" class="top-wordmark" role="img" aria-label="Pambudi, embroidered in white cross-stitch"></canvas>
       <canvas id="gesture" aria-hidden="true"></canvas>
     </main>

@@ -66,11 +66,11 @@ test('bottom ornaments share the wordmark margins and retain edits at each break
   }
 });
 
-test('mobile restores matching upper corners while desktop keeps only the lower pair', () => {
+test('only the lower pair is visible at every breakpoint while stored upper edits are retained', () => {
   const initial = cornerPattern().entries;
   const entries = seedMobileUpperCorners(initial);
   assert.equal(entries.length, 684);
-  for (const [width, expected] of [[390, 684], [540, 684], [541, 342], [1280, 342]]) {
+  for (const [width, expected] of [[390, 342], [540, 342], [541, 342], [1280, 342]]) {
     assert.equal(entries.filter(([key]) => cornerCellVisible(...key.split(',').map(Number), width)).length, expected);
   }
   const edited = entries.filter(([key]) => key !== '-1000,0');

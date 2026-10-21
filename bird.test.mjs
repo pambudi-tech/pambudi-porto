@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { flightAt, rebaseFlightTime, BirdFlight, StitchTransitions } from './bird.mjs';
-import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS } from './bird-data.mjs';
+import { flightAt, rebaseFlightTime, BirdFlight, StitchTransitions, BIRD_GREEN } from './bird.mjs';
+import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR } from './bird-data.mjs';
+import { ENTRANCE } from './stitch-entrance.mjs';
 
 test('flapping poses are distinct, bounded stitch coordinates with no duplicated cells', () => {
   assert.ok(BIRD_POSES.length >= 4);
@@ -108,4 +109,50 @@ test('reduced motion holds a complete pattern and resuming does not advance by t
   assert.equal(bird.elapsed, beforeHidden);
   bird.setPaused(true);
   assert.ok([...bird.cells.values()].every(cell => cell.progress === 1));
+});
+
+test('the bird reveals in local flame patches without changing its flight or final stitch geometry', () => {
+  const view = { x: 640, y: 320, scale: 8.125 / 22 };
+  const bird = new BirdFlight(1280, 720, view);
+  const full = new BirdFlight(1280, 720, view, { paused: true });
+  full.setPaused(false);
+  assert.equal(bird.cells.size, 0);
+  let partial = false;
+  const end = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
+  for (let time = 0; time <= end + 200; time += 50) {
+    bird.update(time);
+    full.update(time);
+    assert.deepEqual(bird.position, full.position);
+    for (const [key, cell] of bird.cells) {
+      assert.ok(cell.progress <= full.cells.get(key).progress + 1e-10);
+      assert.ok(Number.isInteger(cell.col) && Number.isInteger(cell.row));
+    }
+    if (time > 500 && time < 1500 && bird.cells.size > 0 && bird.cells.size < full.cells.size) partial = true;
+  }
+  assert.ok(partial, 'only a portion of the bird is stitched during the reveal');
+  assert.deepEqual(bird.cells, full.cells, 'the completed bird matches the original flight');
+  bird.resize(390, 844, { x: 195, y: 357, scale: 5.25 / 22 });
+  assert.equal(bird.entrance.finished, true, 'resizing does not replay the reveal');
+});
+
+test('bird switches green through the paper and red on its return without flipping at the turn', () => {
+  const bird = new BirdFlight(1280, 720, { x: 640, y: 320, scale: 8.125 / 22 }, { paused: true });
+  assert.ok([...bird.cells.values()].every(cell => cell.color === BIRD_COLOR));
+  bird.setPaused(false);
+  let outgoingMixed = false, incomingMixed = false, incomingGreen = false, returnedRed = false;
+  for (let time = 0; time <= 28000; time += 100) {
+    bird.update(time);
+    const colors = new Set([...bird.cells.values()].map(cell => cell.color));
+    const mixed = colors.has(BIRD_COLOR) && colors.has(BIRD_GREEN);
+    if (bird.position.direction === 1) outgoingMixed ||= mixed;
+    else {
+      incomingMixed ||= mixed;
+      incomingGreen ||= colors.size === 1 && colors.has(BIRD_GREEN);
+      returnedRed ||= colors.size === 1 && colors.has(BIRD_COLOR);
+    }
+  }
+  assert.ok(outgoingMixed, 'outgoing stitches are green before the red tail crosses');
+  assert.ok(incomingGreen, 'the bird starts its return flight green');
+  assert.ok(incomingMixed, 'the incoming green tail stays green until crossing');
+  assert.ok(returnedRed, 'the returning bird becomes completely red after crossing');
 });

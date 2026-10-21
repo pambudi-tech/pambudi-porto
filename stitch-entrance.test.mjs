@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { StitchEntrance, ENTRANCE, wordmarkEntranceOrder } from './stitch-entrance.mjs';
+import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
 import { cornerPattern, cornerEntranceGroups } from './corners.mjs';
 import { SurfaceRenderer } from './render.mjs';
 
@@ -41,8 +41,22 @@ test('corner groups retain every source stitch and progress away from their oute
   assert.deepEqual(distances, [...distances].sort((a, b) => a - b));
 });
 
-test('wordmark stitches follow a continuous bottom-to-top serpentine order', () => {
-  assert.deepEqual(wordmarkEntranceOrder([[2, 3], [1, 0], [2, 1], [1, 2], [3, 2], [4, 3]]), ['4,3', '2,3', '1,2', '3,2', '2,1', '1,0']);
+test('wordmark rises bottom-to-top with tall irregular tongues instead of a straight scan', () => {
+  const cells = Array.from({ length: 120 * 30 }, (_, i) => [i % 120, Math.floor(i / 120)]);
+  const order = flameEntranceOrder(cells);
+  assert.equal(new Set(order).size, cells.length);
+  assert.deepEqual(order, flameEntranceOrder([...cells].reverse()), 'the reveal is stable through replanning');
+  const rows = keys => keys.map(key => Number(key.split(',')[1]));
+  const average = values => values.reduce((sum, value) => sum + value, 0) / values.length;
+  assert.ok(average(rows(order.slice(0, 600))) > average(rows(order.slice(-600))) + 15, 'the overall direction remains upward');
+  const front = new Map();
+  for (const key of order.slice(0, order.length / 2)) {
+    const [col, row] = key.split(',').map(Number);
+    front.set(col, Math.min(front.get(col) ?? Infinity, row));
+  }
+  const heights = [...front.values()];
+  assert.ok(Math.max(...heights) - Math.min(...heights) >= 7, 'tongues reach several rows ahead of neighboring patches');
+  assert.deepEqual(flameEntranceOrder([]), []);
 });
 
 test('entrance changes thread length on the embroidery layer without changing saved cells', () => {
@@ -65,4 +79,14 @@ test('entrance changes thread length on the embroidery layer without changing sa
   assert.deepEqual(calls, [{ color: '#353630', progress: .5 }]);
   assert.deepEqual([...model.stitches], original);
   assert.deepEqual(model.undoStack, []);
+});
+
+test('center-out flame order starts inside the bird and reaches the outer wings last', () => {
+  const cells = Array.from({ length: 41 * 61 }, (_, i) => [i % 41, Math.floor(i / 41)]);
+  const order = flameEntranceOrder(cells, { origin: 'center' });
+  const radius = key => { const [x,y] = key.split(',').map(Number); return Math.hypot((x - 20) / 20, (y - 30) / 30); };
+  const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length;
+  assert.ok(radius(order[0]) < .15);
+  assert.ok(mean(order.slice(0, 400).map(radius)) < mean(order.slice(-400).map(radius)) - .6);
+  assert.equal(new Set(order).size, cells.length);
 });

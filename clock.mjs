@@ -1,4 +1,5 @@
 import { GRID } from './model.mjs';
+import { drawActiveDots } from './dot-matrix.mjs';
 
 // One matrix point corresponds to one perforation in the cloth.
 const DIGITS = {
@@ -59,19 +60,15 @@ export class DotClock {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#49483f';
-    ctx.beginPath();
+    const cells = [];
     for (const character of this.time) {
       const glyph = DIGITS[character];
       glyph.forEach((line, y) => [...line].forEach((cell, x) => {
         if (cell !== '1') return;
-        const px = view.x + (col + x) * pitch;
-        const py = view.y + (row + y) * pitch;
-        ctx.moveTo(px + pitch * .24, py);
-        ctx.arc(px, py, pitch * .24, 0, Math.PI * 2);
+        cells.push([col + x, row + y]);
       }));
       col += glyph[0].length + 1;
     }
-    ctx.fill();
+    drawActiveDots(ctx, cells, view);
   }
 }

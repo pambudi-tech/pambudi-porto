@@ -1,6 +1,7 @@
 import { GRID } from './model.mjs';
 import { coverageTable, traceWordmark, WORDMARK_RATIO } from './wordmark-grid.mjs';
-import { StitchEntrance, ENTRANCE, wordmarkEntranceOrder } from './stitch-entrance.mjs';
+import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
+import { drawActiveDots } from './dot-matrix.mjs';
 
 export class StitchWordmark {
   constructor(canvas, sprite, { requestFrame, motionPreference } = {}) {
@@ -9,7 +10,6 @@ export class StitchWordmark {
     this.sprite = sprite;
     this.requestFrame = requestFrame;
     this.motionPreference = motionPreference;
-    this.initialDesktop = innerWidth > 540;
     this.load().catch(error => console.error('Wordmark tracing:', error));
   }
   async load() {
@@ -29,28 +29,25 @@ export class StitchWordmark {
     this.draw();
   }
   draw() {
-    if (this.width <= 540) {
-      this.canvas.width = this.canvas.height = 0;
-      this.canvas.dataset.layout = 'hidden';
-      this.canvas.dataset.ready = 'true';
-      this.animating = false;
-      this.entrance?.finish();
-      return;
-    }
     if (!this.table || !this.view) return;
-    const { width, view, canvas, context } = this;
+    const { width, view, canvas } = this;
     const pitch = GRID * view.scale;
-    const { cells, height } = traceWordmark(this.table, this.sourceWidth, this.sourceHeight, width, view, pitch);
+    this.isDots = width <= 540;
+    const options = this.isDots ? { startRow: Math.ceil(-view.y / pitch) + 1 } : {};
+    const { cells, height, bottomRow } = traceWordmark(this.table, this.sourceWidth, this.sourceHeight, width, view, pitch, options);
     const dpr = Math.min(devicePixelRatio || 1, 2);
     canvas.width = Math.round(width * dpr);
-    canvas.height = Math.ceil(height * dpr);
+    canvas.height = Math.ceil((this.isDots ? view.y + bottomRow * pitch : height) * dpr);
     this.cells = cells;
     this.dpr = dpr;
-    this.entrance ??= new StitchEntrance({ started: performance.now(), sweep: ENTRANCE.wordmark, reduced: this.motionPreference?.matches || !this.initialDesktop });
-    this.entrance.plan([wordmarkEntranceOrder(cells)]);
+    this.entrance ??= new StitchEntrance({ started: performance.now(), sweep: ENTRANCE.wordmark, reduced: this.motionPreference?.matches });
+    this.entrance.plan([flameEntranceOrder(cells)]);
     this.paint(performance.now());
     canvas.dataset.stitches = String(cells.length);
-    canvas.dataset.layout = 'single-line';
+    canvas.setAttribute('aria-label', this.isDots ? 'Pambudi, formed from enlarged surface dots' : 'Pambudi, embroidered in white cross-stitch');
+    canvas.dataset.layout = this.isDots ? 'artwork-dots' : 'single-line';
+    if (this.isDots) canvas.dataset.dots = String(cells.length);
+    canvas.dataset.reveal = 'flame';
     canvas.dataset.ready = 'true';
     if (this.animating) this.requestFrame?.();
   }
@@ -58,12 +55,17 @@ export class StitchWordmark {
     const { canvas, context, view, dpr } = this;
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
-    for (const [col, row] of this.cells) {
-      const progress = this.entrance.progress(`${col},${row}`, now);
-      if (progress <= 0) continue;
-      const variation = ((col * 17 + row * 31) % 8 + 8) % 8;
-      context.drawImage(this.sprite('#ffffff', variation, progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+    if (this.isDots) {
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawActiveDots(context, this.cells, view, (col, row) => this.entrance.progress(`${col},${row}`, now));
+    } else {
+      context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
+      for (const [col, row] of this.cells) {
+        const progress = this.entrance.progress(`${col},${row}`, now);
+        if (progress <= 0) continue;
+        const variation = ((col * 17 + row * 31) % 8 + 8) % 8;
+        context.drawImage(this.sprite('#ffffff', variation, progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+      }
     }
     this.animating = this.entrance.active(now);
     canvas.dataset.entrance = this.animating ? 'stitching' : 'complete';
@@ -74,6 +76,6 @@ export class StitchWordmark {
   }
   finishEntrance() {
     this.entrance?.finish();
-    if (this.cells && this.width > 540) this.paint(performance.now());
+    if (this.cells) this.paint(performance.now());
   }
 }

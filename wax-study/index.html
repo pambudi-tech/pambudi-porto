@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wax seal · material study</title>
+<link rel="stylesheet" href="./style.css">
+<main>
+  <header><a href="/">← Portfolio</a><span>MATERIAL STUDY / 01</span></header>
+  <h1>Wax, in the browser.</h1>
+  <p class="intro">Your silhouette. Pooled edges, pressed relief, and light moving across the surface.</p>
+  <div class="toolbar" aria-label="Preview options">
+    <div class="segmented"><button data-mode="shader" aria-pressed="true">Live material</button><button data-mode="reference" aria-pressed="false">Reference</button><button data-mode="split" aria-pressed="false">Compare</button></div>
+    <label class="toggle"><input type="checkbox" id="label-toggle"> Button text</label>
+    <button class="background" aria-label="Switch background">◐ Background</button>
+  </div>
+  <section class="stage" data-mode="shader" aria-label="Interactive wax seal preview">
+    <button class="wax" aria-label="Try the wax seal button">
+      <img class="reference" src="./reference.png" alt="Generated red wax seal reference">
+      <canvas aria-hidden="true"></canvas>
+      <span class="button-label" hidden>Explore my work <span aria-hidden="true">↗</span></span>
+    </button>
+    <div class="divider" hidden><span>LIVE</span><span>REFERENCE</span></div>
+    <p class="hint">Move over the seal to shift the light. Press to feel the surface.</p>
+  </section>
+  <footer><span id="status" role="status">Preparing material…</span><span>Original SVG silhouette · no image texture in the live material</span></footer>
+  <details><summary>Material settings</summary><div class="settings">
+    <label>Wax spread <input id="spread" type="range" min="0" max="1.5" step="0.01" value="0.7"></label>
+    <label>Gloss <input id="gloss" type="range" min="0" max="1" step="0.01" value="0.7"></label>
+    <label>Surface texture <input id="texture" type="range" min="0" max="1.5" step="0.01" value="0.65"></label>
+  </div></details>
+</main>
+<script type="module" src="./wax.mjs"></script>
+</html>

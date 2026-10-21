@@ -70,7 +70,7 @@ export function isUpperCornerCell(col, row) {
   return row >= 0 && row < CORNER_SIZE && SLOTS.slice(0, 2).some(slot => col >= slot && col < slot + CORNER_SIZE);
 }
 
-export const cornerCellVisible = (col, row, width) => width <= 540 || !isUpperCornerCell(col, row);
+export const cornerCellVisible = (col, row) => !isUpperCornerCell(col, row);
 
 export function withoutUpperCorners(entries) {
   return entries.filter(([key]) => {
