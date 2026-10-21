@@ -1,4 +1,5 @@
 import { paperTarget, advancePaper, paperContains } from './paper-motion.mjs';
+import { PaperMaterial } from './paper-material.mjs';
 
 export class PaperInteraction {
   constructor(element, { requestFrame, reduced = false } = {}) {
@@ -27,6 +28,10 @@ export class PaperInteraction {
     this.mask = { width: canvas.width, height: canvas.height, alpha };
     this.element.dataset.paperReady = 'true';
     this.measure();
+    const material = new PaperMaterial(this.image);
+    material.prepare();
+    material.draw(this.current);
+    this.material = material;
   }
   measure() {
     // Measure the anchored layout rather than the moving perspective bounds.
@@ -90,6 +95,7 @@ export class PaperInteraction {
   }
   write() {
     const values = this.current;
+    this.material?.draw(values);
     for (const key of ['rx', 'ry']) this.element.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}deg`);
     for (const key of ['sx', 'sy', 'blur']) this.element.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}px`);
     this.element.style.setProperty('--paper-scale', values.scale.toFixed(5));

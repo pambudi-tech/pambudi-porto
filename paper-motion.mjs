@@ -1,11 +1,12 @@
-export const PAPER_MOTION = Object.freeze({ tiltX: 1.05, tiltY: 1.35, pressScale: .997, responseMs: 95 });
+export const PAPER_MOTION = Object.freeze({ tiltX: 5.5, tiltY: 7, hoverScale: 1.018, pressScale: .98, responseMs: 90 });
 
 export function paperTarget({ x = 0, y = 0, hovered = false, pressed = false, reduced = false } = {}) {
   x = Math.max(-1, Math.min(1, x));
   y = Math.max(-1, Math.min(1, y));
-  if (pressed) return { rx: 0, ry: 0, scale: reduced ? 1 : PAPER_MOTION.pressScale, sx: 0, sy: .4, blur: .8, opacity: .035 };
-  if (hovered) return { rx: reduced ? 0 : -y * PAPER_MOTION.tiltX, ry: reduced ? 0 : x * PAPER_MOTION.tiltY, scale: 1, sx: -x * 1.4, sy: 2.8 - y * .6, blur: 4.2, opacity: .055 };
-  return { rx: 0, ry: 0, scale: 1, sx: 0, sy: 1, blur: 2, opacity: .035 };
+  const material = { lx: !reduced && hovered ? x : 0, ly: !reduced && hovered ? y : 0, light: !reduced && hovered ? .8 : 0 };
+  if (pressed) return { rx: 0, ry: 0, scale: reduced ? 1 : PAPER_MOTION.pressScale, sx: 0, sy: .5, blur: 2, opacity: .02, lx: 0, ly: 0, light: reduced ? 0 : .18 };
+  if (hovered) return { rx: reduced ? 0 : -y * PAPER_MOTION.tiltX, ry: reduced ? 0 : x * PAPER_MOTION.tiltY, scale: reduced ? 1 : PAPER_MOTION.hoverScale, sx: -x * 3, sy: 7 - y * 2, blur: 18, opacity: .032, ...material };
+  return { rx: 0, ry: 0, scale: 1, sx: 0, sy: 1.5, blur: 6, opacity: .016, ...material };
 }
 
 export function advancePaper(current, target, elapsed) {

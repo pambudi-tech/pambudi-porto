@@ -37,6 +37,7 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   width: min(640px, calc(100% - 48px), 62.42dvh);
   height: auto;
   container-type: inline-size;
+  isolation: isolate;
   transform: translate(-50%, -50%) perspective(1200px) rotateX(var(--paper-rx, 0deg)) rotateY(var(--paper-ry, 0deg)) scale(var(--paper-scale, 1));
   transform-origin: center;
   backface-visibility: hidden;
@@ -44,11 +45,20 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   z-index: 3;
 }
 .portfolio-paper.paper-engaged { will-change: transform; }
+.paper-material { mix-blend-mode: soft-light; }
 .portfolio-frame {
   display: block;
   width: 100%;
   height: auto;
-  filter: drop-shadow(var(--paper-sx, 0px) var(--paper-sy, 1px) var(--paper-blur, 2px) rgb(58 52 45 / var(--paper-shadow-opacity, .035)));
+  /* Smooth layered falloff, following the cutout's alpha rather than its box. */
+  --paper-shadow-x: var(--paper-sx, 0px);
+  --paper-shadow-y: var(--paper-sy, 1.5px);
+  --paper-shadow-softness: var(--paper-blur, 6px);
+  --paper-shadow-strength: var(--paper-shadow-opacity, .016);
+  filter:
+    drop-shadow(calc(var(--paper-shadow-x) * .15) calc(var(--paper-shadow-y) * .2) calc(var(--paper-shadow-softness) * .15) rgb(58 55 50 / calc(var(--paper-shadow-strength) * .45)))
+    drop-shadow(calc(var(--paper-shadow-x) * .5) calc(var(--paper-shadow-y) * .65) calc(var(--paper-shadow-softness) * .65) rgb(58 55 50 / calc(var(--paper-shadow-strength) * .65)))
+    drop-shadow(var(--paper-shadow-x) var(--paper-shadow-y) var(--paper-shadow-softness) rgb(58 55 50 / var(--paper-shadow-strength)));
 }
 .paper-copy {
   position: absolute;

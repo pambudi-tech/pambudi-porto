@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import { paperTarget, advancePaper, paperContains, PAPER_MOTION } from './paper-motion.mjs';
 import { PaperInteraction } from './paper-interaction.mjs';
 
-test('paper tilts gently toward the pointer and pressing flattens it', () => {
+test('paper lifts and tilts toward the pointer and pressing flattens it', () => {
   const hover = paperTarget({ hovered: true, x: 1, y: -1 });
   assert.equal(hover.rx, PAPER_MOTION.tiltX);
   assert.equal(hover.ry, PAPER_MOTION.tiltY);
-  assert.equal(hover.scale, 1);
+  assert.equal(hover.scale, PAPER_MOTION.hoverScale);
+  assert.equal(hover.lx, 1);
+  assert.equal(hover.ly, -1);
+  assert.ok(hover.light > 0);
   assert.equal(paperTarget({ hovered: true, x: 10 }).ry, PAPER_MOTION.tiltY);
   const pressed = paperTarget({ hovered: true, pressed: true, x: 1, y: -1 });
   assert.equal(pressed.rx, 0);
@@ -23,6 +26,10 @@ test('touch release settles exactly back to the anchored resting state', () => {
   assert.deepEqual(current, rest);
   assert.equal(paperTarget({ hovered: true, reduced: true, x: .9, y: -.8 }).ry, 0);
   assert.equal(paperTarget({ pressed: true, reduced: true }).scale, 1);
+  for (const pressed of [false, true]) {
+    const still = paperTarget({ hovered: true, pressed, reduced: true, x: .9, y: -.8 });
+    assert.deepEqual([still.lx, still.ly, still.light], [0, 0, 0]);
+  }
 });
 
 test('paper outline hit testing leaves transparent corners stitchable', () => {
