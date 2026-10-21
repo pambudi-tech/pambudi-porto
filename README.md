@@ -1,4 +1,4 @@
-# Kruissteek surface study
+# Ivan Pambudi - The Portfolio
 
 A standalone experiment in a fixed white surface and interactive cross-stitch. The default is the supplied simple corner ornament, traced as a 31 × 31 grid, rotated inward at all four corners. Each black reference square becomes one charcoal X. Subtle perforations indicate the stitchable grid. Needles and cotton strands are drawn procedurally; there is no woven background texture.
 
