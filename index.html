@@ -8,22 +8,57 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ffffff'/%3E%3Cpath d='m9 9 14 14m0-14L9 23' stroke='%23952e40' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
     <title>Ivan Pambudi - The Portfolio</title>
     <link rel="preload" href="./assets/fonts/syne-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preconnect" href="https://use.typekit.net" crossorigin />
+    <link id="adobe-fonts" rel="stylesheet" href="https://use.typekit.net/ghx2tkl.css" media="print" />
     <link rel="stylesheet" href="./style.css" />
   </head>
-  <body>
-    <main id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls">
+  <body class="is-loading">
+    <div id="preloader" class="preloader" role="status" aria-label="Loading portfolio">
+      <div class="portfolio-paper preloader-paper" aria-hidden="true">
+        <img class="preloader-frame" src="./assets/pambudi-frame.svg" width="1028" height="1304" alt="" draggable="false" />
+      </div>
+      <div class="preloader-title ink-entrance"><p>Welcome to</p><p>House of Pambudi</p></div>
+      <a class="preloader-retry" href="" hidden>Reload</a>
+    </div>
+    <main id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls" aria-busy="true">
       <canvas id="cloth" aria-hidden="true"></canvas>
       <canvas id="embroidery" aria-hidden="true"></canvas>
       <div class="portfolio-paper">
+        <button class="paper-flip-control sr-only" type="button" aria-label="Flip paper to red" aria-pressed="false" aria-describedby="paper-flip-help"></button>
+        <span id="paper-flip-help" class="sr-only">Click the left half to turn left, or the right half to turn right. With this button focused, use Enter, Space, or the left and right arrow keys.</span>
+        <div class="paper-turn">
+        <div class="paper-face paper-front">
         <img class="portfolio-frame" src="./assets/embossed-paper-frame.png" width="1122" height="1402" alt="" aria-hidden="true" draggable="false" fetchpriority="high" />
         <div class="paper-copy">
-          <p>ivan is a dumba*s perfectionist designer who might screw your timeline but loves seeing what you care about turn out perfectly (on time, don't worry), down to the tiniest detail.</p>
-          <p>mostly corporate work lately, but his dream of working in sports hasn’t faded one bit</p>
+          <p>as a designer, <a class="intro-link" role="link" tabindex="0" aria-disabled="true" aria-label="ivan, about me" data-tooltip="about me">ivan</a> gets invested in a project as if he were its co-founder. he hates bad details as much as he hates the regime.</p>
+          <p>mostly corporate work lately, but his dream of working in sports hasn’t faded one stitch (pun intended)</p>
+          <div class="paper-contact" role="group" aria-label="Contact">
+            <button class="contact-link" type="button" aria-label="Copy email address" data-email="pambu.design@gmail.com" data-tooltip="copy email">
+              <img src="./assets/contact/email.svg" width="20" height="20" alt="" aria-hidden="true" draggable="false" />
+            </button>
+            <a class="contact-link" href="https://linkedin.com/in/pambudixix" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" data-tooltip="linkedin">
+              <img src="./assets/contact/linkedin.svg" width="20" height="20" alt="" aria-hidden="true" draggable="false" />
+            </a>
+            <a class="contact-link" href="https://x.com/____pambudi" target="_blank" rel="noopener noreferrer" aria-label="X" data-tooltip="x">
+              <img src="./assets/contact/x.svg" width="20" height="20" alt="" aria-hidden="true" draggable="false" />
+            </a>
+            <a class="contact-link" href="https://instagram.com/____pambudi" target="_blank" rel="noopener noreferrer" aria-label="Instagram" data-tooltip="instagram">
+              <img src="./assets/contact/instagram.svg" width="20" height="20" alt="" aria-hidden="true" draggable="false" />
+            </a>
+            <a class="contact-link" href="https://behance.net/pambudi" target="_blank" rel="noopener noreferrer" aria-label="Behance" data-tooltip="behance">
+              <img src="./assets/contact/behance.svg" width="20" height="20" alt="" aria-hidden="true" draggable="false" />
+            </a>
+          </div>
         </div>
         <button class="works-seal" type="button" aria-label="works">
           <img src="./assets/works-wax-seal.png" width="2076" height="758" alt="" aria-hidden="true" draggable="false" />
           <span class="works-seal-label">works</span>
         </button>
+        </div>
+        <div class="paper-face paper-back" aria-hidden="true" inert>
+          <img class="portfolio-frame" src="./assets/debossed-red-paper-frame.png" width="1122" height="1402" alt="" aria-hidden="true" draggable="false" />
+        </div>
+        </div>
       </div>
       <canvas id="wordmark" class="top-wordmark" role="img" aria-label="Pambudi, embroidered in white cross-stitch"></canvas>
       <canvas id="gesture" aria-hidden="true"></canvas>
@@ -69,6 +104,7 @@
     </div>
 
     <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.mjs"></script>
+    <noscript><style>.preloader { display: none; } body.is-loading #surface { visibility: visible; }</style><p class="sr-only">Enable JavaScript to use the interactive stitch surface.</p></noscript>
+    <script type="module" src="./preloader.mjs"></script>
   </body>
 </html>

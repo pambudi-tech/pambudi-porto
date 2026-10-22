@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-22",
+  "scenario": "Six alternating flips, moving the pointer across the paper each sampled frame, in the local in-app browser",
+  "before": {
+    "frames": 203,
+    "averageFrameMs": 32.39,
+    "p95FrameMs": 34.2,
+    "framesOver32ms": 189,
+    "longTasks": [],
+    "paperCanvasDraws": 812,
+    "flipStyleMutations": 180,
+    "finalSide": "white"
+  },
+  "after": {
+    "frames": 203,
+    "averageFrameMs": 32.41,
+    "p95FrameMs": 34.2,
+    "framesOver32ms": 186,
+    "longTasks": [],
+    "paperCanvasDraws": 68,
+    "flipStyleMutations": 6,
+    "finalSide": "white"
+  },
+  "interpretation": "The browser sample cadence remained about 30fps. These observations demonstrate fewer texture repaints and JavaScript style writes, not a measured FPS improvement. Transform interpolation now runs through the native animation compositor."
+}

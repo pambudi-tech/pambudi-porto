@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { flightAt, rebaseFlightTime, BirdFlight, StitchTransitions, BIRD_GREEN } from './bird.mjs';
+import { flightAt, rebaseFlightTime, BirdFlight, StitchTransitions } from './bird.mjs';
 import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR } from './bird-data.mjs';
 import { ENTRANCE } from './stitch-entrance.mjs';
 import { articulatePose, bodyMotionAt, moveBirdPoint } from './bird-motion.mjs';
@@ -227,24 +227,15 @@ test('the bird reveals in local flame patches without changing its flight or fin
   assert.equal(bird.entrance.finished, true, 'resizing does not replay the reveal');
 });
 
-test('bird switches green through the paper and red on its return without flipping at the turn', () => {
+test('bird stays red on both sides of the paper throughout its outgoing and return flight', () => {
   const bird = new BirdFlight(1280, 720, { x: 640, y: 320, scale: 8.125 / 22 }, { paused: true });
   assert.ok([...bird.cells.values()].every(cell => cell.color === BIRD_COLOR));
   bird.setPaused(false);
-  let outgoingMixed = false, incomingMixed = false, incomingGreen = false, returnedRed = false;
+  const directions = new Set();
   for (let time = 0; time <= 28000; time += 100) {
     bird.update(time);
-    const colors = new Set([...bird.cells.values()].map(cell => cell.color));
-    const mixed = colors.has(BIRD_COLOR) && colors.has(BIRD_GREEN);
-    if (bird.position.direction === 1) outgoingMixed ||= mixed;
-    else {
-      incomingMixed ||= mixed;
-      incomingGreen ||= colors.size === 1 && colors.has(BIRD_GREEN);
-      returnedRed ||= colors.size === 1 && colors.has(BIRD_COLOR);
-    }
+    directions.add(bird.position.direction);
+    assert.ok([...bird.cells.values()].every(cell => cell.color === BIRD_COLOR));
   }
-  assert.ok(outgoingMixed, 'outgoing stitches are green before the red tail crosses');
-  assert.ok(incomingGreen, 'the bird starts its return flight green');
-  assert.ok(incomingMixed, 'the incoming green tail stays green until crossing');
-  assert.ok(returnedRed, 'the returning bird becomes completely red after crossing');
+  assert.equal(directions.size, 2, 'both flight directions were checked');
 });

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper text contour review</title>
+<style>
+  body { margin: 24px; background: #e9e9e9; font: 14px system-ui, sans-serif; }
+  p { margin: 0 0 12px; }
+  iframe { display: block; border: 0; background: white; }
+  output { display: block; margin-top: 16px; max-width: 900px; white-space: pre-wrap; font: 12px monospace; }
+</style>
+<p id="caption"></p>
+<p><button data-width="320" data-height="568">Resize to 320 × 568</button> <button data-width="390" data-height="844">Resize to 390 × 844</button></p>
+<iframe title="Portfolio at the review viewport"></iframe>
+<output id="checks">Waiting for portfolio…</output>
+<script type="module">
+  import { TEXT_AREA } from '../paper-text-contour.mjs';
+  const params = new URLSearchParams(location.search);
+  const width = Number(params.get('width')) || 390;
+  const height = Number(params.get('height')) || 844;
+  const frame = document.querySelector('iframe');
+  frame.width = width; frame.height = height;
+  for (const button of document.querySelectorAll('button')) button.addEventListener('click', () => {
+    frame.width = button.dataset.width; frame.height = button.dataset.height;
+    document.getElementById('caption').textContent = `${frame.width} × ${frame.height} — resized without reloading`;
+  });
+  document.getElementById('caption').textContent = `${width} × ${height} — live portfolio${params.has('map') ? ' with supplied contour' : ''}`;
+  frame.src = '/?scratch';
+  frame.addEventListener('load', async () => {
+    const raw = await (await fetch('../assets/text-area-path.svg')).text();
+    const path = new Path2D(new DOMParser().parseFromString(raw, 'image/svg+xml').querySelector('path').getAttribute('d'));
+    const context = document.createElement('canvas').getContext('2d');
+    let readyAt;
+    const check = now => {
+      const d = frame.contentDocument;
+      if (!d.body.dataset.ready) { requestAnimationFrame(check); return; }
+      readyAt ??= now;
+      if (now - readyAt < 1200) { requestAnimationFrame(check); return; }
+      const copy = d.querySelector('.paper-copy');
+      const area = copy.getBoundingClientRect();
+      const glyphs = layer => {
+        const result = [], walker = d.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) for (let i = 0; i < node.textContent.length; i++) {
+          if (!node.textContent[i].trim()) continue;
+          const range = d.createRange();
+          range.setStart(node, i); range.setEnd(node, i + 1);
+          const r = range.getBoundingClientRect();
+          result.push({ character: node.textContent[i], left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+        }
+        return result;
+      };
+      const paragraphs = [...copy.querySelectorAll('p')].map(p => {
+        const source = glyphs(p.querySelector('.ink-source'));
+        const ink = glyphs(p.querySelector('.ink-bleed-copy'));
+        const lines = [];
+        for (const g of ink) {
+          let line = lines.find(line => Math.abs(line.top - g.top) < 2);
+          if (!line) lines.push(line = { top: g.top, left: g.left, right: g.right });
+          line.left = Math.min(line.left, g.left); line.right = Math.max(line.right, g.right);
+        }
+        return {
+          font: getComputedStyle(p).fontSize, align: getComputedStyle(p).textAlign,
+          lastAlign: getComputedStyle(p).textAlignLast,
+          text: p.querySelector('.ink-source').textContent,
+          lines: lines.map(line => ({ left: +(line.left - area.left).toFixed(2), right: +(line.right - area.left).toFixed(2) })),
+          layerError: +Math.max(...source.map((g, i) => ink[i] ? Math.max(Math.abs(g.left - ink[i].left), Math.abs(g.top - ink[i].top)) : 999)).toFixed(3),
+          outsideContour: ink.filter(g => [g.left, g.right].some(x => [g.top, g.bottom].some(y => !context.isPointInPath(path,
+            (x - area.left) / area.width * TEXT_AREA.width,
+            (y - area.top) / area.height * TEXT_AREA.height)))).length,
+        };
+      });
+      const metrics = {
+        viewport: [d.defaultView.innerWidth, d.defaultView.innerHeight],
+        contour: copy.dataset.contour,
+        overflow: copy.scrollHeight > copy.clientHeight,
+        area: { width: copy.clientWidth, height: copy.clientHeight, gap: getComputedStyle(copy).gap },
+        heights: [...copy.querySelectorAll('p')].map(p => ({ top: p.offsetTop, height: p.offsetHeight,
+          sourceEnd: p.querySelector('.ink-source .paper-contour-end').offsetTop,
+          inkEnd: p.querySelector('.ink-bleed-copy .paper-contour-end').offsetTop })),
+        paragraphs,
+        contacts: copy.querySelectorAll('.contact-link').length,
+      };
+      document.getElementById('checks').textContent = JSON.stringify(metrics, null, 2);
+      document.getElementById('checks').dataset.ready = 'true';
+    };
+    frame.contentWindow.addEventListener('resize', () => {
+      readyAt = undefined;
+      document.getElementById('checks').textContent = 'Checking resized portfolio…';
+      requestAnimationFrame(check);
+    });
+    requestAnimationFrame(check);
+  });
+  if (params.has('map')) frame.addEventListener('load', async () => {
+    const svg = await (await fetch('../assets/text-area-path.svg')).text();
+    const check = () => {
+      const copy = frame.contentDocument.querySelector('.paper-copy[data-contour="ready"]');
+      if (!copy) { requestAnimationFrame(check); return; }
+      const overlay = frame.contentDocument.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:5';
+      overlay.innerHTML = svg;
+      const image = overlay.firstElementChild;
+      image.setAttribute('viewBox', `0 0 ${TEXT_AREA.width} ${TEXT_AREA.height}`);
+      image.setAttribute('preserveAspectRatio', 'none');
+      image.style.cssText = 'display:block;width:100%;height:100%;overflow:visible';
+      image.querySelector('path').setAttribute('style', 'fill:#c4000008;stroke:#c40000;stroke-width:2');
+      copy.append(overlay);
+    };
+    check();
+  });
+</script>
+</html>

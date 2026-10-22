@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper flip performance check</title>
+<style>body{margin:16px;background:#eee;font:14px monospace}button{padding:10px;margin-right:12px}pre{white-space:pre-wrap}iframe{width:100%;height:740px;border:1px solid #ccc;background:white}</style>
+<button id="run" disabled>Run 6 flips</button><span id="status">Loading portfolio…</span><pre id="report"></pre>
+<iframe src="../?scratch" title="Portfolio performance preview"></iframe>
+<script type="module">
+const frame = document.querySelector('iframe'), run = document.querySelector('#run');
+const status = document.querySelector('#status'), report = document.querySelector('#report');
+const ready = setInterval(() => {
+  if (frame.contentDocument?.body.dataset.ready === 'true') { clearInterval(ready); run.disabled = false; status.textContent = 'Ready'; }
+}, 100);
+run.onclick = async () => {
+  run.disabled = true; status.textContent = 'Measuring 6 flips with pointer movement…';
+  const win = frame.contentWindow, doc = frame.contentDocument;
+  const paper = doc.querySelector('#surface .portfolio-paper'), turn = doc.querySelector('.paper-turn');
+  const surface = doc.querySelector('#surface'), control = doc.querySelector('.paper-flip-control');
+  const bounds = paper.getBoundingClientRect();
+  let paints = 0, mutations = 0, collecting = true, last = null;
+  const intervals = [], tasks = [];
+  const originalDraw = win.CanvasRenderingContext2D.prototype.drawImage;
+  win.CanvasRenderingContext2D.prototype.drawImage = function(...args) {
+    if (this.canvas.classList.contains('paper-material')) paints++;
+    return originalDraw.apply(this, args);
+  };
+  const observer = new win.MutationObserver(records => { mutations += records.length; });
+  observer.observe(turn, { attributes: true, attributeFilter: ['style'] });
+  const longTasks = new win.PerformanceObserver(list => tasks.push(...list.getEntries().map(entry => Math.round(entry.duration))));
+  longTasks.observe({type:'longtask'});
+  const sample = now => {
+    if (!collecting) return;
+    if (last !== null) intervals.push(now - last);
+    last = now;
+    surface.dispatchEvent(new win.PointerEvent('pointermove', { bubbles:true, pointerType:'mouse', pointerId:1,
+      clientX:bounds.left + bounds.width * (.5 + .28 * Math.sin(now / 130)), clientY:bounds.top + bounds.height * .55 }));
+    win.requestAnimationFrame(sample);
+  };
+  win.requestAnimationFrame(sample);
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  for (let i=0;i<6;i++) {
+    control.dispatchEvent(new win.KeyboardEvent('keydown',{key:i%2?'ArrowRight':'ArrowLeft',bubbles:true}));
+    await wait(1100);
+  }
+  collecting = false;
+  observer.disconnect(); longTasks.disconnect();
+  win.CanvasRenderingContext2D.prototype.drawImage = originalDraw;
+  const sorted = intervals.slice().sort((a,b)=>a-b);
+  const result = { frames:intervals.length, averageFrameMs:+(intervals.reduce((a,b)=>a+b,0)/intervals.length).toFixed(2),
+    p95FrameMs:+sorted[Math.floor(sorted.length*.95)].toFixed(2), framesOver32ms:intervals.filter(t=>t>32).length,
+    longTasks:tasks, paperCanvasDraws:paints, flipStyleMutations:mutations, finalSide:paper.dataset.paperSide };
+  report.textContent = JSON.stringify(result,null,2);
+  status.textContent = 'Complete'; run.disabled = false;
+};
+</script></html>

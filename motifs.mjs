@@ -20,7 +20,7 @@ const noise = (x, y, seed = 0) => {
   return value - Math.floor(value);
 };
 
-export const MAX_MOTIF_ROTATION = Math.PI / 4;
+export const MAX_MOTIF_ROTATION = Math.PI / 12;
 export const randomMotifRotation = (random = Math.random) => (random() * 2 - 1) * MAX_MOTIF_ROTATION;
 
 export function createMotif(id, { col = 0, row = 0, seed = 0, rotation = 0 } = {}) {
@@ -88,14 +88,30 @@ export class MotifBag {
 
 // One complete motif is one undo action, including overlapping stitches.
 export function stampMotif(model, id, options = {}) {
-  const { started = 0, reduced = false, canPlace = () => true } = options;
+  const { started = 0, reduced = false, canPlace = () => true, onStamp } = options;
   const animations = new Map();
   model.commit();
+  const previous = model.undoStack.at(-1);
+  const changes = [], placed = [];
   model.begin();
   for (const cell of createMotif(id, options)) {
-    if (!canPlace(cell.col, cell.row) || !model.put(cell.col, cell.row, cell.color)) continue;
+    if (!canPlace(cell.col, cell.row)) continue;
+    const key = keyOf(cell.col, cell.row);
+    changes.push({ key, before: model.stitches.get(key), after: cell.color });
+    placed.push(cell);
+    if (!model.put(cell.col, cell.row, cell.color)) continue;
     if (!reduced) animations.set(keyOf(cell.col, cell.row), { color: cell.color, kind: 'motif', started: started + cell.delay, duration: 280 });
   }
   model.commit();
+  if (onStamp && changes.length) {
+    let transaction = model.undoStack.at(-1);
+    if (transaction === previous) {
+      transaction = { changes, beforeLayout: model.layout, afterLayout: model.layout };
+      model.undoStack.push(transaction);
+      if (model.undoStack.length > 150) model.undoStack.shift();
+      model.redoStack = [];
+    } else transaction.changes = changes;
+    onStamp(transaction, placed, started);
+  }
   return animations;
 }

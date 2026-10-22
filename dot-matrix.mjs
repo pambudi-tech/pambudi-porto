@@ -1,10 +1,10 @@
 import { GRID } from './model.mjs';
 
-// Active perforations share their size and color across the clock and wordmark.
-export function drawActiveDots(context, cells, view, progressForCell = null) {
+// Active perforations share their size; callers can override the thread color.
+export function drawActiveDots(context, cells, view, progressForCell = null, color = '#49483f') {
   const pitch = GRID * view.scale;
   const radius = pitch * .24;
-  context.fillStyle = '#49483f';
+  context.fillStyle = color;
   context.beginPath();
   for (const [col, row] of cells) {
     const progress = progressForCell?.(col, row) ?? 1;

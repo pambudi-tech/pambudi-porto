@@ -5,32 +5,42 @@ import { TouchHold } from './touch-hold.mjs';
 import { StitchWordmark } from './wordmark.mjs';
 import { StitchEntrance } from './stitch-entrance.mjs';
 import { PaperInteraction } from './paper-interaction.mjs';
+import { PaperFlip } from './paper-flip.mjs';
 import { WaxInteraction } from './wax-interaction.mjs';
-import { DotClock } from './clock.mjs';
-import { paperInkEntrance } from './paper-ink.mjs';
+import { BirdFlight } from './bird.mjs';
+import { settleWithin } from './loading-progress.mjs';
 import { IntroInkHover } from './intro-ink-hover.mjs';
+import { setupEmailCopy } from './contact-links.mjs';
+import { mountPaperTextContour } from './paper-text-contour.mjs';
 import { MotifBag, stampMotif, randomMotifRotation } from './motifs.mjs';
+import { MotifLifetimes } from './motif-lifetime.mjs';
 import { FreeStitch, FREE_THREADS } from './free-stitch.mjs';
 import { StitchPanel } from './stitch-panel.mjs';
 
+export async function preparePortfolio({ clock }) {
+let running = false, releaseEntrance;
+const startWhen = new Promise(resolve => { releaseEntrance = resolve; });
 const $ = id => document.getElementById(id);
 const surface = $('surface');
 const controls = $('stitch-controls');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const panel = new StitchPanel(controls, motionPreference);
-paperInkEntrance(document.querySelector('.paper-copy'), { motionPreference });
-new IntroInkHover(document.querySelector('.paper-copy'), motionPreference);
+const copy = document.querySelector('.paper-copy');
+setupEmailCopy(copy.querySelector('[data-email]'), { announce });
+new IntroInkHover(copy, motionPreference);
+await mountPaperTextContour(copy);
 // Every page load starts with the original ornaments and no visitor motifs.
 // Motif history belongs only to this visit; no saved embroidery is restored.
 const initial = cornerPattern();
 const model = new StitchModel(initial.entries, initial.layout);
 const renderer = new SurfaceRenderer($('cloth'), $('embroidery'), $('gesture'));
-const cornerEntrance = new StitchEntrance({ started: performance.now(), reduced: motionPreference.matches });
+const cornerEntrance = new StitchEntrance({ started: Infinity, reduced: motionPreference.matches });
 cornerEntrance.plan(cornerEntranceGroups(initial.entries.filter(([key]) => model.stitches.has(key))));
-const wordmark = new StitchWordmark($('wordmark'), (color, variation, progress) => renderer.sprite(color, variation, progress), { requestFrame, motionPreference });
+const wordmark = new StitchWordmark($('wordmark'), (color, variation, progress) => renderer.sprite(color, variation, progress), { requestFrame, motionPreference, entranceStarted: Infinity });
 const view = { x: 0, y: 0, scale: 1 };
-const clock = new DotClock($('portfolio-clock'));
 const animations = new Map();
+const motifLifetimes = new MotifLifetimes(model, animations);
+let motifExpiryTimer = null;
 const motifBag = new MotifBag();
 let hover = null, frame = null, sceneDirty = true, clothDirty = true;
 let activeTap = null;
@@ -45,9 +55,17 @@ const touchHold = new TouchHold(({ x, y }) => {
   cancelTap();
   openControls(x, y);
 });
-const paper = new PaperInteraction(document.querySelector('.portfolio-paper'), { requestFrame, reduced: motionPreference.matches });
+const paper = new PaperInteraction(document.querySelector('#surface .portfolio-paper'), {
+  requestFrame, reduced: motionPreference.matches, placementMirror: document.querySelector('.preloader-paper'),
+  onTap: event => paperFlip.flipAt(event.clientX),
+});
+const paperFlip = new PaperFlip(paper.element, {
+  reduced: motionPreference.matches,
+  onStart: () => paper.setFlipping(true),
+  onFinish: () => paper.setFlipping(false),
+});
 const waxSeal = document.querySelector('.works-seal');
-new WaxInteraction(waxSeal, motionPreference);
+const wax = new WaxInteraction(waxSeal, motionPreference, { startWhen });
 const freeStitch = new FreeStitch(model, animations, {
   resolveCell: (col, row, tool) => tool === 'unpick' ? toStoredCell(col, row, corners) : [col, row],
   canPlace(col, row, tool) {
@@ -114,6 +132,7 @@ function openControls(x, y) {
   requestFrame();
 }
 function updateControls() {
+  motifLifetimes.syncHistory();
   $('undo').disabled = !model.undoStack.length;
   $('redo').disabled = !model.redoStack.length;
   for (const [id, mode] of [['motif-tool', 'motif'], ['free-tool', 'free']]) {
@@ -130,13 +149,24 @@ function updateControls() {
   }
 }
 function requestFrame({ cloth = false, stitches = false } = {}) {
+  if (!running) return;
   clothDirty ||= cloth;
   sceneDirty ||= stitches;
   if (!frame) frame = requestAnimationFrame(draw);
 }
 function draw(now) {
   frame = null;
+  if (motifLifetimes.update(now, motionPreference.matches)) {
+    sceneDirty = true;
+    updateControls();
+    scheduleMotifExpiry();
+  }
   if (bird?.update(now)) sceneDirty = true;
+  // Recheck the moving silhouette every frame, including when the pointer
+  // stays still and the dove flies beneath it or moves away.
+  const birdCell = hover && !keyboardMode && !panel.isOpen ? bird?.hitTest(hover.x, hover.y) : null;
+  const birdCovered = birdCell && model.stitches.has(keyOf(...toStoredCell(birdCell.col, birdCell.row, corners)));
+  clock.setMessage(birdCell && !birdCovered ? bird.hoverMessage(hover.x, hover.y) : '');
   const wordmarkEntering = wordmark.update(now);
   const paperMoving = paper.update(now);
   const wasEntering = cornersEntering;
@@ -196,6 +226,10 @@ function stampAt(x, y) {
     seed: Math.floor(Math.random() * 10000),
     started: performance.now(),
     reduced: motionPreference.matches,
+    onStamp(transaction, cells, started) {
+      motifLifetimes.add(transaction, cells, started);
+      scheduleMotifExpiry();
+    },
     canPlace(col, row) {
       // Keep ornament stitches in their anchored slots. Motif cells keep
       // ordinary world coordinates so a resize cannot split a motif apart.
@@ -207,6 +241,13 @@ function stampAt(x, y) {
   updateControls();
   requestFrame({ stitches: true });
   announce(`${motif.name} stitched.`);
+}
+function scheduleMotifExpiry() {
+  clearTimeout(motifExpiryTimer);
+  const deadline = motifLifetimes.nextExpiry;
+  motifExpiryTimer = Number.isFinite(deadline)
+    ? setTimeout(() => requestFrame({ stitches: true }), Math.max(1, Math.ceil(deadline - performance.now())))
+    : null;
 }
 function cancelTap() {
   activeTap = null;
@@ -224,6 +265,7 @@ function performHistory(direction) {
 }
 
 surface.addEventListener('pointerdown', event => {
+  if (event.target.closest('.paper-flip-control')) return;
   if (event.target.closest('.paper-copy')) return;
   if (event.target.closest('.works-seal')) return;
   if (event.button !== 0 || (event.pointerType === 'mouse' && event.ctrlKey)) return;
@@ -329,7 +371,7 @@ function keyboardPreview() {
   requestFrame();
 }
 surface.addEventListener('keydown', event => {
-  if (event.target.closest('.works-seal')) return;
+  if (event.target.closest('.works-seal, .intro-link, .contact-link, .paper-flip-control')) return;
   if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
     event.preventDefault();
     const step = GRID * view.scale;
@@ -388,6 +430,8 @@ window.addEventListener('blur', () => {
 document.addEventListener('visibilitychange', () => {
   bird?.suspend();
   if (document.hidden) {
+    hover = null;
+    clock.setMessage('');
     finishFreeStitch();
     paper.reset();
     touchHold.cancel();
@@ -398,6 +442,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('resize', resize);
 motionPreference.addEventListener('change', event => {
   paper.setReducedMotion(event.matches);
+  paperFlip.setReducedMotion(event.matches);
   if (event.matches) {
     cornerEntrance.finish();
     wordmark.finishEntrance();
@@ -437,9 +482,20 @@ document.querySelector('.tool-tray').addEventListener('keydown', event => {
 resize();
 updateControls();
 
-import('./bird.mjs').then(({ BirdFlight }) => {
-  bird = new BirdFlight(renderer.width, renderer.height, view, {
-    paused: motionPreference.matches,
-  });
-  requestFrame({ stitches: true });
-}).catch(() => {});
+await Promise.allSettled([paper.ready, wordmark.ready, wax.ready].map(task => settleWithin(task)));
+renderer.drawCloth(view);
+clothDirty = false;
+return {
+  start() {
+    if (running) return;
+    const now = performance.now();
+    cornerEntrance.started = now;
+    if (wordmark.entrance) wordmark.entrance.started = now;
+    paper.place(now);
+    bird = new BirdFlight(renderer.width, renderer.height, view, { paused: motionPreference.matches });
+    running = true;
+    releaseEntrance(now);
+    requestFrame({ stitches: true });
+  },
+};
+}

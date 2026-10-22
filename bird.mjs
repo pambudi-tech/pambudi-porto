@@ -4,8 +4,6 @@ import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.
 import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
 import { WING_POSES } from './wing-motion.mjs';
 
-export const BIRD_GREEN = '#5d914b';
-
 export function flightAt(elapsed, { width, height, birdWidth, birdHeight }) {
   const legMs = Math.max(7000, (width + birdWidth * 2) / .13);
   const trip = elapsed / legMs + .24;
@@ -13,7 +11,7 @@ export function flightAt(elapsed, { width, height, birdWidth, birdHeight }) {
   const direction = leg % 2 === 0 ? 1 : -1;
   const distance = width + birdWidth * 2;
   const x = direction === 1 ? -birdWidth + progress * distance : width + birdWidth - progress * distance;
-  const centerY = height * (width <= 540 ? .36 : .45);
+  const centerY = height * (width <= 540 ? .30 : .45);
   const y = centerY - birdHeight / 2 + Math.sin(progress * Math.PI * 2) * Math.min(22, height * .025);
   return { x, y, direction, legMs };
 }
@@ -129,7 +127,7 @@ export class BirdFlight {
     const { cells, signature } = this.targetAt();
     this.signature = signature;
     this.transitions.setTarget(cells, this.elapsed, true);
-    this.cells = this.colorize(this.reveal(this.transitions.sample(this.elapsed)));
+    this.cells = this.reveal(this.transitions.sample(this.elapsed));
     this.lastTime = null;
   }
   targetAt() {
@@ -166,15 +164,17 @@ export class BirdFlight {
     }
     return visible;
   }
-  colorize(cells) {
-    // The centered paper hides the boundary in both directions: green on
-    // its right, original red on its left, including the returning bird.
-    const middle = this.stage.width / 2;
-    for (const cell of cells.values()) {
-      const passed = this.view.x + (cell.col + .5) * this.pitch >= middle;
-      cell.color = passed ? BIRD_GREEN : BIRD_COLOR;
-    }
-    return cells;
+  hitTest(x, y) {
+    const col = Math.floor((x - this.view.x) / this.pitch);
+    const row = Math.floor((y - this.view.y) / this.pitch);
+    const cell = this.cells.get(keyOf(col, row));
+    return cell?.progress >= .2 ? cell : null;
+  }
+  hoverMessage(x, y) {
+    const cell = this.hitTest(x, y);
+    if (!cell) return '';
+    const passed = this.view.x + (cell.col + .5) * this.pitch >= this.stage.width / 2;
+    return passed ? 'PALESTINE WILL BE FREE' : 'FROM RIVER TO THE SEA';
   }
   update(now) {
     if (this.paused) { this.lastTime = null; return false; }
@@ -188,7 +188,7 @@ export class BirdFlight {
     const wasAnimating = this.transitions.animating;
     if (changed) this.transitions.setTarget(cells, this.elapsed);
     this.signature = signature;
-    this.cells = this.colorize(this.reveal(this.transitions.sample(this.elapsed)));
+    this.cells = this.reveal(this.transitions.sample(this.elapsed));
     return changed || wasAnimating || this.transitions.animating || wasEntering;
   }
   suspend() { this.lastTime = null; }
@@ -198,7 +198,7 @@ export class BirdFlight {
     if (paused) {
       this.entrance.finish();
       this.transitions.setTarget(this.transitions.target, this.elapsed, true);
-      this.cells = this.colorize(this.transitions.sample(this.elapsed));
+      this.cells = this.transitions.sample(this.elapsed);
     }
   }
 }

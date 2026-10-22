@@ -30,16 +30,20 @@ export function advanceWaxLight(current, target, elapsed) {
 }
 
 export class WaxInteraction {
-  constructor(element, motionPreference) {
+  constructor(element, motionPreference, { startWhen } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
     this.motionPreference = motionPreference;
-    this.entrance = new WaxEntrance(element, motionPreference);
+    this.entrance = new WaxEntrance(element, motionPreference, { startWhen });
     this.current = restLight();
     this.target = restLight();
     this.frame = null;
     this.lastTime = null;
+    const paper = element.closest('.portfolio-paper');
+    paper?.addEventListener('paperflipstart', () => this.setSuspended(true));
+    paper?.addEventListener('paperflipend', event => this.setSuspended(event.detail.red));
     const move = event => {
+      if (this.suspended) return;
       if (event.pointerType === 'touch') return;
       this.target = motionPreference.matches ? restLight()
         : waxLightTarget(this.image.getBoundingClientRect(), event.clientX, event.clientY);
@@ -60,9 +64,13 @@ export class WaxInteraction {
     });
     element.addEventListener('blur', () => this.resetLight());
     motionPreference.addEventListener('change', () => this.resetLight(element.matches(':focus-visible')));
-    this.prepare().catch(error => console.warn('Wax material:', error));
+    this.ready = Promise.all([
+      this.entrance.ready,
+      this.prepare().catch(error => console.warn('Wax material:', error)),
+    ]);
   }
   resetLight(focused = this.element.matches(':focus-visible')) {
+    if (this.suspended) return;
     this.target = { ...restLight(), strength: focused ? 1 : 0 };
     this.requestDraw();
   }
@@ -86,7 +94,7 @@ export class WaxInteraction {
     if (this.target.strength) this.requestDraw();
   }
   requestDraw() {
-    if (!this.surface || this.frame !== null) return;
+    if (this.suspended || !this.surface || this.frame !== null) return;
     this.frame = requestAnimationFrame(now => {
       this.frame = null;
       const elapsed = this.lastTime === null ? 16 : now - this.lastTime;
@@ -97,6 +105,18 @@ export class WaxInteraction {
       if (Object.keys(this.target).some(key => this.current[key] !== this.target[key])) this.requestDraw();
       else this.lastTime = null;
     });
+  }
+  setSuspended(suspended) {
+    if (this.suspended === suspended) return;
+    this.suspended = suspended;
+    if (suspended) {
+      cancelAnimationFrame(this.frame);
+      this.frame = null;
+      this.lastTime = null;
+      this.current = restLight();
+      this.target = restLight();
+      if (this.surface) this.draw();
+    } else this.resetLight();
   }
   draw() {
     const { x, y, strength } = this.current;

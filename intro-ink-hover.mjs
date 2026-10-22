@@ -18,6 +18,29 @@ export function advanceInk(current, target, elapsed) {
   }));
 }
 
+function hasRuntLastLine(source) {
+  // Measure native words so the rule also works with reduced motion, when
+  // the decorative ink layer is hidden. Keep only the last two words.
+  const words = [];
+  const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    for (const match of node.textContent.matchAll(/\S+/g)) {
+      words.push({ node, start: match.index, end: match.index + match[0].length });
+      if (words.length > 2) words.shift();
+    }
+  }
+  if (!words.length) return false;
+  if (words.length === 1) return true;
+  const tops = words.map(word => {
+    const range = document.createRange();
+    range.setStart(word.node, word.start);
+    range.setEnd(word.node, word.end);
+    return range.getBoundingClientRect().top;
+  });
+  return Math.abs(tops[1] - tops[0]) > parseFloat(getComputedStyle(source).lineHeight) / 2;
+}
+
 export class IntroInkHover {
   constructor(copy, motionPreference) {
     this.copy = copy;
@@ -28,15 +51,11 @@ export class IntroInkHover {
     this.selecting = false;
     this.frame = null;
     this.lastTime = null;
-    // Let the entrance rasterize only the original text, before adding copies.
-    const prepare = () => {
-      if (copy.dataset.inkState !== 'complete') return;
-      observer.disconnect();
-      this.prepare();
-    };
-    const observer = new MutationObserver(prepare);
-    observer.observe(copy, { attributes: true, attributeFilter: ['data-ink-state'] });
-    prepare();
+    // Prepare the visible lettering and pointer response before the loader exits.
+    this.prepare();
+    const paper = copy.closest('.portfolio-paper');
+    paper?.addEventListener('paperflipstart', () => this.setSuspended(true));
+    paper?.addEventListener('paperflipend', event => this.setSuspended(event.detail.red));
     motionPreference.addEventListener('change', () => this.clear());
     const syncSelection = () => {
       const selection = document.getSelection();
@@ -68,11 +87,15 @@ export class IntroInkHover {
       this.clear();
       for (const measure of this.measurements) measure();
     });
+    copy.addEventListener('paper-contour-layout', () => {
+      for (const measure of this.measurements) measure();
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && !copy.classList.contains('ink-selecting')) this.clear();
     });
     // Track the actual pointer even while the paper owns pointer capture.
     document.addEventListener('pointermove', event => {
+      if (this.suspended) return;
       if (event.pointerType === 'touch' || motionPreference.matches) { this.clear(); return; }
       if (copy.classList.contains('ink-selecting')) return;
       if (event.target.closest?.('#stitch-controls')) { this.clear(); return; }
@@ -104,19 +127,11 @@ export class IntroInkHover {
     definitions.setAttribute('focusable', 'false');
     document.body.append(definitions);
     for (const paragraph of this.copy.querySelectorAll('p')) {
-      const filter = document.createElementNS(SVG, 'filter');
-      filter.id = `intro-ink-goo-${this.entries.length}`;
-      for (const [key, value] of Object.entries({ x: '-25%', y: '-15%', width: '150%', height: '130%', 'color-interpolation-filters': 'sRGB' })) filter.setAttribute(key, value);
-      filter.innerHTML = `<feMorphology in="SourceGraphic" operator="dilate" radius="0" result="grown"/>
-        <feGaussianBlur in="grown" stdDeviation="0" result="soft"/>
-        <feColorMatrix in="soft" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" result="goo"/>
-        <feTurbulence type="fractalNoise" baseFrequency=".045 .085" numOctaves="2" seed="17" result="fibers"/>
-        <feDisplacementMap in="goo" in2="fibers" scale="0" xChannelSelector="R" yChannelSelector="G"/>`;
-      definitions.append(filter);
-      const text = paragraph.textContent;
+      const filter = this.createFilter(definitions);
       const source = document.createElement('span');
       source.className = 'ink-source';
-      source.textContent = text;
+      // Keep semantic inline content and its native focus/hover hit area.
+      source.append(...paragraph.childNodes);
       const layer = document.createElement('span');
       layer.className = 'ink-bleed';
       layer.setAttribute('aria-hidden', 'true');
@@ -124,23 +139,51 @@ export class IntroInkHover {
       ink.className = 'ink-bleed-copy';
       ink.style.filter = `url('#${filter.id}')`;
       const glyphs = [];
-      for (const word of text.split(/(\s+)/)) {
-        if (!word.trim()) { ink.append(document.createTextNode(word)); continue; }
-        const wrapper = document.createElement('span');
-        wrapper.className = 'ink-word';
-        for (const character of word) {
-          const letter = document.createElement('span');
-          letter.className = 'ink-letter';
-          letter.textContent = character;
-          wrapper.append(letter);
-          glyphs.push({ letter, wrapper, x: 0, y: 0 });
+      const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const linked = Boolean(node.parentElement.closest('.intro-link'));
+        for (const word of node.textContent.split(/(\s+)/)) {
+          if (!word.trim()) { ink.append(document.createTextNode(word)); continue; }
+          const wrapper = document.createElement('span');
+          wrapper.className = 'ink-word';
+          // Linked glyphs keep the same ink motion with their own red underline.
+          if (linked) wrapper.classList.add('ink-linked-word');
+          for (const character of word) {
+            const letter = document.createElement('span');
+            letter.className = 'ink-letter';
+            letter.textContent = character;
+            wrapper.append(letter);
+            glyphs.push({ letter, wrapper, x: 0, y: 0 });
+          }
+          ink.append(wrapper);
         }
-        ink.append(wrapper);
       }
       layer.append(ink);
       // The source remains selectable; only the decorative copy is painted.
       paragraph.replaceChildren(source, layer);
       this.layers.push(layer);
+      const measure = () => {
+        paragraph.classList.toggle('has-runt', hasRuntLastLine(source));
+        for (const glyph of glyphs) {
+          glyph.x = glyph.wrapper.offsetLeft + glyph.letter.offsetLeft + glyph.letter.offsetWidth / 2 + 8;
+          glyph.y = glyph.wrapper.offsetTop + glyph.letter.offsetTop + glyph.letter.offsetHeight / 2 + 8;
+        }
+      };
+      measure();
+      this.measurements.push(measure);
+      const draw = state => this.drawInk(filter, glyphs, state);
+      this.entries.push({ paragraph, layer, draw, current: { x: 0, y: 0, strength: 0 }, target: { x: 0, y: 0, strength: 0 } });
+    }
+    const contacts = this.copy.querySelector('.paper-contact');
+    if (contacts) {
+      const filter = this.createFilter(definitions);
+      const glyphs = Array.from(contacts.querySelectorAll('.contact-link img'), letter => {
+        letter.classList.add('ink-icon');
+        // Paint only the icon through the ink filter, keeping its tooltip crisp.
+        letter.style.filter = `url('#${filter.id}')`;
+        return { letter, wrapper: letter.parentElement, x: 0, y: 0 };
+      });
       const measure = () => {
         for (const glyph of glyphs) {
           glyph.x = glyph.wrapper.offsetLeft + glyph.letter.offsetLeft + glyph.letter.offsetWidth / 2 + 8;
@@ -149,27 +192,41 @@ export class IntroInkHover {
       };
       measure();
       this.measurements.push(measure);
-      const draw = ({ x, y, strength }) => {
-        filter.children[0].setAttribute('radius', (.2 * strength).toFixed(3));
-        filter.children[1].setAttribute('stdDeviation', (.65 * strength).toFixed(3));
-        filter.children[2].setAttribute('values', `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${1 + 15 * strength} ${-5.4 * strength}`);
-        filter.children[4].setAttribute('scale', (1.8 * strength).toFixed(3));
-        glyphs.forEach((glyph, index) => {
-          const dx = x - glyph.x, dy = y - glyph.y;
-          const wet = Math.exp(-((dx / 62) ** 2) - (dy / 38) ** 2) * strength;
-          glyph.letter.style.setProperty('--ink-stroke', `${(.35 * wet).toFixed(3)}px`);
-          glyph.letter.style.setProperty('--ink-pull-x', `${(dx * wet * .12).toFixed(2)}px`);
-          glyph.letter.style.setProperty('--ink-pull-y', `${(dy * wet * .18).toFixed(2)}px`);
-          glyph.letter.style.setProperty('--ink-swell-x', (1 + wet * .65).toFixed(3));
-          glyph.letter.style.setProperty('--ink-swell-y', (1 + wet * .45).toFixed(3));
-          glyph.letter.style.setProperty('--ink-turn', `${(Math.sin(index * 2.4) * wet * 3.5).toFixed(2)}deg`);
-        });
-      };
-      this.entries.push({ paragraph, layer, draw, current: { x: 0, y: 0, strength: 0 }, target: { x: 0, y: 0, strength: 0 } });
+      this.entries.push({ paragraph: contacts, draw: state => this.drawInk(filter, glyphs, state),
+        current: { x: 0, y: 0, strength: 0 }, target: { x: 0, y: 0, strength: 0 } });
     }
     this.copy.dataset.inkHover = 'ready';
   }
+  createFilter(definitions) {
+    const filter = document.createElementNS(SVG, 'filter');
+    filter.id = `intro-ink-goo-${this.entries.length}`;
+    for (const [key, value] of Object.entries({ x: '-25%', y: '-15%', width: '150%', height: '130%', 'color-interpolation-filters': 'sRGB' })) filter.setAttribute(key, value);
+    filter.innerHTML = `<feMorphology in="SourceGraphic" operator="dilate" radius="0" result="grown"/>
+      <feGaussianBlur in="grown" stdDeviation="0" result="soft"/>
+      <feColorMatrix in="soft" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" result="goo"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".045 .085" numOctaves="2" seed="17" result="fibers"/>
+      <feDisplacementMap in="goo" in2="fibers" scale="0" xChannelSelector="R" yChannelSelector="G"/>`;
+    definitions.append(filter);
+    return filter;
+  }
+  drawInk(filter, glyphs, { x, y, strength }) {
+    filter.children[0].setAttribute('radius', (.2 * strength).toFixed(3));
+    filter.children[1].setAttribute('stdDeviation', (.65 * strength).toFixed(3));
+    filter.children[2].setAttribute('values', `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${1 + 15 * strength} ${-5.4 * strength}`);
+    filter.children[4].setAttribute('scale', (1.8 * strength).toFixed(3));
+    glyphs.forEach((glyph, index) => {
+      const dx = x - glyph.x, dy = y - glyph.y;
+      const wet = Math.exp(-((dx / 62) ** 2) - (dy / 38) ** 2) * strength;
+      glyph.letter.style.setProperty('--ink-stroke', `${(.35 * wet).toFixed(3)}px`);
+      glyph.letter.style.setProperty('--ink-pull-x', `${(dx * wet * .12).toFixed(2)}px`);
+      glyph.letter.style.setProperty('--ink-pull-y', `${(dy * wet * .18).toFixed(2)}px`);
+      glyph.letter.style.setProperty('--ink-swell-x', (1 + wet * .65).toFixed(3));
+      glyph.letter.style.setProperty('--ink-swell-y', (1 + wet * .45).toFixed(3));
+      glyph.letter.style.setProperty('--ink-turn', `${(Math.sin(index * 2.4) * wet * 3.5).toFixed(2)}deg`);
+    });
+  }
   requestDraw() {
+    if (this.suspended) return;
     if (this.frame !== null || !this.entries.some(entry => Object.keys(entry.target).some(key => entry.current[key] !== entry.target[key]))) return;
     this.frame = requestAnimationFrame(now => {
       this.frame = null;
@@ -182,6 +239,11 @@ export class IntroInkHover {
       this.requestDraw();
       if (this.frame === null) this.lastTime = null;
     });
+  }
+  setSuspended(suspended) {
+    if (this.suspended === suspended) return;
+    this.suspended = suspended;
+    if (suspended) this.clear();
   }
   clear(immediate = true) {
     for (const entry of this.entries) {

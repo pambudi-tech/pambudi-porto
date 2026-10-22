@@ -38,7 +38,7 @@ export const CORNER_SIZE = 31;
 const SLOTS = [-1000, -1100, -1200, -1300];
 export const CORNER_LAYOUT = { columns: 31, rows: 31, size: 94, mode: 'corners' };
 
-export function cornerPattern(color = '#353630') {
+export function cornerPattern(color = '#ffffff') {
   const entries = [];
   for (let quarter = 0; quarter < 4; quarter++) {
     CORNER_ROWS.forEach((row, y) => [...row].forEach((cell, x) => {

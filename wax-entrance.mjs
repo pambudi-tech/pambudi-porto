@@ -80,23 +80,24 @@ export function drawWaxSpread(context, image, progress, mask) {
 }
 
 export class WaxEntrance {
-  constructor(element, motionPreference) {
+  constructor(element, motionPreference, { startWhen } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
     this.frame = null;
     this.done = false;
+    this.startWhen = startWhen;
     this.events = new AbortController();
     const options = { signal: this.events.signal };
     this.finish = this.finish.bind(this);
-    if (motionPreference.matches) { this.finish(); return; }
+    if (motionPreference.matches) { this.ready = Promise.resolve(); this.finish(); return; }
     element.classList.add('wax-entering');
     element.dataset.waxEntrance = 'preparing';
     element.addEventListener('pointerdown', this.finish, options);
     element.addEventListener('focus', this.finish, options);
-    window.addEventListener('resize', this.finish, options);
+    this.resizeOptions = options;
     motionPreference.addEventListener('change', event => { if (event.matches) this.finish(); }, options);
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.finish(); }, options);
-    this.prepare().catch(() => this.finish());
+    this.ready = this.prepare().catch(() => this.finish());
   }
   async prepare() {
     await Promise.all([this.image.decode(), document.fonts.ready]);
@@ -110,18 +111,24 @@ export class WaxEntrance {
     this.mask.width = this.canvas.width; this.mask.height = this.canvas.height;
     const context = this.canvas.getContext('2d');
     this.image.after(this.canvas);
-    const started = performance.now() + WAX_ENTRANCE.delay;
-    const tick = now => {
-      const progress = clamp((now - started) / WAX_ENTRANCE.duration);
-      if (progress >= 1) { this.finish(); return; }
-      const state = drawWaxSpread(context, this.image, progress, this.mask);
-      this.element.dataset.waxEntrance = 'spreading';
-      this.element.dataset.waxSpread = progress.toFixed(3);
-      this.element.style.setProperty('--wax-label-reveal', state.label.toFixed(4));
-      this.element.style.setProperty('--wax-label-softness', `${((1 - state.label) * .7).toFixed(3)}px`);
+    const start = () => {
+      if (this.done) return;
+      window.addEventListener('resize', this.finish, this.resizeOptions);
+      const started = performance.now() + WAX_ENTRANCE.delay;
+      const tick = now => {
+        const progress = clamp((now - started) / WAX_ENTRANCE.duration);
+        if (progress >= 1) { this.finish(); return; }
+        const state = drawWaxSpread(context, this.image, progress, this.mask);
+        this.element.dataset.waxEntrance = 'spreading';
+        this.element.dataset.waxSpread = progress.toFixed(3);
+        this.element.style.setProperty('--wax-label-reveal', state.label.toFixed(4));
+        this.element.style.setProperty('--wax-label-softness', `${((1 - state.label) * .7).toFixed(3)}px`);
+        this.frame = requestAnimationFrame(tick);
+      };
       this.frame = requestAnimationFrame(tick);
     };
-    this.frame = requestAnimationFrame(tick);
+    if (this.startWhen) this.startWhen.then(start);
+    else start();
   }
   finish() {
     this.done = true;

@@ -1,4 +1,7 @@
-// Each glyph has independent ink deposits. A shared canvas draws their growth.
+import { createNativeInkLayer } from './native-ink.mjs';
+
+// Each glyph has independent ink deposits. This field controls an alpha mask;
+// the visible lettering always remains the original browser-rendered text.
 export function growthField(rgba, width, height, glyphs, random = Math.random) {
   const arrival = new Float32Array(width * height).fill(1);
   const covered = new Uint8Array(width * height);
@@ -38,37 +41,11 @@ export function revealInk(target, field, progress) {
   }
 }
 
-function soakTexture(image, field, width, height, dpr) {
-  const smooth = value => value * value * (3 - 2 * value);
-  const fields = [32, 12, 3].map(size => {
-    size *= dpr;
-    const columns = Math.ceil(width / size) + 2;
-    const rows = Math.ceil(height / size) + 2;
-    return { size, columns, values: Array.from({ length: columns * rows }, Math.random) };
-  });
-  const noise = (grid, x, y) => {
-    const px = x / grid.size, py = y / grid.size;
-    const col = Math.floor(px), row = Math.floor(py);
-    const fx = smooth(px - col), fy = smooth(py - row);
-    const a = grid.values[row * grid.columns + col], b = grid.values[row * grid.columns + col + 1];
-    const c = grid.values[(row + 1) * grid.columns + col], d = grid.values[(row + 1) * grid.columns + col + 1];
-    return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
-  };
-  for (const index of field.pixels) {
-    const x = index % width, y = Math.floor(index / width);
-    const value = noise(fields[0], x, y) * .6 + noise(fields[1], x, y) * .28 + noise(fields[2], x, y) * .12;
-    const coverage = smooth(Math.max(0, Math.min(1, (value - .3) / .4)));
-    image.data[index * 4 + 3] = Math.round(field.source[index * 4 + 3] * coverage);
-  }
-}
-
-export function createInkLayer(paragraph) {
+export function createInkLayer(paragraph, { shapeText = false } = {}) {
   const style = getComputedStyle(paragraph);
   const bounds = paragraph.getBoundingClientRect();
   const dpr = Math.min(devicePixelRatio || 1, 2);
   const canvas = document.createElement('canvas');
-  canvas.className = 'ink-growth';
-  canvas.setAttribute('aria-hidden', 'true');
   canvas.width = Math.max(1, Math.ceil(bounds.width * dpr));
   canvas.height = Math.max(1, Math.ceil(bounds.height * dpr));
   const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -77,7 +54,8 @@ export function createInkLayer(paragraph) {
   context.fillStyle = style.color;
   context.textBaseline = 'alphabetic';
   const glyphs = [];
-  const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+  const content = paragraph.querySelector('.ink-bleed-copy') ?? paragraph;
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
   let node;
   while ((node = walker.nextNode())) {
@@ -91,33 +69,61 @@ export function createInkLayer(paragraph) {
       const metrics = context.measureText(character);
       const x = rect.left - bounds.left, y = rect.top - bounds.top;
       const ascent = metrics.fontBoundingBoxAscent ?? parseFloat(style.fontSize) * .8;
-      context.fillText(character, x, y + ascent);
+      if (!shapeText) context.fillText(character, x, y + ascent);
       glyphs.push({ left: Math.floor(x * dpr), right: Math.ceil((x + rect.width) * dpr), top: Math.floor(y * dpr), bottom: Math.ceil((y + rect.height) * dpr) });
     }
   }
+  if (shapeText) {
+    // Render the welcome line as a run, preserving joined script letters and
+    // kerning. Its individual glyph bounds still seed the same ink growth.
+    const text = content.textContent;
+    const metrics = context.measureText(text);
+    range.selectNodeContents(content);
+    const rect = range.getBoundingClientRect();
+    const x = style.textAlign === 'center' ? (bounds.width - metrics.width) / 2 : rect.left - bounds.left;
+    context.fillText(text, x, rect.top - bounds.top + (metrics.fontBoundingBoxAscent ?? parseFloat(style.fontSize) * .8));
+  }
   const source = context.getImageData(0, 0, canvas.width, canvas.height);
   const field = growthField(source.data, canvas.width, canvas.height, glyphs);
-  // Preserve the soft, irregular soak beneath the growth of individual glyphs.
-  const soak = document.createElement('canvas');
-  soak.className = 'ink-soak';
-  soak.setAttribute('aria-hidden', 'true');
-  soak.width = canvas.width;
-  soak.height = canvas.height;
-  const wet = context.createImageData(canvas.width, canvas.height);
-  wet.data.set(source.data);
-  soakTexture(wet, field, canvas.width, canvas.height, dpr);
-  soak.getContext('2d').putImageData(wet, 0, 0);
-  const image = context.createImageData(canvas.width, canvas.height);
-  image.data.set(source.data);
-  revealInk(image.data, field, 0);
-  context.putImageData(image, 0, 0);
-  paragraph.append(canvas, soak);
-  return {
-    canvas,
-    soak,
-    draw(progress) {
-      revealInk(image.data, field, progress);
-      context.putImageData(image, 0, 0);
-    },
-  };
+  const padding = Math.ceil(8 * dpr);
+  const density = document.createElement('canvas');
+  density.width = canvas.width + padding * 2;
+  density.height = canvas.height + padding * 2;
+  const densityContext = density.getContext('2d');
+  const mask = densityContext.createImageData(density.width, density.height);
+  for (let y = 0; y < density.height; y++) for (let x = 0; x < density.width; x++) {
+    const col = x - padding, row = y - padding;
+    const index = row * canvas.width + col;
+    const inside = col >= 0 && row >= 0 && col < canvas.width && row < canvas.height;
+    // Flamboyant script strokes can extend outside their measured glyph box.
+    // Give those areas a continuous growth field too, rather than a late pop.
+    const fallback = .25 + .2 * (1 + Math.sin(x / (9 * dpr)) * Math.sin(y / (7 * dpr)));
+    const arrival = inside && field.arrival[index] < 1 ? field.arrival[index] : fallback;
+    mask.data.set([255, 255, 255, Math.round((1 - arrival) * 255)], (y * density.width + x) * 4);
+  }
+  densityContext.putImageData(mask, 0, 0);
+  return createNativeInkLayer(paragraph, density.toDataURL(), {
+    width: canvas.width / dpr, height: canvas.height / dpr, padding: padding / dpr,
+  });
+}
+
+export function createImageInkLayer(image) {
+  const style = getComputedStyle(image);
+  const width = Math.max(1, parseFloat(style.width) || image.clientWidth);
+  const height = Math.max(1, parseFloat(style.height) || image.clientHeight);
+  const density = document.createElement('canvas');
+  density.width = Math.min(512, Math.ceil(width));
+  density.height = Math.max(1, Math.ceil(density.width * height / width));
+  const context = density.getContext('2d');
+  const mask = context.createImageData(density.width, density.height);
+  for (let y = 0; y < density.height; y++) for (let x = 0; x < density.width; x++) {
+    const u = x / density.width, v = y / density.height;
+    const distance = Math.hypot((u - .5) * 1.2, v - .5);
+    const organic = .5 + .22 * Math.sin(u * 23 + Math.sin(v * 11))
+      + .16 * Math.sin(v * 31 - u * 9) + .1 * Math.sin((u + v) * 57);
+    const arrival = Math.min(.88, .06 + distance * .8 + organic * .2);
+    mask.data.set([255, 255, 255, Math.round((1 - arrival) * 255)], (y * density.width + x) * 4);
+  }
+  context.putImageData(mask, 0, 0);
+  return createNativeInkLayer(image, density.toDataURL(), { width, height, padding: 0 });
 }

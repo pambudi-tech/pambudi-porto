@@ -16,10 +16,10 @@ const easeOut = value => 1 - Math.pow(1 - Math.max(0, Math.min(1, value)), 3);
 function threadPoints(x0, y0, x1, y1, seed, slack = 0) {
   const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
   const nx = -dy / len, ny = dx / len;
-  return Array.from({ length: 25 }, (_, i) => {
-    const t = i / 24;
+  return Array.from({ length: 33 }, (_, i) => {
+    const t = i / 32;
     const bow = Math.sin(t * Math.PI) * ((seed - .5) * .8 + slack);
-    const variation = Math.sin(t * Math.PI * 3 + seed * 6) * .24 * Math.sin(t * Math.PI);
+    const variation = Math.sin(t * Math.PI * 3 + seed * 6) * .38 * Math.sin(t * Math.PI);
     return { x: x0 + dx * t + nx * (bow + variation), y: y0 + dy * t + ny * (bow + variation), t };
   });
 }
@@ -40,45 +40,79 @@ function strand(ctx, points, color, seed, progress, top) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  // The soft contact shadow lifts the cotton just off the cloth.
-  line(ctx, points, progress, .35, .7);
-  ctx.strokeStyle = 'rgba(54, 43, 30, .19)';
-  ctx.lineWidth = 6 * THREAD_WEIGHT;
-  ctx.shadowColor = 'rgba(50, 41, 28, .16)';
-  ctx.shadowBlur = top ? 1.6 : .9;
-  ctx.shadowOffsetY = .45;
-  ctx.stroke();
+  const start = points[0], end = points.at(-1);
+  const length = Math.hypot(end.x - start.x, end.y - start.y);
+  const nx = -(end.y - start.y) / length, ny = (end.x - start.x) / length;
+  // Floss spreads between the holes, then gathers into each entry point.
+  // Six separate plies give the broad, soft shoulders of a sewn cotton X.
+  const spread = t => (.12 + .88 * Math.pow(Math.sin(Math.PI * t), .3))
+    * (1 - .16 * Math.pow(Math.sin(Math.PI * t), 6))
+    * (1 + .09 * Math.sin(t * Math.PI * 3 + seed * 6));
+  const width = (8.4 + seed * .9) * THREAD_WEIGHT;
+  const fiber = (offset, phase = 0) => points.map(p => {
+    const gather = spread(p.t);
+    const twist = Math.sin(p.t * Math.PI * 3.2 + phase + seed * 5)
+      * .38 * Math.sin(p.t * Math.PI);
+    return { ...p, x: p.x + nx * (offset * gather + twist), y: p.y + ny * (offset * gather + twist) };
+  });
+  const edgeA = fiber(-width / 2), edgeB = fiber(width / 2);
+  const ribbon = (offsetX = 0, offsetY = 0) => {
+    // Reuse the same fractional endpoint as the plies during sewing/unpicking.
+    const trim = edge => {
+      const last = progress * (edge.length - 1), index = Math.floor(last);
+      const result = edge.slice(0, index + 1);
+      if (index < edge.length - 1) {
+        const p = edge[index], q = edge[index + 1], fraction = last - index;
+        result.push({ x: p.x + (q.x - p.x) * fraction, y: p.y + (q.y - p.y) * fraction });
+      }
+      return result;
+    };
+    const outline = [...trim(edgeA), ...trim(edgeB).reverse()];
+    ctx.beginPath();
+    ctx.moveTo(outline[0].x + offsetX, outline[0].y + offsetY);
+    for (const p of outline.slice(1)) ctx.lineTo(p.x + offsetX, p.y + offsetY);
+    ctx.closePath();
+    ctx.fill();
+  };
+  // A restrained contact shadow separates the upper diagonal at the crossing.
+  ctx.fillStyle = 'rgba(43, 35, 28, .18)';
+  ctx.shadowColor = 'rgba(43, 35, 28, .18)';
+  ctx.shadowBlur = top ? 1.2 : .65;
+  ctx.shadowOffsetY = top ? .65 : .35;
+  ribbon(.25, top ? .7 : .4);
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
-  line(ctx, points, progress);
-  ctx.strokeStyle = mix(color, [34, 26, 24], .27);
-  ctx.lineWidth = (5.2 + seed * .35) * THREAD_WEIGHT;
-  ctx.stroke();
-  line(ctx, points, progress, -.15, -.18);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 4.55 * THREAD_WEIGHT;
-  ctx.stroke();
-  // Individual filaments catch different amounts of light.
-  line(ctx, points, progress, -.62, -.65);
-  ctx.strokeStyle = mix(color, [255, 244, 221], .26);
-  ctx.lineWidth = .95 * THREAD_WEIGHT;
-  ctx.stroke();
-  line(ctx, points, progress, .45, .35);
-  ctx.strokeStyle = mix(color, [255, 236, 219], .12);
-  ctx.lineWidth = .9 * THREAD_WEIGHT;
-  ctx.stroke();
-  const lastIndex = Math.floor(progress * (points.length - 1));
-  // Fine diagonal ribs suggest twisted embroidery floss.
-  for (let i = 1; i < lastIndex; i += 1) {
-    const p = points[i], previous = points[i - 1];
-    const angle = Math.atan2(p.y - previous.y, p.x - previous.x) + .85;
-    const width = (1.95 + Math.sin(i * 1.8 + seed) * .19) * THREAD_WEIGHT;
-    ctx.beginPath();
-    ctx.moveTo(p.x - Math.cos(angle) * width, p.y - Math.sin(angle) * width);
-    ctx.lineTo(p.x + Math.cos(angle) * width, p.y + Math.sin(angle) * width);
-    ctx.lineWidth = .26 * THREAD_WEIGHT;
-    ctx.strokeStyle = i % 2 ? mix(color, [255, 240, 220], .22) : mix(color, [28, 23, 20], .19);
+  ctx.fillStyle = mix(color, [38, 29, 25], .23);
+  ribbon();
+  for (let ply = 0; ply < 6; ply++) {
+    const offset = (ply / 5 - .5) * (width - 1.1);
+    const path = fiber(offset, ply * 1.1);
+    const light = hash(ply, seed, 7);
+    line(ctx, path, progress);
+    ctx.lineWidth = (1.18 + light * .16) * THREAD_WEIGHT;
+    ctx.strokeStyle = mix(color, [255, 240, 219], .04 + light * .09);
     ctx.stroke();
+    // Longitudinal filaments follow each ply, with gentle, uneven highlights.
+    line(ctx, path, progress, -.22, -.26);
+    ctx.lineWidth = .30 * THREAD_WEIGHT;
+    ctx.strokeStyle = mix(color, [255, 245, 226], .15 + light * .10);
+    ctx.stroke();
+    line(ctx, path, progress, .25, .24);
+    ctx.lineWidth = .23 * THREAD_WEIGHT;
+    ctx.strokeStyle = mix(color, [35, 27, 24], .14);
+    ctx.stroke();
+    // Small fibers break up the sheen along the cotton instead of forming
+    // the repeated transverse bands of a smooth cord.
+    for (let i = 2; i + 2 < path.length * progress; i += 3) {
+      const grain = hash(i, ply, seed * 9);
+      const off = (grain - .5) * .65;
+      line(ctx, path.slice(i, i + 3), 1, nx * off, ny * off);
+      ctx.lineWidth = (.12 + grain * .1) * THREAD_WEIGHT;
+      ctx.strokeStyle = grain > .45
+        ? mix(color, [255, 246, 225], .24 + grain * .12)
+        : mix(color, [35, 27, 24], .16);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -91,8 +125,6 @@ export function drawCross(ctx, x, y, colorId, variation = 0, progress = 1) {
   const tightening = progress < 1 ? Math.sin(progress * Math.PI) * .9 : 0;
   ctx.save();
   ctx.translate(x, y);
-  strand(ctx, threadPoints(.15, GRID - .15, GRID - .15, .15, seed, tightening), color, seed, first, false);
-  strand(ctx, threadPoints(.15, .15, GRID - .15, GRID - .15, 1 - seed, -tightening), color, 1 - seed, second, true);
   // Very small shaded entry points anchor the thread into the perforations.
   if (progress === 1) {
     for (const [px, py] of [[0, 0], [GRID, 0], [0, GRID], [GRID, GRID]]) {
@@ -102,6 +134,8 @@ export function drawCross(ctx, x, y, colorId, variation = 0, progress = 1) {
       ctx.fill();
     }
   }
+  strand(ctx, threadPoints(.15, GRID - .15, GRID - .15, .15, seed, tightening), color, seed, first, false);
+  strand(ctx, threadPoints(.15, .15, GRID - .15, GRID - .15, 1 - seed, -tightening), color, 1 - seed, second, true);
   ctx.restore();
 }
 
@@ -187,6 +221,7 @@ export class SurfaceRenderer {
       occupied.add(`${col},${row}`);
       const animation = animations.get(key);
       if (animation?.kind === 'add') continue;
+      if (animation?.kind === 'unpick' && animation.revealUnderneath) continue;
       // Motifs sew on the embroidery layer so their reveal stays beneath
       // the paper, exactly like the finished stitches.
       const progress = animation?.kind === 'motif'

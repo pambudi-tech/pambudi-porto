@@ -31,7 +31,8 @@ test('the green dinosaur keeps its brown eye and the dragon keeps its open eye c
   assert.ok(createMotif('lightning').some(cell => cell.color === '#fff7dc'));
 });
 
-test('left and right tilts stay within 45 degrees and keep motifs connected on the stitch grid', () => {
+test('left and right tilts stay within 15 degrees and keep motifs connected on the stitch grid', () => {
+  assert.equal(MAX_MOTIF_ROTATION, Math.PI / 12);
   assert.equal(randomMotifRotation(() => 0), -MAX_MOTIF_ROTATION);
   assert.equal(randomMotifRotation(() => .5), 0);
   assert.equal(randomMotifRotation(() => 1), MAX_MOTIF_ROTATION);
@@ -39,7 +40,7 @@ test('left and right tilts stay within 45 degrees and keep motifs connected on t
   for (const motif of MOTIFS) {
     const source = createMotif(motif.id);
     const tilts = new Set();
-    for (const degrees of [-45, -30, -15, 15, 30, 45]) {
+    for (const degrees of [-15, -10, -5, 5, 10, 15]) {
       const cells = createMotif(motif.id, { col: 12, row: -7, rotation: degrees * Math.PI / 180 });
       assert.ok(cells.length >= source.length * .8 && cells.length <= source.length * 1.25, motif.id);
       assert.equal(new Set(cells.map(cell => `${cell.col},${cell.row}`)).size, cells.length);

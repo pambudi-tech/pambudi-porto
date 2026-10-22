@@ -1,5 +1,6 @@
 // Traced from the user-supplied charts with tools/trace-motifs.py.
 // One colored source square becomes one X; dots are unstitched.
+import { THREAD_COLORS } from './thread-colors.mjs';
 export const MOTIF_DATA = [
   {
     "id": "rose",
@@ -175,7 +176,7 @@ export const MOTIF_DATA = [
     "id": "dragon",
     "name": "Dragon",
     "palette": [
-      "#cc1520"
+      THREAD_COLORS.red
     ],
     "rows": [
       ".........00......",

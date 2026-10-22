@@ -1,7 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { paperTarget, advancePaper, paperContains, PAPER_MOTION } from './paper-motion.mjs';
+import { paperTarget, advancePaper, paperContains, PAPER_MOTION, paperPlacementAt, PAPER_PLACEMENT } from './paper-motion.mjs';
 import { PaperInteraction } from './paper-interaction.mjs';
+
+test('paper placement keeps normal size while settling into its exact resting pose', () => {
+  const start = paperPlacementAt(0), rest = paperPlacementAt(1);
+  assert.equal(start.scale, PAPER_PLACEMENT.scale);
+  assert.equal(start.scale, 1, 'the loader handoff must not enlarge the paper');
+  assert.equal(start.y, -PAPER_PLACEMENT.lift);
+  let previous = start.scale;
+  for (const progress of [.1, .25, .5, .75, 1, 2]) {
+    const pose = paperPlacementAt(progress);
+    assert.ok(pose.scale <= previous && pose.scale >= 1);
+    assert.equal(pose.scale, 1);
+    previous = pose.scale;
+  }
+  assert.equal(rest.scale, 1);
+  assert.ok(Object.entries(rest).every(([key, value]) => key === 'scale' || value === 0));
+  assert.deepEqual(paperPlacementAt(.2, true), rest);
+});
 
 test('paper lifts and tilts toward the pointer and pressing flattens it', () => {
   const hover = paperTarget({ hovered: true, x: 1, y: -1 });
