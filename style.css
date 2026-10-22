@@ -95,6 +95,7 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   pointer-events: auto;
   touch-action: manipulation;
   cursor: pointer;
+  isolation: isolate;
   filter: drop-shadow(0 2px 2px rgb(69 0 0 / .18));
   transition: transform .16s ease, filter .16s ease;
 }
@@ -105,9 +106,22 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   grid-area: 1 / 1;
   pointer-events: none;
 }
+.wax-reflection {
+  position: relative;
+  inset: auto;
+  grid-area: 1 / 1;
+  width: 100%;
+  height: auto;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: var(--wax-light, 0);
+}
+.works-seal:active .wax-reflection { opacity: 0; }
 .works-seal-label {
   grid-area: 1 / 1;
   position: relative;
+  z-index: 2;
   padding-bottom: .07em;
   color: #b71a20;
   font-family: "Syne Mono", monospace;
@@ -116,9 +130,9 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   line-height: 1;
   letter-spacing: .025em;
   text-shadow:
-    -.6px -.8px .5px rgb(255 164 143 / .8),
-    .8px 1.2px .7px rgb(63 0 0 / .95),
-    1.4px 2px 1.6px rgb(74 0 0 / .6);
+    var(--wax-label-hx, -.6px) var(--wax-label-hy, -.8px) .5px rgb(255 164 143 / .8),
+    var(--wax-label-sx, .8px) var(--wax-label-sy, 1.2px) .7px rgb(63 0 0 / .95),
+    var(--wax-label-ax, 1.4px) var(--wax-label-ay, 2px) 1.6px rgb(74 0 0 / .6);
   pointer-events: none;
 }
 .works-seal:hover {

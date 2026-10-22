@@ -5,6 +5,7 @@ import { TouchHold } from './touch-hold.mjs';
 import { StitchWordmark } from './wordmark.mjs';
 import { StitchEntrance } from './stitch-entrance.mjs';
 import { PaperInteraction } from './paper-interaction.mjs';
+import { WaxInteraction } from './wax-interaction.mjs';
 import { DotClock } from './clock.mjs';
 import { paperInkEntrance } from './paper-ink.mjs';
 
@@ -41,6 +42,7 @@ const touchHold = new TouchHold(({ x, y }) => {
   openControls(x, y);
 });
 const paper = new PaperInteraction(document.querySelector('.portfolio-paper'), { requestFrame, reduced: motionPreference.matches });
+new WaxInteraction(document.querySelector('.works-seal'), motionPreference);
 
 function announce(message) { $('announcement').textContent = message; }
 function closeControls({ focus = false } = {}) {
