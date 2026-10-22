@@ -1,6 +1,6 @@
-import { GRID, surfaceSpacing, THREADS, StitchModel, cellsBetween, keyOf, readStored, readLayout } from './model.mjs';
+import { GRID, surfaceSpacing, StitchModel, keyOf } from './model.mjs';
 import { SurfaceRenderer } from './render.mjs';
-import { cornerPattern, cornerPitch, cornerPositions, toStoredCell, toVisibleCell, seedMobileUpperCorners, cornerCellVisible, cornerEntranceGroups } from './corners.mjs';
+import { cornerPattern, cornerPitch, cornerPositions, toStoredCell, toVisibleCell, cornerCellVisible, cornerEntranceGroups } from './corners.mjs';
 import { TouchHold } from './touch-hold.mjs';
 import { StitchWordmark } from './wordmark.mjs';
 import { StitchEntrance } from './stitch-entrance.mjs';
@@ -8,19 +8,22 @@ import { PaperInteraction } from './paper-interaction.mjs';
 import { WaxInteraction } from './wax-interaction.mjs';
 import { DotClock } from './clock.mjs';
 import { paperInkEntrance } from './paper-ink.mjs';
+import { IntroInkHover } from './intro-ink-hover.mjs';
+import { MotifBag, stampMotif, randomMotifRotation } from './motifs.mjs';
+import { FreeStitch, FREE_THREADS } from './free-stitch.mjs';
+import { StitchPanel } from './stitch-panel.mjs';
 
 const $ = id => document.getElementById(id);
 const surface = $('surface');
 const controls = $('stitch-controls');
-const storageKey = 'kruissteek.surface.v4-corners';
-// Disposable preview sessions let us test without touching a visitor's work.
-const scratch = new URLSearchParams(location.search).has('scratch');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+const panel = new StitchPanel(controls, motionPreference);
 paperInkEntrance(document.querySelector('.paper-copy'), { motionPreference });
-let stored = null, storedRecord = null;
-try { if (!scratch) { storedRecord = JSON.parse(localStorage.getItem(storageKey)); stored = readStored(storedRecord); } } catch { /* A fresh surface also works with storage disabled. */ }
+new IntroInkHover(document.querySelector('.paper-copy'), motionPreference);
+// Every page load starts with the original ornaments and no visitor motifs.
+// Motif history belongs only to this visit; no saved embroidery is restored.
 const initial = cornerPattern();
-const model = new StitchModel(seedMobileUpperCorners(stored ?? initial.entries, stored !== null && storedRecord?.mobileTopCorners === true), stored === null ? initial.layout : readLayout(storedRecord?.layout));
+const model = new StitchModel(initial.entries, initial.layout);
 const renderer = new SurfaceRenderer($('cloth'), $('embroidery'), $('gesture'));
 const cornerEntrance = new StitchEntrance({ started: performance.now(), reduced: motionPreference.matches });
 cornerEntrance.plan(cornerEntranceGroups(initial.entries.filter(([key]) => model.stitches.has(key))));
@@ -28,57 +31,103 @@ const wordmark = new StitchWordmark($('wordmark'), (color, variation, progress) 
 const view = { x: 0, y: 0, scale: 1 };
 const clock = new DotClock($('portfolio-clock'));
 const animations = new Map();
-let thread = 'garnet', mode = 'stitch';
+const motifBag = new MotifBag();
 let hover = null, frame = null, sceneDirty = true, clothDirty = true;
-let painting = false, lastCell = null;
+let activeTap = null;
+let stitchMode = 'motif', freePointer = null;
 let keyboardMode = false, keyboardCell = [0, 0];
 let corners = [];
 const pointers = new Map();
-let suppressTouch = false, activePointer = null;
+let suppressTouch = false;
 let bird = null;
 let cornersEntering = !motionPreference.matches;
 const touchHold = new TouchHold(({ x, y }) => {
-  activePointer = null;
+  cancelTap();
   openControls(x, y);
 });
 const paper = new PaperInteraction(document.querySelector('.portfolio-paper'), { requestFrame, reduced: motionPreference.matches });
-new WaxInteraction(document.querySelector('.works-seal'), motionPreference);
+const waxSeal = document.querySelector('.works-seal');
+new WaxInteraction(waxSeal, motionPreference);
+const freeStitch = new FreeStitch(model, animations, {
+  resolveCell: (col, row, tool) => tool === 'unpick' ? toStoredCell(col, row, corners) : [col, row],
+  canPlace(col, row, tool) {
+    const step = GRID * view.scale;
+    const x = view.x + (col + .5) * step, y = view.y + (row + .5) * step;
+    const stored = toStoredCell(col, row, corners);
+    return x >= 0 && y >= 0 && x < innerWidth && y < innerHeight
+      && !paper.contains(x, y)
+      && (tool === 'unpick' || stored[0] === col || !model.stitches.has(keyOf(...stored)));
+  },
+});
+for (const { name, color } of FREE_THREADS) {
+  const swatch = document.createElement('button');
+  swatch.type = 'button';
+  swatch.className = 'thread-swatch';
+  swatch.style.setProperty('--thread-color', color);
+  swatch.setAttribute('aria-label', name);
+  swatch.title = name;
+  swatch.dataset.color = color;
+  swatch.addEventListener('click', () => {
+    finishFreeStitch();
+    freeStitch.color = color;
+    freeStitch.tool = 'stitch';
+    updateControls();
+    announce(`${name} thread selected.`);
+  });
+  document.querySelector('.thread-palette').append(swatch);
+}
+
+function finishFreeStitch() {
+  freeStitch.finish();
+  freePointer = null;
+}
+function freeCell(x, y) {
+  const { col, row } = position(x, y);
+  return [col, row];
+}
+function stitchAt(x, y) {
+  if (paper.contains(x, y)) return;
+  if (stitchMode === 'motif') return stampAt(x, y);
+  freeStitch.begin(freeCell(x, y), performance.now(), motionPreference.matches);
+  finishFreeStitch();
+  updateControls();
+  requestFrame({ stitches: true });
+  announce(freeStitch.tool === 'unpick' ? 'Stitch removed.' : 'Stitch added.');
+}
 
 function announce(message) { $('announcement').textContent = message; }
 function closeControls({ focus = false } = {}) {
-  controls.hidden = true;
+  panel.close();
   document.body.classList.remove('controls-open');
   if (focus) surface.focus({ preventScroll: true });
 }
 function openControls(x, y) {
+  finishFreeStitch();
+  updateControls();
   paper.reset();
   touchHold.cancel();
-  finishStroke();
+  cancelTap();
   hover = null;
-  controls.hidden = false;
-  const { width, height } = controls.getBoundingClientRect();
-  const left = x + width + 10 > innerWidth - 12 ? x - width - 10 : x + 10;
-  const top = y + height + 10 > innerHeight - 12 ? y - height - 10 : y + 10;
-  controls.style.left = `${Math.max(12, Math.min(left, innerWidth - width - 12))}px`;
-  controls.style.top = `${Math.max(12, Math.min(top, innerHeight - height - 12))}px`;
+  panel.open(x, y);
   document.body.classList.add('controls-open');
   controls.querySelector('.selected').focus({ preventScroll: true });
   requestFrame();
 }
-function persist() {
-  if (scratch) return;
-  try { localStorage.setItem(storageKey, JSON.stringify({ version: 3, mobileTopCorners: true, layout: model.layout, stitches: [...model.stitches] })); }
-  catch {
-    $('canvas-help').textContent = 'Browser storage is unavailable. Your work will not persist after closing.';
-  }
-}
 function updateControls() {
   $('undo').disabled = !model.undoStack.length;
   $('redo').disabled = !model.redoStack.length;
-  const visibleCount = [...model.stitches.keys()].filter(key => cornerCellVisible(...key.split(',').map(Number), innerWidth)).length;
-  $('stitch-count').textContent = `${visibleCount.toLocaleString()} stitch${visibleCount === 1 ? '' : 'es'}`;
-  $('thread-name').textContent = mode === 'erase' ? 'Unpicking' : `${THREADS.find(t => t.id === thread).name} thread`;
-
+  for (const [id, mode] of [['motif-tool', 'motif'], ['free-tool', 'free']]) {
+    $(id).classList.toggle('selected', stitchMode === mode);
+    $(id).setAttribute('aria-pressed', String(stitchMode === mode));
+  }
+  controls.dataset.mode = stitchMode;
+  $('free-options').inert = stitchMode !== 'free';
+  $('free-options').setAttribute('aria-hidden', String(stitchMode !== 'free'));
+  $('unpick-tool').setAttribute('aria-checked', String(freeStitch.tool === 'unpick'));
+  document.querySelector('.thread-palette').classList.toggle('is-muted', freeStitch.tool === 'unpick');
+  for (const swatch of document.querySelectorAll('.thread-swatch')) {
+    swatch.setAttribute('aria-pressed', String(swatch.dataset.color === freeStitch.color));
+  }
 }
 function requestFrame({ cloth = false, stitches = false } = {}) {
   clothDirty ||= cloth;
@@ -99,10 +148,12 @@ function draw(now) {
       sceneDirty = true;
     }
   }
+  if (animations.size) sceneDirty = true;
   if (clothDirty) { renderer.drawCloth(view); clothDirty = false; }
   if (sceneDirty) { renderer.drawStitches(model, view, animations, bird?.cells, cornerEntrance, now); sceneDirty = false; }
   $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
-  renderer.drawInteraction(view, animations, hover, thread, mode, now, keyboardMode);
+  const unpicking = stitchMode === 'free' && freeStitch.tool === 'unpick';
+  renderer.drawInteraction(view, animations, hover, stitchMode === 'free' ? freeStitch.color : '#8d7560', unpicking ? 'unpick' : 'motif', now, keyboardMode);
   if (animations.size || cornersEntering || wordmarkEntering || paperMoving || (bird && !bird.paused)) requestFrame();
 }
 function patternBounds() {
@@ -122,9 +173,10 @@ function layoutSurface() {
   requestFrame({ cloth: true, stitches: true });
 }
 function resize() {
+  finishFreeStitch();
   touchHold.cancel();
   closeControls();
-  finishStroke();
+  cancelTap();
   renderer.resize(innerWidth, innerHeight);
   layoutSurface();
   wordmark.resize(innerWidth, view);
@@ -134,151 +186,115 @@ function resize() {
 function position(x, y) {
   return { col: Math.floor((x - view.x) / (GRID * view.scale)), row: Math.floor((y - view.y) / (GRID * view.scale)), x, y };
 }
-function selectThread(id) {
-  thread = id;
-  for (const button of $('palette').children) button.setAttribute('aria-pressed', String(button.dataset.thread === id));
-  setMode('stitch');
-  announce(`${THREADS.find(t => t.id === id).name} thread selected.`);
-}
-function setMode(next) {
-  finishStroke();
-  mode = next;
-  $('stitch-tool').classList.toggle('selected', next === 'stitch');
-  $('erase-tool').classList.toggle('selected', next === 'erase');
-  $('stitch-tool').setAttribute('aria-pressed', String(next === 'stitch'));
-  $('erase-tool').setAttribute('aria-pressed', String(next === 'erase'));
+function stampAt(x, y) {
+  if (paper.contains(x, y)) return;
+  const { col, row } = position(x, y);
+  const motif = motifBag.next();
+  const next = stampMotif(model, motif.id, {
+    col, row,
+    rotation: randomMotifRotation(),
+    seed: Math.floor(Math.random() * 10000),
+    started: performance.now(),
+    reduced: motionPreference.matches,
+    canPlace(col, row) {
+      // Keep ornament stitches in their anchored slots. Motif cells keep
+      // ordinary world coordinates so a resize cannot split a motif apart.
+      const stored = toStoredCell(col, row, corners);
+      return stored[0] === col || !model.stitches.has(keyOf(...stored));
+    },
+  });
+  for (const [key, animation] of next) animations.set(key, animation);
   updateControls();
-  requestFrame();
-}
-
-for (const [index, color] of THREADS.entries()) {
-  const button = document.createElement('button');
-  button.className = 'thread-swatch';
-  button.style.setProperty('--thread', color.color);
-  button.dataset.thread = color.id;
-  button.setAttribute('aria-label', `${color.name} thread`);
-  button.setAttribute('aria-pressed', String(color.id === thread));
-  button.title = `${color.name} (${index + 1})`;
-  button.addEventListener('click', () => selectThread(color.id));
-  $('palette').append(button);
-}
-
-function place(col, row, delay = 0) {
-  const pitch = GRID * view.scale;
-  if (paper.contains(view.x + (col + .5) * pitch, view.y + (row + .5) * pitch)) return;
-  [col, row] = toStoredCell(col, row, corners);
-  const key = keyOf(col, row), previous = model.stitches.get(key);
-  if (!model.put(col, row, mode === 'erase' ? undefined : thread)) return;
-  cornerEntrance.complete(key);
-  if (!motionPreference.matches) {
-    animations.set(key, { color: mode === 'erase' ? previous : thread, started: performance.now() + delay, duration: 390, kind: mode === 'erase' ? 'erase' : 'add' });
-  }
   requestFrame({ stitches: true });
-  updateControls();
+  announce(`${motif.name} stitched.`);
 }
-function paintTo(cell) {
-  const next = [cell.col, cell.row];
-  const cells = lastCell ? cellsBetween(lastCell, next) : [next];
-  cells.forEach(([x, y], i) => place(x, y, Math.min(i * 9, 70)));
-  lastCell = next;
-}
-function finishStroke() {
-  if (!painting && !model.pending) return;
-  painting = false;
-  lastCell = null;
-  model.commit();
-  updateControls();
-  persist();
+function cancelTap() {
+  activeTap = null;
+  touchHold.cancel();
 }
 function performHistory(direction) {
-  finishStroke();
+  finishFreeStitch();
+  cancelTap();
   if (!model[direction]()) return;
   layoutSurface();
   animations.clear();
   updateControls();
-  persist();
   requestFrame({ stitches: true });
-  announce(direction === 'undo' ? 'Last gesture undone.' : 'Last gesture redone.');
-}
-
-function startStrokeAt(x, y) {
-  painting = true;
-  model.begin();
-  hover = position(x, y);
-  paintTo(hover);
+  announce(direction === 'undo' ? 'Last action undone.' : 'Last action redone.');
 }
 
 surface.addEventListener('pointerdown', event => {
+  if (event.target.closest('.paper-copy')) return;
   if (event.target.closest('.works-seal')) return;
   if (event.button !== 0 || (event.pointerType === 'mouse' && event.ctrlKey)) return;
-  if (paper.contains(event.clientX, event.clientY)) {
-    event.preventDefault();
-    touchHold.cancel();
-    finishStroke();
-    hover = null;
-    paper.press(event);
-    surface.setPointerCapture(event.pointerId);
-    requestFrame();
-    return;
-  }
   event.preventDefault();
-  surface.focus({ preventScroll: true });
-  keyboardMode = false;
   pointers.set(event.pointerId, true);
   surface.setPointerCapture(event.pointerId);
   if (pointers.size > 1 || suppressTouch) {
-    touchHold.cancel();
-    // Multi-touch does not move the cloth or leave a provisional first mark.
-    if (model.pending) {
-      for (const [key, before] of model.pending) {
-        if (before === undefined) model.stitches.delete(key);
-        else model.stitches.set(key, before);
-      }
-      model.pending = null;
-    }
-    suppressTouch = true;
-    painting = false;
-    lastCell = null;
-    animations.clear();
-    hover = null;
+    finishFreeStitch();
     updateControls();
-    requestFrame({ stitches: true });
-    return;
-  }
-  activePointer = event.pointerId;
-  if (event.pointerType === 'touch') touchHold.begin(event.pointerId, event.clientX, event.clientY);
-  else startStrokeAt(event.clientX, event.clientY);
-});
-surface.addEventListener('pointermove', event => {
-  if (suppressTouch || !controls.hidden) return;
-  if (paper.move(event.clientX, event.clientY, event.pointerType) || paper.ownsPointer(event.pointerId)) {
-    touchHold.cancel();
+    cancelTap();
+    paper.reset();
+    suppressTouch = true;
     hover = null;
-    lastCell = null;
     requestFrame();
     return;
   }
-  if (touchHold.has(event.pointerId)) {
-    const start = touchHold.move(event.pointerId, event.clientX, event.clientY);
-    if (!start) return;
-    startStrokeAt(start.x, start.y);
+  surface.focus({ preventScroll: true });
+  keyboardMode = false;
+  if (paper.contains(event.clientX, event.clientY)) {
+    cancelTap();
+    hover = null;
+    paper.press(event);
+    requestFrame();
+    return;
+  }
+  activeTap = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  if (event.pointerType === 'touch') touchHold.begin(event.pointerId, event.clientX, event.clientY);
+});
+surface.addEventListener('pointermove', event => {
+  if (event.buttons && document.querySelector('.paper-copy.ink-selecting')) return;
+  if (suppressTouch || panel.isOpen) return;
+  if (activeTap?.id === event.pointerId && Math.hypot(event.clientX - activeTap.x, event.clientY - activeTap.y) > 8) {
+    if (stitchMode === 'free') {
+      freePointer = event.pointerId;
+      freeStitch.begin(freeCell(activeTap.x, activeTap.y), performance.now(), motionPreference.matches);
+    }
+    cancelTap();
+  }
+  if (paper.move(event.clientX, event.clientY, event.pointerType) || paper.ownsPointer(event.pointerId)) {
+    cancelTap();
+    freeStitch.pause();
+    hover = null;
+    requestFrame({ stitches: freeStitch.active });
+    return;
+  }
+  if (freePointer === event.pointerId) {
+    freeStitch.move(freeCell(event.clientX, event.clientY), performance.now(), motionPreference.matches);
+    requestFrame({ stitches: true });
   }
   keyboardMode = false;
-  hover = position(event.clientX, event.clientY);
-  if (painting && event.pointerId === activePointer) paintTo(hover);
+  hover = event.pointerType === 'touch' ? null : position(event.clientX, event.clientY);
   requestFrame();
 });
 function pointerEnd(event) {
-  if (paper.release(event)) { hover = null; requestFrame(); return; }
-  const tap = touchHold.take(event.pointerId);
-  if (tap && event.type === 'pointerup' && !suppressTouch && controls.hidden) startStrokeAt(tap.x, tap.y);
-  pointers.delete(event.pointerId);
-  if (!pointers.size) {
-    suppressTouch = false;
-    activePointer = null;
-    finishStroke();
+  const releasedPaper = paper.release(event);
+  if (freePointer === event.pointerId) {
+    if (event.type === 'pointerup' && !paper.contains(event.clientX, event.clientY)) {
+      freeStitch.move(freeCell(event.clientX, event.clientY), performance.now(), motionPreference.matches);
+    }
+    finishFreeStitch();
+    updateControls();
+    requestFrame({ stitches: true });
   }
-  if (event.pointerType === 'touch' || event.type === 'pointercancel') hover = null;
+  const tap = activeTap?.id === event.pointerId ? activeTap : null;
+  if (tap) cancelTap();
+  pointers.delete(event.pointerId);
+  if (tap && event.type === 'pointerup' && !releasedPaper && !suppressTouch && !panel.isOpen
+      && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <= 8
+      && !paper.contains(event.clientX, event.clientY)) stitchAt(tap.x, tap.y);
+  if (!pointers.size) suppressTouch = false;
+  if (releasedPaper || event.pointerType === 'touch' || event.type === 'pointercancel') hover = null;
   requestFrame();
 }
 surface.addEventListener('pointerup', pointerEnd);
@@ -286,16 +302,18 @@ surface.addEventListener('pointercancel', pointerEnd);
 surface.addEventListener('lostpointercapture', event => {
   if (pointers.has(event.pointerId) || paper.ownsPointer(event.pointerId)) pointerEnd(event);
 });
-surface.addEventListener('pointerleave', () => { paper.leave(); if (!painting) { hover = null; requestFrame(); } });
+surface.addEventListener('pointerleave', () => { paper.leave(); freeStitch.pause(); hover = null; requestFrame(); });
 surface.addEventListener('contextmenu', event => {
+  if (event.target.closest('.paper-copy')) return;
   event.preventDefault();
+  if (event.target.closest('.works-seal') || paper.contains(event.clientX, event.clientY)) return;
   openControls(event.clientX || innerWidth / 2, event.clientY || innerHeight / 2);
 });
 controls.addEventListener('contextmenu', event => event.preventDefault());
 document.addEventListener('pointerdown', event => {
-  if (controls.hidden || controls.contains(event.target) || event.button === 2) return;
+  if (!panel.isOpen || controls.contains(event.target) || event.button === 2) return;
   closeControls({ focus: true });
-  // Dismissing the panel is one action; it must not also place a stitch.
+  // Dismissing the panel is one action; it must not also stitch a motif.
   event.preventDefault();
   event.stopPropagation();
 }, true);
@@ -326,36 +344,25 @@ surface.addEventListener('keydown', event => {
     keyboardMode = true;
     keyboardCell = keyboardCell.map((n, i) => n + moves[event.key][i]);
     keyboardPreview();
-    const existing = model.stitches.get(keyOf(...toStoredCell(...keyboardCell, corners)));
-    announce(`Column ${keyboardCell[0]}, row ${keyboardCell[1]}. ${existing ? `${THREADS.find(t => t.id === existing)?.name ?? existing} stitch.` : 'Bare cloth.'}`);
-  } else if (event.key === 'Enter') {
+    announce(`Column ${keyboardCell[0]}, row ${keyboardCell[1]}. Press Enter to ${stitchMode === 'motif' ? 'stitch a motif' : freeStitch.tool === 'unpick' ? 'unstitch' : 'add a stitch'}.`);
+  } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
+    if (event.repeat) return;
     keyboardMode = true;
-    model.begin();
-    place(...keyboardCell);
-    model.commit();
-    persist();
-    updateControls();
     keyboardPreview();
-    announce(mode === 'erase' ? 'Stitch unpicked.' : 'Stitch placed.');
-  } else if (event.key === 'Delete' || event.key === 'Backspace') {
-    event.preventDefault();
-    const previous = mode;
-    mode = 'erase';
-    place(...keyboardCell);
-    model.commit();
-    mode = previous;
-    persist();
-    updateControls();
+    stitchAt(hover.x, hover.y);
   }
+
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
+    finishFreeStitch();
+    updateControls();
     paper.reset();
     touchHold.cancel();
-    if (!controls.hidden) closeControls({ focus: true });
+    if (panel.isOpen) closeControls({ focus: true });
     hover = null;
-    finishStroke();
+    cancelTap();
     requestFrame();
   }
   if (event.target.matches('input, textarea, select, [contenteditable]')) return;
@@ -365,16 +372,14 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  if (event.key.toLowerCase() === 's') setMode('stitch');
-  if (event.key.toLowerCase() === 'e') setMode('erase');
-  if (/^[1-6]$/.test(event.key)) selectThread(THREADS[Number(event.key) - 1].id);
+
 });
 window.addEventListener('blur', () => {
+  finishFreeStitch();
   paper.reset();
   touchHold.cancel();
   closeControls();
-  finishStroke();
-  activePointer = null;
+  cancelTap();
   suppressTouch = false;
   pointers.clear();
   hover = null;
@@ -383,10 +388,11 @@ window.addEventListener('blur', () => {
 document.addEventListener('visibilitychange', () => {
   bird?.suspend();
   if (document.hidden) {
+    finishFreeStitch();
     paper.reset();
     touchHold.cancel();
     closeControls();
-    finishStroke();
+    cancelTap();
   } else requestFrame({ stitches: true });
 });
 window.addEventListener('resize', resize);
@@ -395,20 +401,35 @@ motionPreference.addEventListener('change', event => {
   if (event.matches) {
     cornerEntrance.finish();
     wordmark.finishEntrance();
+    animations.clear();
   }
   bird?.setPaused(event.matches);
   requestFrame({ stitches: true });
 });
 
-$('stitch-tool').addEventListener('click', () => setMode('stitch'));
-$('erase-tool').addEventListener('click', () => setMode('erase'));
+for (const [id, mode] of [['motif-tool', 'motif'], ['free-tool', 'free']]) {
+  $(id).addEventListener('click', () => {
+    finishFreeStitch();
+    cancelTap();
+    stitchMode = mode;
+    updateControls();
+    announce(mode === 'motif' ? 'Motif selected. Click to stitch a random motif.' : 'Free stitch selected. Click or drag to draw stitches.');
+    requestFrame();
+  });
+}
+$('unpick-tool').addEventListener('click', () => {
+  finishFreeStitch();
+  freeStitch.tool = freeStitch.tool === 'unpick' ? 'stitch' : 'unpick';
+  updateControls();
+  announce(freeStitch.tool === 'unpick' ? 'Unpick on. Click or drag to remove stitches.' : 'Unpick off. Click or drag to draw.');
+});
 $('undo').addEventListener('click', () => performHistory('undo'));
 $('redo').addEventListener('click', () => performHistory('redo'));
 
 document.querySelector('.tool-tray').addEventListener('keydown', event => {
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
   event.preventDefault();
-  const buttons = [...document.querySelectorAll('.tool-tray button:not(:disabled)')];
+  const buttons = [...document.querySelectorAll('.tool-tray button:not(:disabled)')].filter(button => !button.closest('[inert]'));
   const current = buttons.indexOf(document.activeElement);
   const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : -1) + buttons.length) % buttons.length;
   buttons[next].focus();

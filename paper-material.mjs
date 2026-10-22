@@ -40,9 +40,9 @@ export class PaperMaterial {
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
       // Fine mottling plus longer fibers. Both are deterministic and fixed to the sheet.
-      const fiber = noise(x, y) * 23 + noise(Math.floor((x + y * .12) / 2), Math.floor(y / 7)) * 12;
-      grain.data[i] = grain.data[i + 1] = grain.data[i + 2] = 128 + fiber;
-      grain.data[i + 3] = 255;
+      const fiber = noise(x, y) * 7 + noise(Math.floor((x + y * .12) / 2), Math.floor(y / 7)) * 4;
+      for (let channel = 0; channel < 3; channel++) grain.data[i + channel] = rgba[i + channel] + fiber;
+      grain.data[i + 3] = rgba[i + 3];
       let dx = 0, dy = 0;
       // Avoid treating the transparent silhouette as an embossed ridge.
       if (x > 2 && x < width - 3 && y > 2 && y < height - 3
@@ -52,8 +52,12 @@ export class PaperMaterial {
       }
       [dx, -dx, dy, -dy].forEach((slope, index) => {
         const pixels = responses[index].data;
-        pixels[i] = pixels[i + 1] = pixels[i + 2] = clamp(128 + slope * 11, 72, 184);
-        pixels[i + 3] = 255;
+        // Encode a bounded luminance change directly. Soft-light blending on
+        // near-white paper attenuates this detail until it is almost invisible.
+        const delta = clamp(slope * 3.5, -14, 14);
+        const bright = delta >= 0;
+        pixels[i] = pixels[i + 1] = pixels[i + 2] = bright ? 255 : 0;
+        pixels[i + 3] = clamp(Math.abs(delta) / Math.max(4, bright ? 255 - rgba[i] : rgba[i]), 0, .65) * 255;
       });
     }
     grainContext.putImageData(grain, 0, 0);
@@ -71,22 +75,19 @@ export class PaperMaterial {
     context.clearRect(0, 0, width, height);
     context.globalCompositeOperation = 'source-over';
     context.globalAlpha = 1;
-    context.fillStyle = 'rgb(128 128 128)';
-    context.fillRect(0, 0, width, height);
-    context.globalCompositeOperation = 'overlay';
-    context.globalAlpha = .5;
     context.drawImage(this.grain, 0, 0);
-    context.globalAlpha = Math.abs(lx) * .65;
+    context.globalAlpha = Math.abs(lx) * .72;
     context.drawImage(this.relief[lx >= 0 ? 0 : 1], 0, 0);
-    context.globalAlpha = Math.abs(ly) * .65;
+    context.globalAlpha = Math.abs(ly) * .72;
     context.drawImage(this.relief[ly >= 0 ? 2 : 3], 0, 0);
     // Broad diffuse illumination, with no specular streak or moving noise.
     context.globalCompositeOperation = 'source-over';
-    context.globalAlpha = light;
-    const diffuse = context.createRadialGradient(width * (.42 + lx * .2), height * (.35 + ly * .18), 0, width * .5, height * .5, height * .85);
-    diffuse.addColorStop(0, 'rgb(255 255 255 / .13)');
-    diffuse.addColorStop(.6, 'rgb(255 255 255 / .025)');
-    diffuse.addColorStop(1, 'rgb(65 61 54 / .045)');
+    context.globalAlpha = light * .78;
+    const lightX = width * (.5 + lx * .55), lightY = height * (.5 + ly * .55);
+    const diffuse = context.createRadialGradient(lightX, lightY, 0, lightX, lightY, height * .85);
+    diffuse.addColorStop(0, 'rgb(255 255 255 / .24)');
+    diffuse.addColorStop(.35, 'rgb(255 255 255 / 0)');
+    diffuse.addColorStop(1, 'rgb(75 70 60 / .19)');
     context.fillStyle = diffuse;
     context.fillRect(0, 0, width, height);
     context.globalCompositeOperation = 'destination-in';

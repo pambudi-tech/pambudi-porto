@@ -4,7 +4,8 @@ import { GRID, surfaceSpacing } from './model.mjs';
 import { cornerPitch } from './corners.mjs';
 import { SurfaceRenderer } from './render.mjs';
 import { BirdFlight, samplePose } from './bird.mjs';
-import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS } from './bird-data.mjs';
+import { BIRD_COLUMNS, BIRD_ROWS } from './bird-data.mjs';
+import { WING_POSES } from './wing-motion.mjs';
 
 test('restored mobile spacing and 25 percent wider desktop spacing preserve dot diameter', () => {
   for (const [width, baselinePitch] of [[320, (320 - 48) / 90], [390, 3.5], [540, 3.5], [541, 541 * .165 / 31], [1280, 6.5]]) {
@@ -24,7 +25,7 @@ test('restored mobile spacing and 25 percent wider desktop spacing preserve dot 
   }
 });
 
-test('bird pose cells equal the pre-spacing pattern at each viewport', () => {
+test('refined bird poses retain their cell density across surface spacing at each viewport', () => {
   for (const [width, height] of [[1665, 978], [1280, 720], [390, 844]]) {
     const pitch = cornerPitch(width);
     const previousPitch = pitch / surfaceSpacing(width);
@@ -32,6 +33,6 @@ test('bird pose cells equal the pre-spacing pattern at each viewport', () => {
     const columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / 70));
     const rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / 70));
     const bird = new BirdFlight(width, height, { x: width / 2, y: height / 2, scale: pitch / GRID });
-    for (let i = 0; i < BIRD_POSES.length; i++) assert.deepEqual(bird.frames[i], samplePose(BIRD_POSES[i], columns, rows));
+    for (let i = 0; i < WING_POSES.length; i++) assert.deepEqual(bird.frames[i], samplePose(WING_POSES[i], columns, rows));
   }
 });

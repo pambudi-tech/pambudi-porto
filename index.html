@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <main id="surface" tabindex="0" role="application" aria-label="Cross-stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls">
+    <main id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls">
       <canvas id="cloth" aria-hidden="true"></canvas>
       <canvas id="embroidery" aria-hidden="true"></canvas>
       <div class="portfolio-paper">
@@ -31,22 +31,29 @@
 
     <time id="portfolio-clock" class="portfolio-clock" aria-label="Local time" aria-live="off"><canvas aria-hidden="true"></canvas></time>
 
-    <p id="canvas-help" class="sr-only">Click or drag to stitch. Right-click or long-press for stitching controls. With a keyboard, press Shift F10 to open the controls.</p>
-    <div id="stitch-controls" class="context-panel" role="dialog" aria-label="Stitching controls" hidden>
-      <p class="panel-title">Stitching</p>
-      <div class="tool-tray" role="toolbar" aria-label="Embroidery tools">
+    <p id="canvas-help" class="sr-only">Click or tap to stitch a random motif. Right-click, long-press, or press Shift F10 to switch to Free stitch or undo and redo. In Free stitch, click or drag to draw individual stitches. Use arrow keys to choose a spot and Enter or Space to stitch. Reload for a clean surface.</p>
+    <div id="stitch-controls" class="context-panel" role="dialog" aria-label="Stitch controls" data-mode="motif" hidden>
+      <div class="tool-tray" role="toolbar" aria-label="Stitch tools">
         <div class="tool-group mode-tools">
-          <button id="stitch-tool" class="tool-button selected" aria-label="Stitch" aria-pressed="true" title="Stitch (S)">
-            <svg viewBox="0 0 24 24"><path d="M5 20 17.1 3.8a2 2 0 0 1 3 2.6L5 20Z"/><path d="m16.5 7.5 1.8-2.2M17.6 4.1c-4.8-6-10.8 1-5 4.7"/></svg>
-            <span>Stitch</span>
+          <button id="motif-tool" class="tool-button selected" aria-pressed="true" title="Click the surface to stitch a random motif">
+            <svg viewBox="0 0 24 24"><path d="m6 6 5 5m0-5-5 5m7 2 5 5m0-5-5 5M13 6h5v5M6 13v5h5"/></svg>
+            <span>Motif</span>
           </button>
-          <button id="erase-tool" class="tool-button" aria-label="Unpick stitches" aria-pressed="false" title="Unpick (E)">
-            <svg viewBox="0 0 24 24"><path d="m5 19 6.7-9.8M11.7 9.2l2.8-5.6M11.7 9.2l5.7-2.7M4 19l2 1.4 4.4-6.3-2-1.4Z"/><circle cx="17.5" cy="6.5" r="1"/></svg>
-            <span>Unpick</span>
+          <button id="free-tool" class="tool-button" aria-pressed="false" title="Click or drag on the surface to draw individual stitches">
+            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            <span>Free stitch</span>
           </button>
         </div>
-        <span class="separator"></span>
-        <div id="palette" class="tool-group palette" role="group" aria-label="Thread colors"></div>
+        <div id="free-options" class="free-options" aria-hidden="true" inert>
+          <div class="free-options-inner">
+            <div class="thread-palette" role="group" aria-label="Thread color"></div>
+            <div class="free-action-row">
+              <button id="unpick-tool" class="unpick-toggle" role="switch" aria-checked="false" title="Remove stitches instead of drawing">
+                <span>Unpick</span><span class="switch-track" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+        </div>
         <span class="separator"></span>
         <div class="tool-group history-tools">
           <button id="undo" class="tool-button" aria-label="Undo" title="Undo (⌘/Ctrl Z)" disabled>
@@ -59,7 +66,6 @@
           </button>
         </div>
       </div>
-      <div class="tray-caption"><span id="thread-name">Garnet thread</span><span class="caption-dot">·</span><span id="stitch-count">0 stitches</span></div>
     </div>
 
     <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>

@@ -167,7 +167,11 @@ export class SurfaceRenderer {
       const ctx = sprite.getContext('2d');
       ctx.scale(scale, scale);
       drawCross(ctx, margin, margin, color, variation, step / 12);
-      if (this.sprites.size > 384) this.sprites.delete(this.sprites.keys().next().value);
+      if (this.sprites.size > 768) {
+        // Keep finished cotton sprites while short-lived motif frames cycle.
+        const transient = [...this.sprites.keys()].find(key => !key.endsWith(':12'));
+        this.sprites.delete(transient ?? this.sprites.keys().next().value);
+      }
       this.sprites.set(key, sprite);
     }
     return this.sprites.get(key);
@@ -181,8 +185,13 @@ export class SurfaceRenderer {
       if (this.isCellVisible && !this.isCellVisible(...stored)) continue;
       const [col, row] = this.resolveCell?.(...stored) ?? stored;
       occupied.add(`${col},${row}`);
-      if (animations.get(key)?.kind === 'add') continue;
-      const progress = entrance?.progress(key, now) ?? 1;
+      const animation = animations.get(key);
+      if (animation?.kind === 'add') continue;
+      // Motifs sew on the embroidery layer so their reveal stays beneath
+      // the paper, exactly like the finished stitches.
+      const progress = animation?.kind === 'motif'
+        ? Math.max(0, Math.min(1, (now - animation.started) / animation.duration))
+        : entrance?.progress(key, now) ?? 1;
       if (progress <= 0) continue;
       const x = col * GRID, y = row * GRID;
       const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
@@ -191,10 +200,15 @@ export class SurfaceRenderer {
       this.stitch.drawImage(this.sprite(color, variation, progress), x - 5, y - 5, GRID + 10, GRID + 10);
     }
     for (const [key, animation] of animations) {
-      if (animation.kind !== 'erase') continue;
+      if (animation.kind !== 'erase' && animation.kind !== 'unpick') continue;
       const stored = parseKey(key);
       if (this.isCellVisible && !this.isCellVisible(...stored)) continue;
-      occupied.add((this.resolveCell?.(...stored) ?? stored).join(','));
+      const [col, row] = this.resolveCell?.(...stored) ?? stored;
+      occupied.add(`${col},${row}`);
+      if (animation.kind === 'unpick') {
+        const progress = animation.from * (1 - Math.max(0, Math.min(1, (now - animation.started) / animation.duration)));
+        if (progress > 0) this.stitch.drawImage(this.sprite(animation.color, Math.floor(hash(col, row) * 8), progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+      }
     }
     // One thread per surface cell. Permanent embroidery keeps its place as
     // the bird stitches and unpicks the surrounding holes.
@@ -211,6 +225,7 @@ export class SurfaceRenderer {
     const ctx = this.gesture;
     this.world(ctx, view);
     for (const [key, animation] of animations) {
+      if (animation.kind === 'motif' || animation.kind === 'unpick') continue;
       const stored = parseKey(key);
       if (this.isCellVisible && !this.isCellVisible(...stored)) continue;
       const [col, row] = this.resolveCell?.(...stored) ?? stored;
@@ -225,7 +240,9 @@ export class SurfaceRenderer {
     if (!hover) return;
     const { col, row, x, y } = hover;
     const wx = col * GRID, wy = row * GRID;
-    if (mode === 'stitch') {
+    // Motif placement uses the original single-stitch preview. Its position
+    // comes only from the active cell, so it steps between the surface holes.
+    if (mode === 'stitch' || mode === 'motif') {
       ctx.save();
       ctx.globalAlpha = keyboard ? .48 : .27;
       drawCross(ctx, wx, wy, color, Math.floor(hash(col, row) * 8));
@@ -233,7 +250,7 @@ export class SurfaceRenderer {
       for (const [px, py] of [[wx, wy], [wx + GRID, wy], [wx, wy + GRID], [wx + GRID, wy + GRID]]) {
         ctx.beginPath();
         ctx.arc(px, py, 2.8, 0, Math.PI * 2);
-        ctx.strokeStyle = mix(colors[color], [255, 255, 255], .5);
+        ctx.strokeStyle = mix(colors[color] || color, [255, 255, 255], .5);
         ctx.lineWidth = .65;
         ctx.stroke();
       }
@@ -244,7 +261,7 @@ export class SurfaceRenderer {
       ctx.strokeRect(wx - 3, wy - 3, GRID + 6, GRID + 6);
       ctx.setLineDash([]);
     }
-    if (keyboard) return;
+    if (keyboard || mode === 'motif' || mode === 'unpick') return;
     // A tiny needle has a real eye and a loose loop of the selected thread.
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.save();

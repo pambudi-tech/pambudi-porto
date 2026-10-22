@@ -90,12 +90,14 @@ source_ink = pixels[(red > 85) & (pixels[:, :, 1] < 145)]
 color = '#' + ''.join(f'{int(channel):02x}' for channel in np.median(source_ink, axis=0))
 
 data = [
+    "import { THREAD_COLORS } from './thread-colors.mjs';",
+    '',
     '// Source: the supplied CrossStitch-ezgif.com-resize.webp, complete bird in frame 16.',
     '// Original X-stitch layout; wings articulated around registered shoulders.',
     '// The source clips its other poses, so these intermediate wing positions are reconstructed.',
     f'export const BIRD_COLUMNS = {columns};',
     f'export const BIRD_ROWS = {rows};',
-    f"export const BIRD_COLOR = '{color}';",
+    'export const BIRD_COLOR = THREAD_COLORS.red;',
     'export const BIRD_FRAME_MS = 100;',
     'export const BIRD_POSES = [',
 ]

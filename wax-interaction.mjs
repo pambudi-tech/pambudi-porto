@@ -1,4 +1,5 @@
 import { buildWaxSurface, shadeWaxSurface } from './wax-material.mjs';
+import { WaxEntrance } from './wax-entrance.mjs';
 
 export const WAX_LIGHT = Object.freeze({ reach: 100, fadeMs: 240, followMs: 110 });
 const restLight = () => ({ x: 0, y: -.35, strength: 0 });
@@ -33,6 +34,7 @@ export class WaxInteraction {
     this.element = element;
     this.image = element.querySelector('img');
     this.motionPreference = motionPreference;
+    this.entrance = new WaxEntrance(element, motionPreference);
     this.current = restLight();
     this.target = restLight();
     this.frame = null;

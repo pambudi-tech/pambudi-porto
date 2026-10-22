@@ -1,6 +1,8 @@
-import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR, BIRD_FRAME_MS } from './bird-data.mjs';
+import { BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR, BIRD_FRAME_MS } from './bird-data.mjs';
 import { GRID, surfaceSpacing, keyOf } from './model.mjs';
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
+import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
+import { WING_POSES } from './wing-motion.mjs';
 
 export const BIRD_GREEN = '#5d914b';
 
@@ -106,12 +108,20 @@ export class BirdFlight {
     const side = Math.max(8, Math.round(maxSide / referencePitch));
     this.columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / sourceSide));
     this.rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide));
-    this.frames = BIRD_POSES.map(pose => samplePose(pose, this.columns, this.rows));
+    this.frames = WING_POSES.map(pose => samplePose(pose, this.columns, this.rows));
+    this.motionSignature = null;
     if (previousStage) this.entrance.finish();
     else {
       // Plan in bird-local coordinates across every pose, so the front travels
       // with the bird and remains coherent while the wings change shape.
       const silhouette = new Map(this.frames.flat().map(cell => [keyOf(...cell), cell]));
+      // The reveal also covers neighboring holes reached by body follow-through.
+      for (const [col, row] of [...silhouette.values()]) {
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          const x = col + dx, y = row + dy;
+          if (x >= 0 && x < this.columns && y >= 0 && y < this.rows) silhouette.set(keyOf(x, y), [x, y]);
+        }
+      }
       this.entrance.plan([flameEntranceOrder([...silhouette.values()], { origin: 'center' })]);
     }
     this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch };
@@ -124,13 +134,20 @@ export class BirdFlight {
   }
   targetAt() {
     const pose = Math.floor(this.elapsed / BIRD_FRAME_MS) % this.frames.length;
+    const motion = Math.floor(this.elapsed / BODY_FRAME_MS);
+    const motionSignature = `${pose}:${motion}`;
+    if (motionSignature !== this.motionSignature) {
+      this.movingPose = motion === 0 ? this.frames[pose]
+        : samplePose(articulatePose(WING_POSES[pose], motion * BODY_FRAME_MS), this.columns, this.rows);
+      this.motionSignature = motionSignature;
+    }
     const { x, y, direction } = flightAt(this.travelTime, this.stage);
     const col = Math.round((x - this.view.x) / this.pitch);
     const row = Math.round((y - this.view.y) / this.pitch);
     this.position = { col, row, direction };
     return {
-      cells: projectPose(this.frames[pose], this.columns, direction, col, row),
-      signature: `${pose}:${col}:${row}:${direction}`,
+      cells: projectPose(this.movingPose, this.columns, direction, col, row),
+      signature: `${motionSignature}:${col}:${row}:${direction}`,
     };
   }
   reveal(cells) {

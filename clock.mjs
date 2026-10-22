@@ -54,7 +54,7 @@ export class DotClock {
     const pitch = GRID * view.scale;
     const safeBottom = parseFloat(getComputedStyle(this.element).paddingBottom) || 0;
     // The mobile ornaments turn inward along the bottom; sit above those tails.
-    const bottomRows = width <= 540 ? 17 : 7;
+    const bottomRows = width <= 540 ? 21 : 7;
     const row = Math.floor((height - safeBottom - view.y) / pitch) - bottomRows;
     let col = -13;
     ctx.setTransform(1, 0, 0, 1, 0, 0);

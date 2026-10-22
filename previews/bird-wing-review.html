@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bird downstroke comparison</title>
+<style>
+  body { margin: 24px; font: 14px system-ui; color: #444; background: #fff; }
+  h1 { font-size: 18px; font-weight: 500; }
+  button { font: inherit; padding: 7px 12px; margin-right: 8px; }
+  .comparison { display: flex; flex-wrap: wrap; gap: 24px; }
+  figure { margin: 20px 0; }
+  figcaption { margin-bottom: 12px; }
+  canvas { width: 350px; height: 470px; max-width: 100%; }
+  iframe { width: 390px; height: 844px; max-width: 100%; border: 1px solid #ddd; }
+</style>
+<h1>Bird downstroke comparison</h1>
+<button id="play">Pause</button><button id="downstroke">Inspect downstroke</button>
+<div class="comparison">
+  <figure><figcaption>Previous wing bend</figcaption><canvas id="before"></canvas></figure>
+  <figure><figcaption>Refined wings and restored back</figcaption><canvas id="after"></canvas></figure>
+</div>
+<p>Mobile portfolio — 390 × 844</p>
+<iframe title="Mobile portfolio" src="/?scratch"></iframe>
+<script type="module">
+  import { BIRD_POSES } from '../bird-data.mjs';
+  import { WING_POSES } from '../wing-motion.mjs';
+  import { articulatePose, BODY_FRAME_MS } from '../bird-motion.mjs';
+  import { StitchTransitions, samplePose } from '../bird.mjs';
+  import { SurfaceRenderer } from '../render.mjs';
+  if (new URLSearchParams(location.search).has('back')) {
+    document.title = 'Restored bird back';
+    document.querySelector('h1').textContent = 'Restored bird back';
+    document.getElementById('before').closest('figure').hidden = true;
+    document.getElementById('after').previousElementSibling.textContent = 'Back remains full through the downstroke';
+  }
+  const scenes = ['before', 'after'].map((id, index) => {
+    const renderer = new SurfaceRenderer(document.createElement('canvas'), document.getElementById(id), document.createElement('canvas'));
+    renderer.resize(350, 470);
+    return { renderer, stitches: new StitchTransitions(), poses: index ? WING_POSES : BIRD_POSES };
+  });
+  const view = { x: 12, y: 8, scale: 6.5 / 22 };
+  const empty = { stitches: new Map() };
+  const play = document.getElementById('play');
+  let running = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let time = 1800, last = null, signature = '';
+  play.textContent = running ? 'Pause' : 'Play';
+  play.onclick = () => { running = !running; play.textContent = running ? 'Pause' : 'Play'; last = null; };
+  document.getElementById('downstroke').onclick = () => { running = false; time = 1800; signature = ''; play.textContent = 'Play'; };
+  function draw(now) {
+    if (running && last !== null) time += Math.min(now - last, 100);
+    last = now;
+    const frame = Math.floor(time / 100) % 12, motion = Math.floor(time / BODY_FRAME_MS);
+    const next = `${frame}:${motion}`;
+    for (const scene of scenes) {
+      if (next !== signature) scene.stitches.setTarget(samplePose(articulatePose(scene.poses[frame], motion * BODY_FRAME_MS), 50, 70), time, !running);
+      scene.renderer.drawStitches(empty, view, new Map(), scene.stitches.sample(time));
+    }
+    signature = next;
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+</script>
+</html>
