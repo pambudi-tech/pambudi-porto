@@ -40,8 +40,10 @@ export class WaxInteraction {
     this.frame = null;
     this.lastTime = null;
     const paper = element.closest('.portfolio-paper');
+    const onBack = Boolean(element.closest('.paper-back'));
+    this.suspended = onBack;
     paper?.addEventListener('paperflipstart', () => this.setSuspended(true));
-    paper?.addEventListener('paperflipend', event => this.setSuspended(event.detail.red));
+    paper?.addEventListener('paperflipend', event => this.setSuspended(event.detail.red !== onBack));
     const move = event => {
       if (this.suspended) return;
       if (event.pointerType === 'touch') return;

@@ -36,6 +36,7 @@ export class PaperFlip {
     this.front = element.querySelector('.paper-front');
     this.back = element.querySelector('.paper-back');
     this.control = element.querySelector('.paper-flip-control');
+    this.aboutLink = element.querySelector('.intro-link');
     this.reduced = reduced;
     this.onStart = onStart;
     this.onFinish = onFinish;
@@ -43,30 +44,23 @@ export class PaperFlip {
     this.red = false;
     this.active = false;
     this.syncFace(false);
-    this.control.addEventListener('click', () => this.flip(1));
-    this.control.addEventListener('keydown', event => {
-      if (!['ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
+    this.aboutLink.addEventListener('click', event => {
+      event.preventDefault();
+      if (this.active || this.red) return;
+      this.focusAfterTurn = true;
+      this.flip(1);
+    });
+    this.control.addEventListener('click', () => {
+      if (this.active || !this.red) return;
+      this.focusAfterTurn = true;
+      this.flip(-1);
+    });
+    element.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !this.red || this.active) return;
+      event.preventDefault();
       event.stopPropagation();
-      if (event.key.startsWith('Arrow')) {
-        event.preventDefault();
-        if (!event.repeat) this.flip(event.key === 'ArrowLeft' ? -1 : 1);
-      } else if (event.repeat) event.preventDefault();
-    });
-    // A simple click on the text also turns the paper. Native text selection
-    // and existing links/buttons keep their own interactions.
-    const copy = element.querySelector('.paper-copy');
-    copy.addEventListener('pointerdown', event => {
-      this.copyTap = event.button === 0 ? { x: event.clientX, y: event.clientY, time: performance.now() } : null;
-    });
-    copy.addEventListener('pointermove', event => {
-      if (this.copyTap && Math.hypot(event.clientX - this.copyTap.x, event.clientY - this.copyTap.y) > PAPER_FLIP.tapDistance) this.copyTap.dragged = true;
-    });
-    copy.addEventListener('pointercancel', () => { this.copyTap = null; });
-    copy.addEventListener('click', event => {
-      const start = this.copyTap;
-      this.copyTap = null;
-      if (event.target.closest('a, button') || !document.getSelection()?.isCollapsed) return;
-      if (isPaperTap(start, { ...event, type: 'pointerup', clientX: event.clientX, clientY: event.clientY }, performance.now())) this.flipAt(event.clientX);
+      this.focusAfterTurn = true;
+      this.flip(-1);
     });
   }
   syncFace(red) {
@@ -74,8 +68,7 @@ export class PaperFlip {
     this.back.inert = !red;
     this.front.setAttribute('aria-hidden', String(red));
     this.back.setAttribute('aria-hidden', String(!red));
-    this.control.setAttribute('aria-label', `Flip paper to ${red ? 'white' : 'red'}`);
-    this.control.setAttribute('aria-pressed', String(red));
+    this.aboutLink?.setAttribute('aria-expanded', String(red));
     this.element.dataset.paperSide = red ? 'red' : 'white';
   }
   flipAt(x) { return this.flip(paperFlipDirection(x, this.element.getBoundingClientRect())); }
@@ -110,6 +103,10 @@ export class PaperFlip {
     animation?.cancel();
     this.element.dataset.flipping = 'false';
     this.syncFace(this.red);
+    if (this.focusAfterTurn) {
+      this.focusAfterTurn = false;
+      (this.red ? this.control : this.aboutLink)?.focus({ preventScroll: true });
+    }
     this.onFinish?.();
     this.element.dispatchEvent(new CustomEvent('paperflipend', { detail: { red: this.red } }));
   }

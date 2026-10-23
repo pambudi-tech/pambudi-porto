@@ -11,7 +11,7 @@ import { BirdFlight } from './bird.mjs';
 import { settleWithin } from './loading-progress.mjs';
 import { IntroInkHover } from './intro-ink-hover.mjs';
 import { setupEmailCopy } from './contact-links.mjs';
-import { mountPaperTextContour } from './paper-text-contour.mjs';
+import { mountPaperTextContour, mountAboutTextMask } from './paper-text-contour.mjs';
 import { MotifBag, stampMotif, randomMotifRotation } from './motifs.mjs';
 import { MotifLifetimes } from './motif-lifetime.mjs';
 import { FreeStitch, FREE_THREADS } from './free-stitch.mjs';
@@ -29,6 +29,7 @@ const copy = document.querySelector('.paper-copy');
 setupEmailCopy(copy.querySelector('[data-email]'), { announce });
 new IntroInkHover(copy, motionPreference);
 await mountPaperTextContour(copy);
+await mountAboutTextMask(document.querySelector('.about-resume'));
 // Every page load starts with the original ornaments and no visitor motifs.
 // Motif history belongs only to this visit; no saved embroidery is restored.
 const initial = cornerPattern();
@@ -57,15 +58,14 @@ const touchHold = new TouchHold(({ x, y }) => {
 });
 const paper = new PaperInteraction(document.querySelector('#surface .portfolio-paper'), {
   requestFrame, reduced: motionPreference.matches, placementMirror: document.querySelector('.preloader-paper'),
-  onTap: event => paperFlip.flipAt(event.clientX),
 });
 const paperFlip = new PaperFlip(paper.element, {
   reduced: motionPreference.matches,
   onStart: () => paper.setFlipping(true),
   onFinish: () => paper.setFlipping(false),
 });
-const waxSeal = document.querySelector('.works-seal');
-const wax = new WaxInteraction(waxSeal, motionPreference, { startWhen });
+const waxes = [...document.querySelectorAll('.works-seal')]
+  .map(element => new WaxInteraction(element, motionPreference, { startWhen }));
 const freeStitch = new FreeStitch(model, animations, {
   resolveCell: (col, row, tool) => tool === 'unpick' ? toStoredCell(col, row, corners) : [col, row],
   canPlace(col, row, tool) {
@@ -266,7 +266,7 @@ function performHistory(direction) {
 
 surface.addEventListener('pointerdown', event => {
   if (event.target.closest('.paper-flip-control')) return;
-  if (event.target.closest('.paper-copy')) return;
+  if (event.target.closest('.paper-copy, .about-resume')) return;
   if (event.target.closest('.works-seal')) return;
   if (event.button !== 0 || (event.pointerType === 'mouse' && event.ctrlKey)) return;
   event.preventDefault();
@@ -346,7 +346,7 @@ surface.addEventListener('lostpointercapture', event => {
 });
 surface.addEventListener('pointerleave', () => { paper.leave(); freeStitch.pause(); hover = null; requestFrame(); });
 surface.addEventListener('contextmenu', event => {
-  if (event.target.closest('.paper-copy')) return;
+  if (event.target.closest('.paper-copy, .about-resume')) return;
   event.preventDefault();
   if (event.target.closest('.works-seal') || paper.contains(event.clientX, event.clientY)) return;
   openControls(event.clientX || innerWidth / 2, event.clientY || innerHeight / 2);
@@ -371,7 +371,7 @@ function keyboardPreview() {
   requestFrame();
 }
 surface.addEventListener('keydown', event => {
-  if (event.target.closest('.works-seal, .intro-link, .contact-link, .paper-flip-control')) return;
+  if (event.target.closest('.works-seal, .intro-link, .contact-link, .paper-flip-control, .about-resume')) return;
   if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
     event.preventDefault();
     const step = GRID * view.scale;
@@ -482,7 +482,7 @@ document.querySelector('.tool-tray').addEventListener('keydown', event => {
 resize();
 updateControls();
 
-await Promise.allSettled([paper.ready, wordmark.ready, wax.ready].map(task => settleWithin(task)));
+await Promise.allSettled([paper.ready, wordmark.ready, ...waxes.map(wax => wax.ready)].map(task => settleWithin(task)));
 renderer.drawCloth(view);
 clothDirty = false;
 return {

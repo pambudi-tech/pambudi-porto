@@ -16,10 +16,20 @@ export function textAreaBounds(frame = FRAME_REGISTRATION) {
 
 // Read the filled SVG once. Both native text layers use these scanlines;
 // the browser still owns wrapping, justification and text selection.
-async function readContour() {
+let sharedContour, sharedAboutMask;
+function readContour() {
+  return sharedContour ??= decodeContour();
+}
+
+async function decodeContour() {
   const response = await fetch(new URL('./assets/text-area-path.svg', import.meta.url));
   if (!response.ok) throw new Error(`Text area: ${response.status}`);
-  const svg = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
+  const source = await response.text();
+  const svg = new DOMParser().parseFromString(source, 'image/svg+xml');
+  // The About view masks a straight text column with the same supplied shape.
+  // Feather only its alpha edge; keep the introduction's wrapping untouched.
+  const feathered = source.replace('<path ', '<defs><filter id="about-edge-fade" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="3"/></filter></defs><path filter="url(#about-edge-fade)" ');
+  sharedAboutMask = `url("data:image/svg+xml,${encodeURIComponent(feathered)}")`;
   const canvas = document.createElement('canvas');
   canvas.width = TEXT_AREA.width; canvas.height = TEXT_AREA.height;
   const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -49,6 +59,53 @@ export function contourExclusions(rows, { width, height, top, scaleY }) {
     left: `polygon(0px 0px, ${left.join(', ')}, 0px ${height}px)`,
     right: `polygon(${half}px 0px, ${right.join(', ')}, ${half}px ${height}px)`,
   };
+}
+
+// Keep a normal left-aligned column. Only the viewport is masked; the text
+// never acquires contour floats or changes wrapping as the visitor scrolls.
+export async function mountAboutTextMask(copy) {
+  if (!copy) return null;
+  try {
+    await readContour();
+    const content = copy.querySelector('.about-content');
+    copy.style.setProperty('--about-shape-mask', sharedAboutMask);
+    const fade = () => {
+      const remaining = Math.max(0, copy.scrollHeight - copy.clientHeight - copy.scrollTop);
+      copy.style.setProperty('--about-fade-top', `${Math.min(20, Math.max(0, copy.scrollTop))}px`);
+      copy.style.setProperty('--about-fade-bottom', `${Math.min(20, remaining)}px`);
+      copy.dataset.scrollable = String(copy.scrollHeight > copy.clientHeight);
+    };
+    const layout = () => {
+      const parent = copy.offsetParent, bounds = textAreaBounds();
+      // Enlarge the registered mask 5% around its center. Text remains a straight
+      // column, starting 12% down the enlarged shape; scrolling uses its full height.
+      const scale = 1.05;
+      const mask = {
+        left: bounds.left - bounds.width * (scale - 1) / 2,
+        top: bounds.top - bounds.height * (scale - 1) / 2,
+        width: bounds.width * scale,
+        height: bounds.height * scale,
+      };
+      copy.style.top = `${mask.top}%`;
+      copy.style.height = `${mask.height}%`;
+      copy.style.bottom = 'auto';
+      copy.style.setProperty('--about-content-start', `${mask.height / 100 * parent.clientHeight * .12}px`);
+      copy.style.setProperty('--about-scroll-tail', `${Math.max(24, mask.height / 100 * parent.clientHeight * .10)}px`);
+      copy.style.setProperty('--about-mask-size', `${mask.width / 100 * parent.clientWidth}px ${mask.height / 100 * parent.clientHeight}px`);
+      copy.style.setProperty('--about-mask-position', `${mask.left / 100 * parent.clientWidth - copy.offsetLeft}px ${mask.top / 100 * parent.clientHeight - copy.offsetTop}px`);
+      fade();
+    };
+    copy.dataset.mask = 'ready';
+    layout();
+    const observer = new ResizeObserver(layout);
+    observer.observe(copy);
+    observer.observe(content);
+    copy.addEventListener('scroll', fade, { passive: true });
+    return { layout, observer };
+  } catch (error) {
+    console.warn('About text mask unavailable:', error);
+    return null;
+  }
 }
 
 export async function mountPaperTextContour(copy) {

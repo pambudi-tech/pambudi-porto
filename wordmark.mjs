@@ -1,7 +1,7 @@
 import { GRID } from './model.mjs';
 import { coverageTable, traceWordmark, WORDMARK_RATIO } from './wordmark-grid.mjs';
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
-import { drawActiveDots } from './dot-matrix.mjs';
+import { drawActiveDots, ORNAMENT_COLOR } from './dot-matrix.mjs';
 
 export class StitchWordmark {
   constructor(canvas, sprite, { requestFrame, motionPreference, entranceStarted } = {}) {
@@ -45,7 +45,7 @@ export class StitchWordmark {
     this.entrance.plan([flameEntranceOrder(cells)]);
     this.paint(performance.now());
     canvas.dataset.stitches = String(cells.length);
-    canvas.setAttribute('aria-label', this.isDots ? 'Pambudi, formed from enlarged surface dots' : 'Pambudi, embroidered in white cross-stitch');
+    canvas.setAttribute('aria-label', this.isDots ? 'Pambudi, formed from enlarged surface dots' : 'Pambudi, embroidered in gray cross-stitch');
     canvas.dataset.layout = this.isDots ? 'artwork-dots' : 'single-line';
     if (this.isDots) canvas.dataset.dots = String(cells.length);
     canvas.dataset.reveal = 'flame';
@@ -58,14 +58,15 @@ export class StitchWordmark {
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (this.isDots) {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawActiveDots(context, this.cells, view, (col, row) => this.entrance.progress(`${col},${row}`, now), '#d6d6d6');
+      // Keep the clock's dot geometry with a slightly darker wordmark tone.
+      drawActiveDots(context, this.cells, view, (col, row) => this.entrance.progress(`${col},${row}`, now), '#1c1c19');
     } else {
       context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
       for (const [col, row] of this.cells) {
         const progress = this.entrance.progress(`${col},${row}`, now);
         if (progress <= 0) continue;
         const variation = ((col * 17 + row * 31) % 8 + 8) % 8;
-        context.drawImage(this.sprite('#ffffff', variation, progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+        context.drawImage(this.sprite(ORNAMENT_COLOR, variation, progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
       }
     }
     this.animating = this.entrance.active(now);

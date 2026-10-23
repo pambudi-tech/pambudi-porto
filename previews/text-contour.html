@@ -14,7 +14,7 @@
 <iframe title="Portfolio at the review viewport"></iframe>
 <output id="checks">Waiting for portfolio…</output>
 <script type="module">
-  import { TEXT_AREA } from '../paper-text-contour.mjs';
+  import { TEXT_AREA, textAreaBounds } from '../paper-text-contour.mjs';
   const params = new URLSearchParams(location.search);
   const width = Number(params.get('width')) || 390;
   const height = Number(params.get('height')) || 844;
@@ -30,12 +30,83 @@
     const raw = await (await fetch('../assets/text-area-path.svg')).text();
     const path = new Path2D(new DOMParser().parseFromString(raw, 'image/svg+xml').querySelector('path').getAttribute('d'));
     const context = document.createElement('canvas').getContext('2d');
-    let readyAt;
+    let readyAt, aboutOpened = false;
     const check = now => {
       const d = frame.contentDocument;
       if (!d.body.dataset.ready) { requestAnimationFrame(check); return; }
+      if (params.get('side') === 'about' && !aboutOpened) {
+        if (params.has('long')) {
+          const paragraph = d.querySelector('.about-role > p');
+          paragraph.insertBefore(d.createTextNode((' Scroll test: this temporary preview text checks longer content inside the mapped paper area.').repeat(12)), paragraph.querySelector('.paper-contour-end'));
+        }
+        d.querySelector('.intro-link').click();
+        aboutOpened = true;
+      }
       readyAt ??= now;
       if (now - readyAt < 1200) { requestAnimationFrame(check); return; }
+      if (params.get('side') === 'about') {
+        const about = d.querySelector('.about-resume');
+        const clippedGlyphs = () => {
+          const style = getComputedStyle(about), box = about.getBoundingClientRect();
+          const [mx, my] = style.getPropertyValue('--about-mask-position').trim().split(' ').map(Number.parseFloat);
+          const [mw, mh] = style.getPropertyValue('--about-mask-size').trim().split(' ').map(Number.parseFloat);
+          const sx = box.width / about.clientWidth, sy = box.height / about.clientHeight;
+          const walker = d.createTreeWalker(about, NodeFilter.SHOW_TEXT);
+          let node, outside = 0;
+          while ((node = walker.nextNode())) {
+            for (let i = 0; i < node.textContent.length; i++) {
+              if (!node.textContent[i].trim()) continue;
+              const range = d.createRange(); range.setStart(node, i); range.setEnd(node, i + 1);
+              const rect = range.getBoundingClientRect();
+              if (!rect.width || !rect.height || rect.top < box.top + 20 || rect.bottom > box.bottom - 20) continue;
+              const y = ((rect.top + rect.height / 2 - box.top) / sy - my) / mh * TEXT_AREA.height;
+              if ([rect.left, rect.right].some(x => !context.isPointInPath(path, ((x - box.left) / sx - mx) / mw * TEXT_AREA.width, y))) outside++;
+            }
+          }
+          return outside;
+        };
+        const measure = () => ({
+          viewport: [d.defaultView.innerWidth, d.defaultView.innerHeight],
+          mask: about.dataset.mask,
+          fonts: {
+            intro: getComputedStyle(d.querySelector('.paper-copy')).fontSize,
+            about: getComputedStyle(about).fontSize,
+            eyebrow: getComputedStyle(about.querySelector('h2')).fontSize,
+            date: getComputedStyle(about.querySelector('.about-detail')).fontSize,
+          },
+          align: getComputedStyle(about).textAlign,
+          width: getComputedStyle(about).width,
+          originalWidth: Number.parseFloat(getComputedStyle(d.querySelector('.portfolio-paper')).width) * .52,
+          height: about.clientHeight,
+          contentHeight: about.scrollHeight,
+          scrollTop: about.scrollTop,
+          canScroll: about.dataset.scrollable,
+          fadeTop: about.style.getPropertyValue('--about-fade-top'),
+          fadeBottom: about.style.getPropertyValue('--about-fade-bottom'),
+          contourFloats: about.querySelectorAll('.paper-contour-edge').length,
+          startsAtMaskPercent: Number.parseFloat(getComputedStyle(d.querySelector('.about-content')).paddingTop) / about.clientHeight * 100,
+          horizontalClippedGlyphs: clippedGlyphs(),
+          innerWidth: d.querySelector('.about-content').clientWidth - Number.parseFloat(getComputedStyle(d.querySelector('.about-content')).paddingLeft) * 2,
+          experienceRows: [...about.querySelectorAll('.about-role-heading')].map(row => {
+            const [name, date] = [...row.children].map(e => e.getBoundingClientRect());
+            return { sameRow: Math.abs(name.top - date.top) < 5, gap: date.left - name.right, overflow: row.scrollWidth > row.clientWidth };
+          }),
+          back: d.querySelector('.about-back-seal').getBoundingClientRect().toJSON(),
+          linkedin: d.querySelector('.about-profile').getBoundingClientRect().toJSON(),
+          signature: {
+            loaded: d.querySelector('.about-signature').complete && d.querySelector('.about-signature').naturalWidth > 0,
+            belowLinkedin: d.querySelector('.about-signature').getBoundingClientRect().top > d.querySelector('.about-profile').getBoundingClientRect().bottom,
+            rightAligned: Math.abs(d.querySelector('.about-signature').getBoundingClientRect().right - d.querySelector('.about-footer').getBoundingClientRect().right) < 1,
+          },
+        });
+        const show = () => document.getElementById('checks').textContent = JSON.stringify(measure(), null, 2);
+        about.addEventListener('scroll', show, { passive: true });
+        about.addEventListener('toggle', () => requestAnimationFrame(show), true);
+        new ResizeObserver(() => requestAnimationFrame(show)).observe(about.querySelector('.about-content'));
+        show();
+        document.getElementById('checks').dataset.ready = 'true';
+        return;
+      }
       const copy = d.querySelector('.paper-copy');
       const area = copy.getBoundingClientRect();
       const glyphs = layer => {

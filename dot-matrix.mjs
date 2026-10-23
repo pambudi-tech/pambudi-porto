@@ -1,7 +1,10 @@
 import { GRID } from './model.mjs';
 
+export const MATRIX_COLOR = '#49483f';
+export const ORNAMENT_COLOR = '#060606';
+
 // Active perforations share their size; callers can override the thread color.
-export function drawActiveDots(context, cells, view, progressForCell = null, color = '#49483f') {
+export function drawActiveDots(context, cells, view, progressForCell = null, color = MATRIX_COLOR) {
   const pitch = GRID * view.scale;
   const radius = pitch * .24;
   context.fillStyle = color;

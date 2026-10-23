@@ -1,4 +1,5 @@
 import { surfaceSpacing, edgeGapStitches } from './model.mjs';
+import { ORNAMENT_COLOR } from './dot-matrix.mjs';
 
 // Traced square-for-square from the supplied 31 × 31 pixel ornament.
 export const CORNER_ROWS = [
@@ -38,7 +39,7 @@ export const CORNER_SIZE = 31;
 const SLOTS = [-1000, -1100, -1200, -1300];
 export const CORNER_LAYOUT = { columns: 31, rows: 31, size: 94, mode: 'corners' };
 
-export function cornerPattern(color = '#ffffff') {
+export function cornerPattern(color = ORNAMENT_COLOR) {
   const entries = [];
   for (let quarter = 0; quarter < 4; quarter++) {
     CORNER_ROWS.forEach((row, y) => [...row].forEach((cell, x) => {

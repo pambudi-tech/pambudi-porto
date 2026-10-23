@@ -16,3 +16,5 @@ Files from the pinned repository:
 - behance.svg: icons/SVG/brands/behance.svg
 
 Modification: root fill set to #49483f to match the portfolio ink. Original pixel geometry is unchanged. Icons use the original 24-unit viewBox and render at 20px on desktop, or 16px at viewport widths of 540px and below.
+
+About Me reuses linkedin.svg for the profile link below the content. The CSS mask inherits the cream text color and scales to 1.15em. Experience disclosure CTAs are inline text, without icons.
