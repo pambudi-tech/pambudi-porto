@@ -1,5 +1,4 @@
 import { GRID, surfaceSpacing, THREADS, parseKey } from './model.mjs';
-import { ORNAMENT_COLOR } from './dot-matrix.mjs';
 
 export const THREAD_WEIGHT = 1.15;
 
@@ -10,9 +9,7 @@ export const hash = (x, y, salt = 0) => {
 };
 const mix = (hex, target, amount) => {
   const rgb = hex.slice(1).match(/../g).map(v => parseInt(v, 16));
-  // Keep the cotton highlights subdued along with the near-black ornaments.
-  const brightness = hex === ORNAMENT_COLOR ? .55 : 1;
-  return `rgb(${rgb.map((v, i) => Math.round((v + (target[i] - v) * amount) * brightness)).join(',')})`;
+  return `rgb(${rgb.map((v, i) => Math.round(v + (target[i] - v) * amount)).join(',')})`;
 };
 const easeOut = value => 1 - Math.pow(1 - Math.max(0, Math.min(1, value)), 3);
 
@@ -173,7 +170,7 @@ export class SurfaceRenderer {
   drawCloth(view) {
     const ctx = this.cloth;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, this.width, this.height);
     // Quiet perforations keep the stitchable grid without fabric grain.
     this.world(ctx, view);
@@ -183,7 +180,7 @@ export class SurfaceRenderer {
     const spacing = surfaceSpacing(this.width);
     const baselineScale = view.scale / spacing;
     const holeRadius = Math.max(1.5, .42 / baselineScale) / spacing;
-    ctx.fillStyle = '#202020';
+    ctx.fillStyle = 'rgba(0,0,0,.20)';
     ctx.beginPath();
     for (let row = Math.floor(top / GRID); row <= Math.ceil((top + height) / GRID); row++) {
       for (let col = Math.floor(left / GRID); col <= Math.ceil((left + width) / GRID); col++) {

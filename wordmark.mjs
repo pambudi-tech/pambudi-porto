@@ -45,7 +45,7 @@ export class StitchWordmark {
     this.entrance.plan([flameEntranceOrder(cells)]);
     this.paint(performance.now());
     canvas.dataset.stitches = String(cells.length);
-    canvas.setAttribute('aria-label', this.isDots ? 'Pambudi, formed from enlarged surface dots' : 'Pambudi, embroidered in gray cross-stitch');
+    canvas.setAttribute('aria-label', this.isDots ? 'Pambudi, formed from enlarged surface dots' : 'Pambudi, embroidered in white cross-stitch');
     canvas.dataset.layout = this.isDots ? 'artwork-dots' : 'single-line';
     if (this.isDots) canvas.dataset.dots = String(cells.length);
     canvas.dataset.reveal = 'flame';
@@ -58,8 +58,7 @@ export class StitchWordmark {
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (this.isDots) {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Keep the clock's dot geometry with a slightly darker wordmark tone.
-      drawActiveDots(context, this.cells, view, (col, row) => this.entrance.progress(`${col},${row}`, now), '#1c1c19');
+      drawActiveDots(context, this.cells, view, (col, row) => this.entrance.progress(`${col},${row}`, now), '#d6d6d6');
     } else {
       context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
       for (const [col, row] of this.cells) {
