@@ -5,6 +5,7 @@ import { SITE, contactHref } from '../content/site.mjs';
 // server and the build alike, so the copy stays real HTML.
 //
 //   %site.title%, %site.description%   head text
+//   <!-- site:social -->               Open Graph and Twitter link-preview tags
 //   <!-- site:paper-copy -->           introduction and contact icons
 //   <!-- site:about -->                About Me on the back of the paper
 //   <!-- partial:name -->              src/partials/name.html
@@ -65,10 +66,33 @@ export function about() {
   ].join('\n');
 }
 
+function social() {
+  const { url, title, description, image } = SITE;
+  const tags = [
+    ['property', 'og:type', 'website'],
+    ['property', 'og:site_name', title],
+    ['property', 'og:url', url],
+    ['property', 'og:title', title],
+    ['property', 'og:description', description],
+    ['property', 'og:image', url + image.src],
+    ['property', 'og:image:type', 'image/jpeg'],
+    ['property', 'og:image:width', image.width],
+    ['property', 'og:image:height', image.height],
+    ['property', 'og:image:alt', image.alt],
+    ['name', 'twitter:card', 'summary_large_image'],
+    ['name', 'twitter:title', title],
+    ['name', 'twitter:description', description],
+    ['name', 'twitter:image', url + image.src],
+    ['name', 'twitter:image:alt', image.alt],
+  ];
+  return tags.map(([key, name, content]) => `<meta ${key}="${name}" content="${escape(content)}" />`).join('\n');
+}
+
 export function fillHtml(html, { root }) {
   return html
     .replaceAll('%site.title%', escape(SITE.title))
     .replaceAll('%site.description%', escape(SITE.description))
+    .replace(/^([ \t]*)<!-- site:social -->/gm, (_, space) => indent(space + social(), space.length))
     .replace(/^([ \t]*)<!-- site:(paper-copy|about) -->/gm, (_, space, name) => indent(space + (name === 'about' ? about() : paperCopy()), space.length))
     .replace(/^([ \t]*)<!-- partial:([\w-]+) -->/gm, (_, space, name) => indent(space + readFileSync(new URL(`src/partials/${name}.html`, root), 'utf8').trimEnd(), space.length));
 }
