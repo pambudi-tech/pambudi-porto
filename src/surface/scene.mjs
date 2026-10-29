@@ -66,7 +66,6 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   let corners = [];
   let bird = null;
   let cornersEntering = !motionPreference.matches;
-  let worksMessage = '';
   const touchHold = new TouchHold(({ x, y }) => {
     scene.cancelTap();
     scene.controls.open(x, y);
@@ -138,12 +137,6 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       scheduleMotifExpiry();
     }
     if (bird?.update(now)) sceneDirty = true;
-    // Recheck the moving silhouette every frame, including when the pointer
-    // stays still and the dove flies beneath it or moves away.
-    const { hover } = scene;
-    const birdCell = hover && !scene.keyboardMode && !scene.controls.isOpen ? bird?.hitTest(hover.x, hover.y) : null;
-    const birdCovered = birdCell && model.stitches.has(keyOf(...toStoredCell(birdCell.col, birdCell.row, corners)));
-    clock?.setMessage(birdCell && !birdCovered ? bird.hoverMessage(hover.x, hover.y) : worksMessage);
     const wordmarkEntering = wordmark?.update(now);
     const paperMoving = scene.paper?.update(now);
     const wasEntering = cornersEntering;
@@ -164,7 +157,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     }
     $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
     const free = scene.stitchMode === 'free', unpicking = free && freeStitch.tool === 'unpick';
-    renderer.drawInteraction(view, animations, hover, free ? freeStitch.color : MOTIF_HINT_COLOR, unpicking ? 'unpick' : 'motif', now, scene.keyboardMode);
+    renderer.drawInteraction(view, animations, scene.hover, free ? freeStitch.color : MOTIF_HINT_COLOR, unpicking ? 'unpick' : 'motif', now, scene.keyboardMode);
     if (animations.size || cornersEntering || wordmarkEntering || paperMoving || (bird && !bird.paused)) requestFrame();
   }
   function patternBounds() {
@@ -372,7 +365,6 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       requestFrame();
     },
     setMessage(message = '') {
-      worksMessage = message;
       clock?.setMessage(message);
       requestFrame();
     },
