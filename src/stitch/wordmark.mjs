@@ -17,7 +17,7 @@ export class StitchWordmark {
   }
   async load() {
     const image = new Image();
-    image.src = '/assets/wordmark-source.png';
+    image.src = '/assets/wordmark-source.webp';
     await image.decode();
     const source = document.createElement('canvas');
     source.width = 1024; source.height = Math.round(1024 * WORDMARK_RATIO);

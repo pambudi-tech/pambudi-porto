@@ -36,7 +36,7 @@ export const SITE = {
     stack: ['figma', 'illustrator', 'claude', 'github', 'vercel'],
     // The profile linked beside the signature, by contact id.
     profile: 'linkedin',
-    signature: { src: '/assets/ivan-signature.png', width: 2621, height: 1520, alt: 'Ivan Pambudi’s signature' },
+    signature: { src: '/assets/ivan-signature.webp', width: 640, height: 371, alt: 'Ivan Pambudi’s signature' },
   },
 };
 

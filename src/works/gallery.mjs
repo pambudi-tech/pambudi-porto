@@ -121,7 +121,7 @@ export class WorksGallery {
     if (href) {
       const element = Object.assign(document.createElement('span'), { className: 'works-seal works-details' });
       element.setAttribute('aria-hidden', 'true');
-      element.innerHTML = '<img src="/assets/works-wax-seal.png" width="2076" height="758" alt="" draggable="false" />'
+      element.innerHTML = '<img src="/assets/works-wax-seal.webp" width="1024" height="374" alt="" draggable="false" />'
         + '<span class="works-seal-label">details</span>';
       frame.append(element);
       seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false }) };

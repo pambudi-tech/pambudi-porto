@@ -59,3 +59,34 @@ test('the bird shares the stitch canvas while permanent embroidery and history r
   assert.deepEqual([...model.stitches], original);
   assert.deepEqual(model.undoStack, []);
 });
+
+test('settled embroidery is drawn once to a layer, then only copied while the bird moves', () => {
+  const layerCalls = [], screenCalls = [];
+  const renderer = Object.create(SurfaceRenderer.prototype);
+  renderer.stitch = { setTransform() {}, drawImage: (image, ...bounds) => screenCalls.push(image.color ?? 'layer') };
+  renderer.stitchCanvas = { width: 1600, height: 1600 };
+  renderer.layer = { getContext: () => ({ drawImage: image => layerCalls.push(image.color) }) };
+  renderer.clear = () => {};
+  renderer.world = () => {};
+  renderer.sprite = (color, variation, progress = 1) => ({ color, progress });
+  renderer.width = renderer.height = 800;
+  const model = { stitches: new Map([['1,1', 'garnet'], ['2,1', 'pine']]) };
+  const view = { x: 0, y: 0, scale: 1 };
+  const bird = new Map([['2,1', { col: 2, row: 1, color: 'bird', progress: 1 }], ['5,5', { col: 5, row: 5, color: 'bird', progress: 1 }]]);
+  for (let frame = 0; frame < 3; frame++) renderer.drawStitches(model, view, new Map(), bird, null, frame, { settled: true });
+  assert.deepEqual(layerCalls, ['garnet', 'pine'], 'the layer is drawn once');
+  assert.deepEqual(screenCalls, ['layer', 'bird', 'layer', 'bird', 'layer', 'bird'], 'the bird skips the stitched cell');
+  // A change to the stitches redraws the layer on the next settled frame.
+  model.stitches.set('1,1', 'pine');
+  renderer.invalidate();
+  layerCalls.length = 0;
+  renderer.drawStitches(model, view, new Map(), new Map(), null, 3, { settled: true });
+  assert.deepEqual(layerCalls, ['pine', 'pine']);
+  // While anything animates, every stitch is drawn directly and the layer is
+  // rebuilt once things settle again.
+  layerCalls.length = screenCalls.length = 0;
+  renderer.drawStitches(model, view, new Map(), new Map(), null, 4);
+  assert.deepEqual(screenCalls, ['pine', 'pine']);
+  renderer.drawStitches(model, view, new Map(), new Map(), null, 5, { settled: true });
+  assert.deepEqual(layerCalls, ['pine', 'pine']);
+});

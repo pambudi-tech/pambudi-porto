@@ -7,7 +7,6 @@ import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
 import { applyPaperPose } from '../paper/paper-pose.mjs';
 import { createImageInkLayer } from '../ink/ink-growth.mjs';
 import { registerPreloaderFrame } from '../paper/frame-registration.mjs';
-import { WorksGallery } from '../works/gallery.mjs';
 
 const loader = document.getElementById('preloader');
 const surface = document.getElementById('surface');
@@ -67,7 +66,7 @@ function fadeOut() {
 async function boot() {
   // Fetch the traced artwork too; it is not an <img> in the page itself.
   const artwork = new Image();
-  artwork.src = '/assets/wordmark-source.png';
+  artwork.src = '/assets/wordmark-source.webp';
   // Fetch Adobe's stylesheet without delaying the initial black screen.
   const adobeStyles = document.getElementById('adobe-fonts');
   const stylesheetReady = new Promise((resolve, reject) => {
@@ -97,6 +96,8 @@ async function boot() {
     });
   });
   const application = track(import('../surface/scene.mjs'));
+  // The works gallery is only needed after the reveal; fetch it alongside.
+  const gallery = import('../works/gallery.mjs');
   await Promise.all([
     ...[...surface.querySelectorAll('img'), artwork, framePreview].map(image => track(
       image === framePreview
@@ -142,6 +143,7 @@ async function boot() {
   document.body.classList.remove('is-revealing');
   document.body.dataset.ready = 'true';
   loader.remove();
+  const { WorksGallery } = await gallery;
   const works = new WorksGallery(document.getElementById('works'), {
     scene, motionPreference: preference,
     paper: surface.querySelector('.portfolio-paper'),

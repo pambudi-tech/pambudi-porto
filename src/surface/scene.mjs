@@ -123,6 +123,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     announce(freeStitch.tool === 'unpick' ? 'Stitch removed.' : 'Stitch added.');
   }
   function requestFrame({ cloth = false, stitches = false } = {}) {
+    if (stitches) renderer.invalidate();
     if (!running) return;
     clothDirty ||= cloth;
     sceneDirty ||= stitches;
@@ -132,6 +133,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     frame = null;
     if (motifLifetimes.update(now, motionPreference.matches)) {
       sceneDirty = true;
+      renderer.invalidate();
       scene.controls.update();
       scheduleMotifExpiry();
     }
@@ -155,7 +157,11 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     }
     if (animations.size) sceneDirty = true;
     if (clothDirty) { renderer.drawCloth(view); clothDirty = false; }
-    if (sceneDirty) { renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now); sceneDirty = false; }
+    if (sceneDirty) {
+      const settled = !animations.size && !cornersEntering;
+      renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now, { settled });
+      sceneDirty = false;
+    }
     $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
     const free = scene.stitchMode === 'free', unpicking = free && freeStitch.tool === 'unpick';
     renderer.drawInteraction(view, animations, hover, free ? freeStitch.color : MOTIF_HINT_COLOR, unpicking ? 'unpick' : 'motif', now, scene.keyboardMode);

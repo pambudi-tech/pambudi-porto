@@ -216,9 +216,61 @@ export class SurfaceRenderer {
   sprite(color, variation, progress = 1) {
     return threadSprite(this.sprites, color, variation, progress);
   }
-  drawStitches(model, view, animations = new Map(), movingCells = new Map(), entrance = null, now = 0) {
+  // Settled embroidery is drawn once to an offscreen layer and copied each
+  // frame, so only the bird and anything still sewing are redrawn. The scene
+  // passes `settled` when nothing is sewing or unpicking, and calls
+  // invalidate() whenever the stitches or the layout change.
+  invalidate() {
+    this.layerKey = null;
+  }
+  drawStitches(model, view, animations = new Map(), movingCells = new Map(), entrance = null, now = 0, { settled = false } = {}) {
     this.clear(this.stitch);
-    this.world(this.stitch, view);
+    let occupied;
+    if (settled) {
+      const key = `${model.stitches.size} ${view.x} ${view.y} ${view.scale} ${this.width} ${this.height} ${this.dpr}`;
+      if (this.layerKey !== key) {
+        this.layer ??= document.createElement('canvas');
+        this.layer.width = this.stitchCanvas.width;
+        this.layer.height = this.stitchCanvas.height;
+        const context = this.layer.getContext('2d');
+        this.clear(context);
+        this.world(context, view);
+        this.layerCells = this.drawModel(context, model, view, animations, entrance, now);
+        this.layerKey = key;
+      }
+      this.stitch.setTransform(1, 0, 0, 1, 0, 0);
+      this.stitch.drawImage(this.layer, 0, 0);
+      this.world(this.stitch, view);
+      occupied = this.layerCells;
+    } else {
+      this.layerKey = null;
+      this.world(this.stitch, view);
+      occupied = this.drawModel(this.stitch, model, view, animations, entrance, now);
+      for (const [key, animation] of animations) {
+        if (animation.kind !== 'erase' && animation.kind !== 'unpick') continue;
+        const stored = parseKey(key);
+        if (this.isCellVisible && !this.isCellVisible(...stored)) continue;
+        const [col, row] = this.resolveCell?.(...stored) ?? stored;
+        occupied.add(`${col},${row}`);
+        if (animation.kind === 'unpick') {
+          const progress = animation.from * (1 - Math.max(0, Math.min(1, (now - animation.started) / animation.duration)));
+          if (progress > 0) this.stitch.drawImage(this.sprite(animation.color, Math.floor(hash(col, row) * 8), progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+        }
+      }
+    }
+    // One thread per surface cell. Permanent embroidery keeps its place as
+    // the bird stitches and unpicks the surrounding holes.
+    for (const [key, { col, row, color, progress }] of movingCells) {
+      if (occupied.has(key)) continue;
+      const x = col * GRID, y = row * GRID;
+      const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
+      if (sx < -GRID * view.scale || sy < -GRID * view.scale || sx > this.width || sy > this.height) continue;
+      this.stitch.drawImage(this.sprite(color, Math.floor(hash(col, row) * 8), progress), x - 5, y - 5, GRID + 10, GRID + 10);
+    }
+  }
+  // Draws the model's stitches into `context` and returns the visible cells
+  // they occupy.
+  drawModel(context, model, view, animations, entrance, now) {
     const occupied = new Set();
     for (const [key, color] of model.stitches) {
       const stored = parseKey(key);
@@ -238,28 +290,9 @@ export class SurfaceRenderer {
       const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
       if (sx < -GRID * view.scale || sy < -GRID * view.scale || sx > this.width || sy > this.height) continue;
       const variation = Math.floor(hash(col, row) * 8);
-      this.stitch.drawImage(this.sprite(color, variation, progress), x - 5, y - 5, GRID + 10, GRID + 10);
+      context.drawImage(this.sprite(color, variation, progress), x - 5, y - 5, GRID + 10, GRID + 10);
     }
-    for (const [key, animation] of animations) {
-      if (animation.kind !== 'erase' && animation.kind !== 'unpick') continue;
-      const stored = parseKey(key);
-      if (this.isCellVisible && !this.isCellVisible(...stored)) continue;
-      const [col, row] = this.resolveCell?.(...stored) ?? stored;
-      occupied.add(`${col},${row}`);
-      if (animation.kind === 'unpick') {
-        const progress = animation.from * (1 - Math.max(0, Math.min(1, (now - animation.started) / animation.duration)));
-        if (progress > 0) this.stitch.drawImage(this.sprite(animation.color, Math.floor(hash(col, row) * 8), progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
-      }
-    }
-    // One thread per surface cell. Permanent embroidery keeps its place as
-    // the bird stitches and unpicks the surrounding holes.
-    for (const [key, { col, row, color, progress }] of movingCells) {
-      if (occupied.has(key)) continue;
-      const x = col * GRID, y = row * GRID;
-      const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
-      if (sx < -GRID * view.scale || sy < -GRID * view.scale || sx > this.width || sy > this.height) continue;
-      this.stitch.drawImage(this.sprite(color, Math.floor(hash(col, row) * 8), progress), x - 5, y - 5, GRID + 10, GRID + 10);
-    }
+    return occupied;
   }
   drawInteraction(view, animations, hover, color, mode, now, keyboard) {
     this.clear(this.gesture);
