@@ -287,7 +287,7 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   display: block;
   width: min(160px, 80%);
   height: auto;
-  margin: 1.25em 0 0 auto;
+  margin: -.5em 0 0 auto;
   filter: url('#signature-white');
   pointer-events: none;
   user-select: none;
