@@ -6,7 +6,7 @@ export const ORNAMENT_COLOR = '#ffffff';
 // Active perforations share their size; callers can override the thread color.
 export function drawActiveDots(context, cells, view, progressForCell = null, color = MATRIX_COLOR) {
   const pitch = GRID * view.scale;
-  const radius = pitch * .24;
+  const radius = Math.max(0, pitch * .24);
   context.fillStyle = color;
   context.beginPath();
   for (const [col, row] of cells) {

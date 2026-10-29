@@ -63,3 +63,18 @@ test('resource deadlines preserve success and failure and release stalled reques
   await assert.rejects(settleWithin(Promise.reject(new Error('Image unavailable')), 100), /Image unavailable/);
   await assert.rejects(settleWithin(new Promise(() => {}), 5), /Resource loading timed out/);
 });
+
+test('time in a hidden tab does not count toward the resource deadline', async () => {
+  const page = Object.assign(new EventTarget(), { hidden: true });
+  let finish;
+  const loading = settleWithin(new Promise(resolve => { finish = resolve; }), 20, page);
+  // Hidden for longer than the limit: the throttled work is still allowed to finish.
+  await new Promise(resolve => setTimeout(resolve, 40));
+  page.hidden = false;
+  page.dispatchEvent(new Event('visibilitychange'));
+  finish('ready');
+  assert.equal(await loading, 'ready');
+  // Visible waiting still times out, after the page is shown.
+  const stalled = settleWithin(new Promise(() => {}), 10, Object.assign(new EventTarget(), { hidden: false }));
+  await assert.rejects(stalled, /Resource loading timed out/);
+});

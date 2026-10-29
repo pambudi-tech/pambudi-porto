@@ -77,3 +77,7 @@ test('only the lower pair is visible at every breakpoint while stored upper edit
   assert.deepEqual(seedMobileUpperCorners(edited, true), edited, 'saved unpicking is retained');
   assert.equal(new Set(entries.map(([key]) => key)).size, entries.length);
 });
+
+test('a collapsed, zero-width page still has a positive stitch pitch', () => {
+  for (const width of [0, 1, 47, 48, 100]) assert.ok(cornerPitch(width) > 0, `width ${width}`);
+});

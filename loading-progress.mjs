@@ -51,10 +51,27 @@ export class LoadingCounter {
   }
 }
 
-export function settleWithin(task, milliseconds = PRELOADER.resourceTimeout) {
-  let timer;
-  return Promise.race([
-    Promise.resolve(task),
-    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Resource loading timed out')), milliseconds); }),
-  ]).finally(() => clearTimeout(timer));
+// Hidden tabs throttle animation frames, which some loading steps wait for,
+// so only time spent visible counts toward the limit.
+export function settleWithin(task, milliseconds = PRELOADER.resourceTimeout, page = globalThis.document) {
+  let timer = null, remaining = milliseconds, resumedAt = 0, onVisibility;
+  const timeout = new Promise((_, reject) => {
+    const run = () => {
+      resumedAt = performance.now();
+      timer = setTimeout(() => reject(new Error('Resource loading timed out')), Math.max(0, remaining));
+    };
+    onVisibility = () => {
+      if (page.hidden && timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+        remaining -= performance.now() - resumedAt;
+      } else if (!page.hidden && timer === null) run();
+    };
+    if (!page?.hidden) run();
+    page?.addEventListener('visibilitychange', onVisibility);
+  });
+  return Promise.race([Promise.resolve(task), timeout]).finally(() => {
+    clearTimeout(timer);
+    page?.removeEventListener('visibilitychange', onVisibility);
+  });
 }

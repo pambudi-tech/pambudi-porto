@@ -52,8 +52,9 @@ export function cornerPattern(color = ORNAMENT_COLOR) {
   return { entries, layout: { ...CORNER_LAYOUT } };
 }
 
+// Never zero or negative: a page can load in a collapsed, zero-width frame.
 export function cornerPitch(width) {
-  const pitch = width <= 540 ? Math.min(3.5, (width - 48) / 90) : Math.min(6.5, width * .165 / CORNER_SIZE);
+  const pitch = width <= 540 ? Math.min(3.5, Math.max(1, (width - 48) / 90)) : Math.min(6.5, width * .165 / CORNER_SIZE);
   return pitch * surfaceSpacing(width);
 }
 

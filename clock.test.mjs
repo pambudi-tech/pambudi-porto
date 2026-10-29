@@ -6,6 +6,7 @@ import { cornerPitch } from './corners.mjs';
 import { BirdFlight } from './bird.mjs';
 import { BIRD_COLOR } from './bird-data.mjs';
 import { DepartureBoard } from './departure-board.mjs';
+import { drawActiveDots } from './dot-matrix.mjs';
 
 test('dove hover follows visible stitched cells and selects the phrase from their side of the paper', () => {
   const bird = Object.create(BirdFlight.prototype);
@@ -104,4 +105,13 @@ test('loading percentages never scramble or go backwards, then roll into the liv
   assert.equal(clock.board.from.map(slot => slot.char).join(''), '100%');
   assert.equal(clock.board.target.map(slot => slot.char).join(''), '12:34:56');
   assert.equal(clock.board.active, true);
+});
+
+test('the dot matrix draws without throwing when the page loads at zero width', () => {
+  const calls = [];
+  const context = { beginPath() {}, fill() {}, moveTo() {}, arc: (...args) => { if (args[2] < 0) throw new RangeError('negative radius'); calls.push(args); } };
+  for (const scale of [cornerPitch(0) / GRID, -.01]) {
+    assert.doesNotThrow(() => drawActiveDots(context, [[0, 0], [1, 2]], { x: 0, y: 0, scale }));
+  }
+  assert.ok(calls.length > 0);
 });
