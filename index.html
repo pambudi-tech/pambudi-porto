@@ -11,6 +11,8 @@
     <link rel="preconnect" href="https://use.typekit.net" crossorigin />
     <link id="adobe-fonts" rel="stylesheet" href="https://use.typekit.net/ghx2tkl.css" media="print" />
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./postage-stamp.css" />
+    <link rel="stylesheet" href="./works.css" />
   </head>
   <body class="is-loading">
     <div id="preloader" class="preloader" role="status" aria-label="Loading portfolio">
@@ -120,6 +122,22 @@
       </defs>
     </svg>
 
+    <section id="works" class="works-gallery" aria-label="Works" hidden>
+      <nav class="works-nav" aria-label="Works">
+        <button class="works-nav-back" type="button" aria-label="Back to the paper">
+          <span class="works-back-icon" aria-hidden="true"></span>
+          back
+        </button>
+        <div class="works-nav-toggle" role="group" aria-label="Collection">
+          <button type="button" data-collection="works" aria-pressed="true">selected works</button>
+          <button type="button" data-collection="exploration" aria-pressed="false">exploration</button>
+        </div>
+      </nav>
+      <div class="works-scroll">
+        <ul class="works-wall"></ul>
+      </div>
+    </section>
+
     <time id="portfolio-clock" class="portfolio-clock" aria-label="Local time" aria-live="off"><canvas aria-hidden="true"></canvas></time>
 
     <p id="canvas-help" class="sr-only">Click or tap to stitch a random motif. Right-click, long-press, or press Shift F10 to switch to Free stitch or undo and redo. In Free stitch, click or drag to draw individual stitches. Use arrow keys to choose a spot and Enter or Space to stitch. Reload for a clean surface.</p>
@@ -161,6 +179,7 @@
 
     <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
     <noscript><style>.preloader { display: none; } body.is-loading #surface { visibility: visible; }</style><p class="sr-only">Enable JavaScript to use the interactive stitch surface.</p></noscript>
+    <link rel="stylesheet" href="./project-transition.css" />
     <script type="module" src="./preloader.mjs"></script>
   </body>
 </html>

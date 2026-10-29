@@ -1,0 +1,17 @@
+:root {
+  --works-paper-light: #f8f4ec;
+  --works-paper-dark: #efe8db;
+  --works-paper-shadow: drop-shadow(0 0 .5px rgb(58 55 50 / .45)) drop-shadow(0 .5px .5px rgb(58 55 50 / .15));
+}
+.postage-stamp {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+  fill-rule: evenodd;
+  filter: var(--works-paper-shadow);
+  stroke: none;
+}

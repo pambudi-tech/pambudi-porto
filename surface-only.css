@@ -1,0 +1,33 @@
+.surface-navigation {
+  position: fixed;
+  z-index: 5;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid #e6e6e6;
+  border-radius: 13px;
+  background: #fffffff2;
+  box-shadow: 0 3px 16px #00000008;
+  font: 12px "Syne Mono", monospace;
+  touch-action: manipulation;
+}
+.surface-navigation button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+}
+.surface-navigation button:hover:not(:disabled) { background: #f5f5f5; }
+.surface-navigation svg { width: 18px; height: 18px; }
+.surface-navigation #zoom-reset { min-width: 68px; font-variant-numeric: tabular-nums; }
+.surface-navigation .tools-toggle { border-right: 1px solid #ededed; border-radius: 9px 0 0 9px; margin-right: 4px; }
+#surface.can-pan { cursor: grab; }
+#surface.is-panning { cursor: grabbing; }

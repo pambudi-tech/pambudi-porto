@@ -1,4 +1,4 @@
-import { keyOf, cellsBetween } from './model.mjs';
+import { keyOf } from './model.mjs';
 import { MOTIF_DATA } from './motif-data.mjs';
 
 // These three thread palettes are intentionally brighter than the references.
@@ -8,8 +8,7 @@ const VIBRANT_PALETTES = {
   duck: ['#161912', '#ffdc00', '#ff8400'],
 };
 
-// Keep the traced source silhouette. Tilted charts are sampled
-// onto integer surface cells so the Xs still use the cloth's actual holes.
+// Keep every traced chart upright on the cloth's integer stitch grid.
 export const MOTIFS = MOTIF_DATA.map(motif => ({
   ...motif, palette: VIBRANT_PALETTES[motif.id] ?? motif.palette,
   columns: motif.rows[0].length, lines: motif.rows.length,
@@ -20,52 +19,23 @@ const noise = (x, y, seed = 0) => {
   return value - Math.floor(value);
 };
 
-export const MAX_MOTIF_ROTATION = Math.PI / 12;
-export const randomMotifRotation = (random = Math.random) => (random() * 2 - 1) * MAX_MOTIF_ROTATION;
-
-export function createMotif(id, { col = 0, row = 0, seed = 0, rotation = 0 } = {}) {
+export function createMotif(id, { col = 0, row = 0, seed = 0 } = {}) {
   const motif = MOTIFS.find(motif => motif.id === id);
   if (!motif) throw new RangeError(`Unknown motif: ${id}`);
   const cx = Math.floor(motif.columns / 2), cy = Math.floor(motif.lines / 2);
   const ox = Math.round(col), oy = Math.round(row);
-  rotation = Math.max(-MAX_MOTIF_ROTATION, Math.min(MAX_MOTIF_ROTATION, rotation));
-  const cos = Math.cos(rotation), sin = Math.sin(rotation);
-  const extentX = Math.ceil((Math.abs(cos) * motif.columns + Math.abs(sin) * motif.lines) / 2) + 1;
-  const extentY = Math.ceil((Math.abs(sin) * motif.columns + Math.abs(cos) * motif.lines) / 2) + 1;
   const radius = Math.max(1, Math.hypot(cx, cy));
-  const cells = new Map();
-  const addCell = (dx, dy, x, y, color) => {
-    const key = keyOf(dx, dy);
-    if (cells.has(key)) return;
-    const delay = Math.hypot(x - cx, y - cy) / radius * 600 + noise(x, y, seed) * 80;
-    cells.set(key, { col: ox + dx, row: oy + dy, color, delay });
-  };
-  for (let dy = -extentY; dy <= extentY; dy++) for (let dx = -extentX; dx <= extentX; dx++) {
-    const x = Math.round(dx * cos + dy * sin) + cx;
-    const y = Math.round(-dx * sin + dy * cos) + cy;
-    const symbol = motif.rows[y]?.[x];
-    if (!symbol || symbol === '.') continue;
-    const color = motif.palette[parseInt(symbol, 36)];
-    addCell(dx, dy, x, y, color);
-  }
-  // Keep thin stems and diagonal joins connected when nearest-cell sampling
-  // falls between holes. Forward samples and short bridges retain the source
-  // connections without rotating or shrinking the actual cotton crosses.
-  const target = (x, y) => [Math.round((x - cx) * cos - (y - cy) * sin), Math.round((x - cx) * sin + (y - cy) * cos)];
+  const cells = [];
   motif.rows.forEach((line, y) => [...line].forEach((symbol, x) => {
     if (symbol === '.') return;
-    const color = motif.palette[parseInt(symbol, 36)];
-    const point = target(x, y);
-    addCell(...point, x, y, color);
-    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1]]) {
-      const neighbor = motif.rows[y + dy]?.[x + dx];
-      if (!neighbor || neighbor === '.') continue;
-      const end = target(x + dx, y + dy);
-      if (Math.max(Math.abs(end[0] - point[0]), Math.abs(end[1] - point[1])) <= 1) continue;
-      for (const [tx, ty] of cellsBetween(point, end).slice(1, -1)) addCell(tx, ty, x, y, color);
-    }
+    cells.push({
+      col: ox + x - cx,
+      row: oy + y - cy,
+      color: motif.palette[parseInt(symbol, 36)],
+      delay: Math.hypot(x - cx, y - cy) / radius * 600 + noise(x, y, seed) * 80,
+    });
   }));
-  return [...cells.values()].sort((a, b) => a.delay - b.delay);
+  return cells.sort((a, b) => a.delay - b.delay);
 }
 
 // Serve the complete collection before reshuffling; avoid immediate repeats.

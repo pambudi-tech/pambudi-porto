@@ -4,6 +4,7 @@ import { cornerPattern, cornerPitch, cornerPositions, toStoredCell, toVisibleCel
 import { TouchHold } from './touch-hold.mjs';
 import { StitchWordmark } from './wordmark.mjs';
 import { StitchEntrance } from './stitch-entrance.mjs';
+import { StitchUnpick, BRAND_UNPICK_SWEEP, UNPICK_STITCH } from './stitch-unpick.mjs';
 import { PaperInteraction } from './paper-interaction.mjs';
 import { PaperFlip } from './paper-flip.mjs';
 import { WaxInteraction } from './wax-interaction.mjs';
@@ -12,12 +13,13 @@ import { settleWithin } from './loading-progress.mjs';
 import { IntroInkHover } from './intro-ink-hover.mjs';
 import { setupEmailCopy } from './contact-links.mjs';
 import { mountPaperTextContour, mountAboutTextMask } from './paper-text-contour.mjs';
-import { MotifBag, stampMotif, randomMotifRotation } from './motifs.mjs';
+import { MotifBag, stampMotif } from './motifs.mjs';
 import { MotifLifetimes } from './motif-lifetime.mjs';
 import { FreeStitch, FREE_THREADS } from './free-stitch.mjs';
 import { StitchPanel } from './stitch-panel.mjs';
+import { SurfaceCamera, mountSurfaceNavigation } from './surface-zoom.mjs';
 
-export async function preparePortfolio({ clock }) {
+export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavigation = true } = {}) {
 let running = false, releaseEntrance;
 const startWhen = new Promise(resolve => { releaseEntrance = resolve; });
 const $ = id => document.getElementById(id);
@@ -26,19 +28,24 @@ const controls = $('stitch-controls');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const panel = new StitchPanel(controls, motionPreference);
 const copy = document.querySelector('.paper-copy');
+if (!surfaceOnly) {
 setupEmailCopy(copy.querySelector('[data-email]'), { announce });
 new IntroInkHover(copy, motionPreference);
 await mountPaperTextContour(copy);
 await mountAboutTextMask(document.querySelector('.about-resume'));
+}
 // Every page load starts with the original ornaments and no visitor motifs.
 // Motif history belongs only to this visit; no saved embroidery is restored.
 const initial = cornerPattern();
-const model = new StitchModel(initial.entries, initial.layout);
+const model = new StitchModel(surfaceOnly ? [] : initial.entries, initial.layout);
 const renderer = new SurfaceRenderer($('cloth'), $('embroidery'), $('gesture'));
 const cornerEntrance = new StitchEntrance({ started: Infinity, reduced: motionPreference.matches });
+let brandingDeparture = null;
+const cornerVisibility = { progress: (key, now) => cornerEntrance.progress(key, now) * (brandingDeparture?.progress(key, now) ?? 1) };
 cornerEntrance.plan(cornerEntranceGroups(initial.entries.filter(([key]) => model.stitches.has(key))));
-const wordmark = new StitchWordmark($('wordmark'), (color, variation, progress) => renderer.sprite(color, variation, progress), { requestFrame, motionPreference, entranceStarted: Infinity });
+const wordmark = surfaceOnly ? null : new StitchWordmark($('wordmark'), (color, variation, progress) => renderer.sprite(color, variation, progress), { requestFrame, motionPreference, entranceStarted: Infinity });
 const view = { x: 0, y: 0, scale: 1 };
+const camera = surfaceOnly ? new SurfaceCamera(view) : null;
 const animations = new Map();
 const motifLifetimes = new MotifLifetimes(model, animations);
 let motifExpiryTimer = null;
@@ -56,13 +63,15 @@ const touchHold = new TouchHold(({ x, y }) => {
   cancelTap();
   openControls(x, y);
 });
-const paper = new PaperInteraction(document.querySelector('#surface .portfolio-paper'), {
+const sheet = surfaceOnly ? null : new PaperInteraction(document.querySelector('#surface .portfolio-paper'), {
   requestFrame, reduced: motionPreference.matches, placementMirror: document.querySelector('.preloader-paper'),
 });
-const paperFlip = new PaperFlip(paper.element, {
+// While the paper is lifted off for the works gallery, it is out of reach.
+let paper = sheet, worksMessage = '';
+const paperFlip = surfaceOnly ? null : new PaperFlip(sheet.element, {
   reduced: motionPreference.matches,
-  onStart: () => paper.setFlipping(true),
-  onFinish: () => paper.setFlipping(false),
+  onStart: () => sheet.setFlipping(true),
+  onFinish: () => sheet.setFlipping(false),
 });
 const waxes = [...document.querySelectorAll('.works-seal')]
   .map(element => new WaxInteraction(element, motionPreference, { startWhen }));
@@ -73,7 +82,7 @@ const freeStitch = new FreeStitch(model, animations, {
     const x = view.x + (col + .5) * step, y = view.y + (row + .5) * step;
     const stored = toStoredCell(col, row, corners);
     return x >= 0 && y >= 0 && x < innerWidth && y < innerHeight
-      && !paper.contains(x, y)
+      && !paper?.contains(x, y)
       && (tool === 'unpick' || stored[0] === col || !model.stitches.has(keyOf(...stored)));
   },
 });
@@ -104,7 +113,7 @@ function freeCell(x, y) {
   return [col, row];
 }
 function stitchAt(x, y) {
-  if (paper.contains(x, y)) return;
+  if (paper?.contains(x, y)) return;
   if (stitchMode === 'motif') return stampAt(x, y);
   freeStitch.begin(freeCell(x, y), performance.now(), motionPreference.matches);
   finishFreeStitch();
@@ -122,7 +131,7 @@ function closeControls({ focus = false } = {}) {
 function openControls(x, y) {
   finishFreeStitch();
   updateControls();
-  paper.reset();
+  paper?.reset();
   touchHold.cancel();
   cancelTap();
   hover = null;
@@ -166,11 +175,11 @@ function draw(now) {
   // stays still and the dove flies beneath it or moves away.
   const birdCell = hover && !keyboardMode && !panel.isOpen ? bird?.hitTest(hover.x, hover.y) : null;
   const birdCovered = birdCell && model.stitches.has(keyOf(...toStoredCell(birdCell.col, birdCell.row, corners)));
-  clock.setMessage(birdCell && !birdCovered ? bird.hoverMessage(hover.x, hover.y) : '');
-  const wordmarkEntering = wordmark.update(now);
-  const paperMoving = paper.update(now);
+  clock?.setMessage(birdCell && !birdCovered ? bird.hoverMessage(hover.x, hover.y) : worksMessage);
+  const wordmarkEntering = wordmark?.update(now);
+  const paperMoving = paper?.update(now);
   const wasEntering = cornersEntering;
-  cornersEntering = cornerEntrance.active(now);
+  cornersEntering = cornerEntrance.active(now) || Boolean(brandingDeparture?.active(now));
   if (wasEntering || cornersEntering) sceneDirty = true;
   for (const [key, animation] of animations) {
     if (now - animation.started >= animation.duration) {
@@ -180,7 +189,7 @@ function draw(now) {
   }
   if (animations.size) sceneDirty = true;
   if (clothDirty) { renderer.drawCloth(view); clothDirty = false; }
-  if (sceneDirty) { renderer.drawStitches(model, view, animations, bird?.cells, cornerEntrance, now); sceneDirty = false; }
+  if (sceneDirty) { renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now); sceneDirty = false; }
   $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
   const unpicking = stitchMode === 'free' && freeStitch.tool === 'unpick';
   renderer.drawInteraction(view, animations, hover, stitchMode === 'free' ? freeStitch.color : '#8d7560', unpicking ? 'unpick' : 'motif', now, keyboardMode);
@@ -191,13 +200,16 @@ function patternBounds() {
 }
 function layoutSurface() {
   const bounds = patternBounds();
-  view.scale = model.layout.mode === 'corners' ? cornerPitch(innerWidth) / GRID : surfaceSpacing(innerWidth) * Math.min(bounds.width / model.layout.columns, bounds.height / model.layout.rows) * model.layout.size / 100 / GRID;
-  view.x = Math.round(innerWidth / 2);
-  view.y = Math.round((innerHeight - (innerWidth <= 540 ? 130 : 80)) / 2);
-  clock.resize(innerWidth, innerHeight, view);
-  corners = model.layout.mode === 'corners' ? cornerPositions(innerWidth, innerHeight, view, GRID).slice(2) : [];
+  if (camera) camera.resize(innerWidth, innerHeight, cornerPitch(innerWidth) / GRID);
+  else {
+    view.scale = model.layout.mode === 'corners' ? cornerPitch(innerWidth) / GRID : surfaceSpacing(innerWidth) * Math.min(bounds.width / model.layout.columns, bounds.height / model.layout.rows) * model.layout.size / 100 / GRID;
+    view.x = Math.round(innerWidth / 2);
+    view.y = Math.round((innerHeight - (innerWidth <= 540 ? 130 : 80)) / 2);
+  }
+  clock?.resize(innerWidth, innerHeight, view);
+  corners = !surfaceOnly && model.layout.mode === 'corners' ? cornerPositions(innerWidth, innerHeight, view, GRID).slice(2) : [];
   renderer.resolveCell = (col, row) => toVisibleCell(col, row, corners);
-  renderer.isCellVisible = (col, row) => cornerCellVisible(col, row, innerWidth);
+  renderer.isCellVisible = surfaceOnly ? null : (col, row) => cornerCellVisible(col, row, innerWidth);
   updateControls();
   hover = null;
   requestFrame({ cloth: true, stitches: true });
@@ -209,20 +221,19 @@ function resize() {
   cancelTap();
   renderer.resize(innerWidth, innerHeight);
   layoutSurface();
-  wordmark.resize(innerWidth, view);
-  paper.resize();
+  wordmark?.resize(innerWidth, view);
+  sheet?.resize();
   bird?.resize(renderer.width, renderer.height, view);
 }
 function position(x, y) {
   return { col: Math.floor((x - view.x) / (GRID * view.scale)), row: Math.floor((y - view.y) / (GRID * view.scale)), x, y };
 }
 function stampAt(x, y) {
-  if (paper.contains(x, y)) return;
+  if (paper?.contains(x, y)) return;
   const { col, row } = position(x, y);
   const motif = motifBag.next();
   const next = stampMotif(model, motif.id, {
     col, row,
-    rotation: randomMotifRotation(),
     seed: Math.floor(Math.random() * 10000),
     started: performance.now(),
     reduced: motionPreference.matches,
@@ -257,12 +268,28 @@ function performHistory(direction) {
   finishFreeStitch();
   cancelTap();
   if (!model[direction]()) return;
-  layoutSurface();
+  if (!surfaceOnly) layoutSurface();
   animations.clear();
   updateControls();
   requestFrame({ stitches: true });
   announce(direction === 'undo' ? 'Last action undone.' : 'Last action redone.');
 }
+
+if (camera && surfaceNavigation) mountSurfaceNavigation(surface, camera, {
+  onStart() {
+    finishFreeStitch();
+    cancelTap();
+    closeControls();
+    pointers.clear();
+    hover = null;
+    updateControls();
+    requestFrame({ stitches: true });
+  },
+  onChange() {
+    hover = null;
+    requestFrame({ cloth: true, stitches: true });
+  },
+});
 
 surface.addEventListener('pointerdown', event => {
   if (event.target.closest('.paper-flip-control')) return;
@@ -276,7 +303,7 @@ surface.addEventListener('pointerdown', event => {
     finishFreeStitch();
     updateControls();
     cancelTap();
-    paper.reset();
+    paper?.reset();
     suppressTouch = true;
     hover = null;
     requestFrame();
@@ -284,10 +311,10 @@ surface.addEventListener('pointerdown', event => {
   }
   surface.focus({ preventScroll: true });
   keyboardMode = false;
-  if (paper.contains(event.clientX, event.clientY)) {
+  if (paper?.contains(event.clientX, event.clientY)) {
     cancelTap();
     hover = null;
-    paper.press(event);
+    paper?.press(event);
     requestFrame();
     return;
   }
@@ -304,7 +331,7 @@ surface.addEventListener('pointermove', event => {
     }
     cancelTap();
   }
-  if (paper.move(event.clientX, event.clientY, event.pointerType) || paper.ownsPointer(event.pointerId)) {
+  if (paper?.move(event.clientX, event.clientY, event.pointerType) || paper?.ownsPointer(event.pointerId)) {
     cancelTap();
     freeStitch.pause();
     hover = null;
@@ -320,9 +347,9 @@ surface.addEventListener('pointermove', event => {
   requestFrame();
 });
 function pointerEnd(event) {
-  const releasedPaper = paper.release(event);
+  const releasedPaper = paper?.release(event);
   if (freePointer === event.pointerId) {
-    if (event.type === 'pointerup' && !paper.contains(event.clientX, event.clientY)) {
+    if (event.type === 'pointerup' && !paper?.contains(event.clientX, event.clientY)) {
       freeStitch.move(freeCell(event.clientX, event.clientY), performance.now(), motionPreference.matches);
     }
     finishFreeStitch();
@@ -334,7 +361,7 @@ function pointerEnd(event) {
   pointers.delete(event.pointerId);
   if (tap && event.type === 'pointerup' && !releasedPaper && !suppressTouch && !panel.isOpen
       && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <= 8
-      && !paper.contains(event.clientX, event.clientY)) stitchAt(tap.x, tap.y);
+      && !paper?.contains(event.clientX, event.clientY)) stitchAt(tap.x, tap.y);
   if (!pointers.size) suppressTouch = false;
   if (releasedPaper || event.pointerType === 'touch' || event.type === 'pointercancel') hover = null;
   requestFrame();
@@ -342,13 +369,13 @@ function pointerEnd(event) {
 surface.addEventListener('pointerup', pointerEnd);
 surface.addEventListener('pointercancel', pointerEnd);
 surface.addEventListener('lostpointercapture', event => {
-  if (pointers.has(event.pointerId) || paper.ownsPointer(event.pointerId)) pointerEnd(event);
+  if (pointers.has(event.pointerId) || paper?.ownsPointer(event.pointerId)) pointerEnd(event);
 });
-surface.addEventListener('pointerleave', () => { paper.leave(); freeStitch.pause(); hover = null; requestFrame(); });
+surface.addEventListener('pointerleave', () => { paper?.leave(); freeStitch.pause(); hover = null; requestFrame(); });
 surface.addEventListener('contextmenu', event => {
   if (event.target.closest('.paper-copy, .about-resume')) return;
   event.preventDefault();
-  if (event.target.closest('.works-seal') || paper.contains(event.clientX, event.clientY)) return;
+  if (event.target.closest('.works-seal') || paper?.contains(event.clientX, event.clientY)) return;
   openControls(event.clientX || innerWidth / 2, event.clientY || innerHeight / 2);
 });
 controls.addEventListener('contextmenu', event => event.preventDefault());
@@ -363,7 +390,7 @@ document.addEventListener('pointerdown', event => {
 function keyboardPreview() {
   const step = GRID * view.scale;
   keyboardCell[0] = Math.max(Math.ceil(-view.x / step), Math.min(Math.floor((innerWidth - view.x) / step) - 1, keyboardCell[0]));
-  keyboardCell[1] = Math.max(Math.ceil((70 - view.y) / step), Math.min(Math.floor((innerHeight - 160 - view.y) / step) - 1, keyboardCell[1]));
+  keyboardCell[1] = Math.max(Math.ceil(((surfaceOnly ? 0 : 70) - view.y) / step), Math.min(Math.floor((innerHeight - (surfaceOnly ? 0 : 160) - view.y) / step) - 1, keyboardCell[1]));
   const [col, row] = keyboardCell;
   const x = view.x + (col + .5) * step;
   const y = view.y + (row + .5) * step;
@@ -400,7 +427,7 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     finishFreeStitch();
     updateControls();
-    paper.reset();
+    paper?.reset();
     touchHold.cancel();
     if (panel.isOpen) closeControls({ focus: true });
     hover = null;
@@ -418,7 +445,7 @@ document.addEventListener('keydown', event => {
 });
 window.addEventListener('blur', () => {
   finishFreeStitch();
-  paper.reset();
+  paper?.reset();
   touchHold.cancel();
   closeControls();
   cancelTap();
@@ -431,9 +458,9 @@ document.addEventListener('visibilitychange', () => {
   bird?.suspend();
   if (document.hidden) {
     hover = null;
-    clock.setMessage('');
+    clock?.setMessage('');
     finishFreeStitch();
-    paper.reset();
+    paper?.reset();
     touchHold.cancel();
     closeControls();
     cancelTap();
@@ -441,11 +468,11 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('resize', resize);
 motionPreference.addEventListener('change', event => {
-  paper.setReducedMotion(event.matches);
-  paperFlip.setReducedMotion(event.matches);
+  sheet?.setReducedMotion(event.matches);
+  paperFlip?.setReducedMotion(event.matches);
   if (event.matches) {
     cornerEntrance.finish();
-    wordmark.finishEntrance();
+    wordmark?.finishEntrance();
     animations.clear();
   }
   bird?.setPaused(event.matches);
@@ -470,6 +497,11 @@ $('unpick-tool').addEventListener('click', () => {
 });
 $('undo').addEventListener('click', () => performHistory('undo'));
 $('redo').addEventListener('click', () => performHistory('redo'));
+$('surface-tools')?.addEventListener('click', event => {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  if (panel.isOpen) closeControls();
+  else openControls(bounds.left, bounds.top);
+});
 
 document.querySelector('.tool-tray').addEventListener('keydown', event => {
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
@@ -482,7 +514,7 @@ document.querySelector('.tool-tray').addEventListener('keydown', event => {
 resize();
 updateControls();
 
-await Promise.allSettled([paper.ready, wordmark.ready, ...waxes.map(wax => wax.ready)].map(task => settleWithin(task)));
+await Promise.allSettled([sheet?.ready, wordmark?.ready, ...waxes.map(wax => wax.ready)].map(task => settleWithin(task)));
 renderer.drawCloth(view);
 clothDirty = false;
 return {
@@ -490,12 +522,53 @@ return {
     if (running) return;
     const now = performance.now();
     cornerEntrance.started = now;
-    if (wordmark.entrance) wordmark.entrance.started = now;
-    paper.place(now);
-    bird = new BirdFlight(renderer.width, renderer.height, view, { paused: motionPreference.matches });
+    if (wordmark?.entrance) wordmark.entrance.started = now;
+    sheet?.place(now);
+    if (!surfaceOnly) bird = new BirdFlight(renderer.width, renderer.height, view, { paused: motionPreference.matches });
     running = true;
     releaseEntrance(now);
     requestFrame({ stitches: true });
+  },
+  view,
+  pause() {
+    running = false;
+    bird?.suspend();
+    if (frame) cancelAnimationFrame(frame);
+    frame = null;
+  },
+  resume() {
+    running = true;
+    requestFrame({ cloth: true, stitches: true });
+  },
+  unpickBranding() {
+    const started = performance.now();
+    cornerEntrance.finish();
+    brandingDeparture = new StitchUnpick(cornerEntranceGroups(initial.entries), { started, reduced: motionPreference.matches });
+    wordmark?.unpick(started, motionPreference.matches);
+    bird?.setVisible(false, { duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH });
+    hover = null;
+    requestFrame({ stitches: true });
+  },
+  restoreBranding({ animate = false } = {}) {
+    const started = performance.now();
+    if (animate && brandingDeparture) brandingDeparture.reverse(started);
+    else brandingDeparture = null;
+    wordmark?.restore(animate, started);
+    bird?.setVisible(true, { immediate: !animate || motionPreference.matches });
+    requestFrame({ stitches: true });
+  },
+  setPaperPresent(present) {
+    sheet?.reset();
+    // Pause the paper's pointer lighting while it is turned away.
+    sheet?.setFlipping(!present);
+    paper = present ? sheet : null;
+    hover = null;
+    requestFrame();
+  },
+  setMessage(message = '') {
+    worksMessage = message;
+    clock?.setMessage(message);
+    requestFrame();
   },
 };
 }

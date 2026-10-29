@@ -7,6 +7,7 @@ import { paperTarget, paperPlacementAt } from './paper-motion.mjs';
 import { applyPaperPose } from './paper-pose.mjs';
 import { createImageInkLayer } from './ink-growth.mjs';
 import { registerPreloaderFrame } from './frame-registration.mjs';
+import { WorksGallery } from './works.mjs';
 
 const loader = document.getElementById('preloader');
 const surface = document.getElementById('surface');
@@ -144,6 +145,12 @@ async function boot() {
   document.body.classList.remove('is-revealing');
   document.body.dataset.ready = 'true';
   loader.remove();
+  const works = new WorksGallery(document.getElementById('works'), {
+    scene, motionPreference: preference,
+    paper: surface.querySelector('.portfolio-paper'),
+    frontSeal: surface.querySelector('.paper-front .works-seal'),
+  });
+  if (location.hash === '#works') works.open({ history: false });
 }
 
 boot().catch(error => {

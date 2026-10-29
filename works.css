@@ -1,0 +1,254 @@
+/* The works gallery: stamp-framed cards in a sideways row on the white cloth. */
+
+.works-gallery {
+  --ink: #49483f;
+  --muted: #8a877e;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  font-family: "Syne Mono", monospace;
+  color: var(--ink);
+}
+.works-gallery[hidden] { display: none; }
+
+/* One row of cards scrolls sideways over the cloth; the top bar and clock stay put. */
+.works-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.works-scroll::-webkit-scrollbar { display: none; }
+.works-wall { position: relative; margin: 0; padding: 0; list-style: none; }
+
+.works-item {
+  position: absolute;
+  opacity: 0;
+  translate: 0 var(--arrive, -8px);
+  transition: opacity 420ms ease calc(var(--i) * 80ms), translate 620ms cubic-bezier(.22, 1, .36, 1) calc(var(--i) * 80ms);
+}
+.works-item[data-shelf="bottom"] { --arrive: 8px; }
+.works-gallery.is-open .works-item { opacity: 1; translate: 0 0; }
+.works-gallery:not(.is-open) .works-item { transition-duration: 240ms; transition-delay: 0ms; }
+/* Switching collection: the old cards leave together, the new settle in turn. */
+.works-gallery.is-open.is-swapping .works-item { opacity: 0; translate: 0 var(--arrive, -8px); transition-duration: 240ms; transition-delay: 0ms; }
+
+.works-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  pointer-events: auto;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.works-link[aria-disabled="true"] { cursor: default; }
+
+/* A postage stamp: perforated paper over the photograph, which shows
+   through a rectangular window. --inset is the paper around the window. */
+.works-frame {
+  --inset: 20px;
+  position: relative;
+  z-index: 1;
+  display: block;
+  /* The height is set to whole perforations; the width is the card's. */
+  width: 100%;
+}
+.works-window {
+  position: absolute;
+  inset: calc(var(--inset) - 1px);
+  overflow: hidden;
+  background: #e9e4da;
+}
+.works-window img {
+  display: block;
+  /* Wider than the window, so the photo has room to slide as the row
+     scrolls; on its own layer, so sliding it never repaints the stamp. */
+  width: 132%;
+  height: 100%;
+  margin-left: -16%;
+  will-change: translate;
+  object-fit: cover;
+  transition: scale 700ms cubic-bezier(.22, 1, .36, 1);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.works-item.is-active .works-window img { scale: 1.05; }
+
+/* Printed over the photo: the title in the window's top left, the field and
+   year in its bottom right. */
+.works-text {
+  position: absolute;
+  inset: var(--inset);
+  z-index: 4;
+  display: grid;
+  grid-template: auto 1fr auto / 1fr auto;
+  gap: 0 12px;
+  padding: 10px 12px;
+  pointer-events: none;
+  color: #ffffff;
+  line-height: 1.15;
+  /* A soft dark edge keeps the letters legible on any photo. */
+  text-shadow: 0 0 2px rgb(20 10 8 / .55), 0 1px 3px rgb(20 10 8 / .35);
+}
+.works-title { grid-area: 1 / 1; min-width: 0; font-size: 14px; letter-spacing: .04em; overflow-wrap: anywhere; }
+/* The stamp's value: the work's years, in the top right. */
+.works-value { grid-area: 1 / 2; font-size: 12px; line-height: 1.4; white-space: nowrap; }
+.works-meta { grid-area: 3 / 1 / 4 / 3; justify-self: end; max-width: 100%; font-size: 12px; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.works-link:focus-visible .works-title { text-decoration: underline; }
+
+/* The top bar: a back button and a segmented toggle between selected works
+   and exploration, plain controls centred at the top. */
+.works-nav {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  translate: -50% 0;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.works-gallery.is-open .works-nav { opacity: 1; }
+.works-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a877e;
+  font: 12px/1 "Syne Mono", monospace;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.works-nav button:hover { color: #49483f; }
+.works-nav button:focus-visible { outline: 2px solid #49483f; outline-offset: 2px; }
+.works-nav-back,
+.works-nav-toggle {
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 999px;
+  background: rgb(255 255 255 / .92);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .05);
+}
+.works-nav .works-nav-back { height: 36px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); background: rgb(255 255 255 / .92); color: #49483f; }
+.works-back-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  background: currentColor;
+  mask: url('./assets/contact/angle-left.svg') center / contain no-repeat;
+}
+.works-nav .works-nav-back:hover { background: #f4f3f0; }
+.works-nav-toggle { display: flex; padding: 3px; gap: 2px; }
+.works-nav-toggle button[aria-pressed="true"] {
+  background: #49483f;
+  color: #ffffff;
+  cursor: default;
+}
+
+/* A woven label on password-protected work, tucked behind the lower edge of
+   the stamp. It steps aside while the info slip, which
+   says the same, is out. */
+.works-protected {
+  position: absolute;
+  top: calc(100% - 6px);
+  z-index: 0;
+  left: 50%;
+  translate: -50% 0;
+  padding: 14px 10px 6px;
+  border-radius: 2px;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.1;
+  letter-spacing: .05em;
+  white-space: nowrap;
+  /* Woven thread: a raised pick with a shadow below. */
+  text-shadow: 0 .6px 0 rgb(60 0 6 / .45);
+  /* Fine diagonal twill over horizontal ribs, in red. */
+  background:
+    repeating-linear-gradient(-58deg, rgb(60 0 6 / .12) 0 .8px, transparent .8px 2.4px),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / .05) 0 .6px, transparent .6px 1.8px),
+    #bb2c2f;
+  box-shadow: 0 1px 1px rgb(40 0 4 / .3), 0 4px 8px rgb(40 0 4 / .2);
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.works-item.is-active .works-protected { opacity: 0; }
+
+/* The info slip: compact details on paper, sliding out from behind the
+   card toward the open middle of the cloth. */
+.works-info-pocket {
+  position: absolute;
+  left: 9%;
+  z-index: 0;
+  width: min(82%, 300px);
+  pointer-events: none;
+}
+/* Keep the opening fixed while the slip moves beneath the photograph. */
+.works-item[data-shelf="top"] .works-info-pocket {
+  top: calc(100% - 14px);
+  clip-path: inset(10px -24px -32px);
+}
+.works-item[data-shelf="bottom"] .works-info-pocket {
+  bottom: calc(100% - 14px);
+  clip-path: inset(-32px -24px 10px);
+}
+.works-info {
+  --ink: #49483f;
+  --muted: #8a877e;
+  position: relative;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px 13px;
+  background: linear-gradient(174deg, var(--works-paper-light), var(--works-paper-dark));
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.35;
+  filter: var(--works-paper-shadow);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 200ms ease, translate 360ms cubic-bezier(.22, 1, .36, 1), visibility 0s linear 360ms;
+}
+/* Allow for the 14px tucked behind the stamp, plus breathing room for text. */
+.works-item[data-shelf="top"] .works-info { padding-top: 32px; translate: 0 -18px; }
+.works-item[data-shelf="bottom"] .works-info { padding-bottom: 32px; translate: 0 18px; }
+.works-item.is-active { z-index: 3; }
+.works-item.is-active .works-info {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  pointer-events: auto;
+  transition: opacity 200ms ease, translate 360ms cubic-bezier(.22, 1, .36, 1), visibility 0s;
+}
+.works-info-rows { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; }
+.works-info-label { color: var(--muted); }
+.works-info-summary { color: var(--ink); }
+
+/* Desktop: larger type on the larger stamps. */
+@media (min-width: 1025px) {
+  .works-title { font-size: 16px; }
+  .works-value, .works-meta { font-size: 14px; }
+}
+
+@media (max-width: 540px) {
+  .works-scroll { pointer-events: auto; touch-action: pan-x; }
+  .works-nav { gap: 6px; }
+  .works-nav button { padding-inline: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .works-item, .works-nav, .works-window img, .works-frame, .works-info { transition: none; }
+}

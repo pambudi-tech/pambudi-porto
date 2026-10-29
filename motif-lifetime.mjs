@@ -1,3 +1,5 @@
+import { UNPICK_STITCH } from './stitch-unpick.mjs';
+
 export const MOTIF_LIFETIME = 30_000;
 
 // Expiry removes a placement from history and rebases later edits, so an
@@ -57,7 +59,7 @@ export class MotifLifetimes {
           this.animations.set(change.key, {
             kind: 'unpick', color, from: 1, revealUnderneath: true,
             started: record.deadline + (record.lastDelay - (record.delays.get(change.key) ?? 0)) * .65,
-            duration: 280,
+            duration: UNPICK_STITCH,
           });
         }
       }

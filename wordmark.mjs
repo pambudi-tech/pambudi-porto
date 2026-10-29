@@ -2,6 +2,7 @@ import { GRID } from './model.mjs';
 import { coverageTable, traceWordmark, WORDMARK_RATIO } from './wordmark-grid.mjs';
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
 import { drawActiveDots, ORNAMENT_COLOR } from './dot-matrix.mjs';
+import { StitchUnpick } from './stitch-unpick.mjs';
 
 export class StitchWordmark {
   constructor(canvas, sprite, { requestFrame, motionPreference, entranceStarted } = {}) {
@@ -58,18 +59,32 @@ export class StitchWordmark {
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (this.isDots) {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawActiveDots(context, this.cells, view, (col, row) => this.entrance.progress(`${col},${row}`, now), '#d6d6d6');
+      drawActiveDots(context, this.cells, view, (col, row) => this.progress(`${col},${row}`, now), '#d6d6d6');
     } else {
       context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
       for (const [col, row] of this.cells) {
-        const progress = this.entrance.progress(`${col},${row}`, now);
+        const progress = this.progress(`${col},${row}`, now);
         if (progress <= 0) continue;
         const variation = ((col * 17 + row * 31) % 8 + 8) % 8;
         context.drawImage(this.sprite(ORNAMENT_COLOR, variation, progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
       }
     }
-    this.animating = this.entrance.active(now);
+    this.animating = this.entrance.active(now) || Boolean(this.departure?.active(now));
     canvas.dataset.entrance = this.animating ? 'stitching' : 'complete';
+    if (this.departure) canvas.dataset.departure = this.departure.active(now) ? 'unpick' : 'complete';
+  }
+  progress(key, now) { return this.entrance.progress(key, now) * (this.departure?.progress(key, now) ?? 1); }
+  unpick(started, reduced = false) {
+    this.entrance?.finish();
+    this.departure = new StitchUnpick([flameEntranceOrder(this.cells ?? [])], { started, reduced });
+    if (this.cells) this.paint(started);
+    this.requestFrame?.();
+  }
+  restore(animate = false, started = performance.now()) {
+    if (animate && this.departure) this.departure.reverse(started);
+    else this.departure = null;
+    delete this.canvas.dataset.departure;
+    if (this.cells) this.paint(started);
   }
   update(now) {
     if (this.animating) this.paint(now);

@@ -4,6 +4,8 @@ import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.
 import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
 import { WING_POSES } from './wing-motion.mjs';
 
+const REVEAL_DURATION = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
+
 export function flightAt(elapsed, { width, height, birdWidth, birdHeight }) {
   const legMs = Math.max(7000, (width + birdWidth * 2) / .13);
   const trip = elapsed / legMs + .24;
@@ -89,6 +91,9 @@ export class BirdFlight {
     this.elapsed = 0;
     this.travelTime = 0;
     this.lastTime = null;
+    this.revealTime = paused ? REVEAL_DURATION : 0;
+    this.revealTarget = REVEAL_DURATION;
+    this.revealRate = 1;
     this.transitions = new StitchTransitions();
     this.entrance = new StitchEntrance({ sweep: ENTRANCE.wordmark, reduced: paused });
     this.resize(width, height, view);
@@ -108,20 +113,21 @@ export class BirdFlight {
     this.rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide));
     this.frames = WING_POSES.map(pose => samplePose(pose, this.columns, this.rows));
     this.motionSignature = null;
-    if (previousStage) this.entrance.finish();
-    else {
-      // Plan in bird-local coordinates across every pose, so the front travels
-      // with the bird and remains coherent while the wings change shape.
-      const silhouette = new Map(this.frames.flat().map(cell => [keyOf(...cell), cell]));
-      // The reveal also covers neighboring holes reached by body follow-through.
-      for (const [col, row] of [...silhouette.values()]) {
-        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-          const x = col + dx, y = row + dy;
-          if (x >= 0 && x < this.columns && y >= 0 && y < this.rows) silhouette.set(keyOf(x, y), [x, y]);
-        }
-      }
-      this.entrance.plan([flameEntranceOrder([...silhouette.values()], { origin: 'center' })]);
+    if (previousStage && this.revealTarget === REVEAL_DURATION) {
+      this.revealTime = REVEAL_DURATION;
+      this.entrance.finish();
     }
+    // Plan in bird-local coordinates across every pose, so the front travels
+    // with the bird and remains coherent while the wings change shape.
+    const silhouette = new Map(this.frames.flat().map(cell => [keyOf(...cell), cell]));
+    // Replan on resize too: later reveals use the current surface lattice.
+    for (const [col, row] of [...silhouette.values()]) {
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const x = col + dx, y = row + dy;
+        if (x >= 0 && x < this.columns && y >= 0 && y < this.rows) silhouette.set(keyOf(x, y), [x, y]);
+      }
+    }
+    this.entrance.plan([flameEntranceOrder([...silhouette.values()], { origin: 'center' })]);
     this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch };
     if (previousStage) this.travelTime = rebaseFlightTime(this.travelTime, previousStage, this.stage);
     const { cells, signature } = this.targetAt();
@@ -149,17 +155,19 @@ export class BirdFlight {
     };
   }
   reveal(cells) {
-    if (!this.entrance.active(this.elapsed)) {
-      this.entrance.finish();
+    if (this.revealTime >= REVEAL_DURATION) {
+      if (this.revealTarget === REVEAL_DURATION) this.entrance.finish();
       return cells;
     }
+    this.entrance.finished = false;
+    if (this.revealTime <= 0) return new Map();
     const visible = new Map();
     for (const [key, cell] of cells) {
       const x = cell.col - this.position.col;
       const localCol = this.position.direction === 1 ? x : this.columns - 1 - x;
       const localKey = keyOf(localCol, cell.row - this.position.row);
       if (!this.entrance.offsets.has(localKey)) continue;
-      const progress = cell.progress * this.entrance.progress(localKey, this.elapsed);
+      const progress = cell.progress * this.entrance.progress(localKey, this.revealTime);
       if (progress > 0) visible.set(key, { ...cell, progress });
     }
     return visible;
@@ -178,11 +186,16 @@ export class BirdFlight {
   }
   update(now) {
     if (this.paused) { this.lastTime = null; return false; }
-    const wasEntering = this.entrance.active(this.elapsed);
-    const delta = this.lastTime === null ? 0 : Math.min(Math.max(0, now - this.lastTime), 100);
+    const wasEntering = this.revealTime !== this.revealTarget;
+    const revealDelta = this.lastTime === null ? 0 : Math.max(0, now - this.lastTime);
+    const delta = Math.min(revealDelta, 100);
     this.lastTime = now;
     this.elapsed += delta;
     this.travelTime += delta;
+    const step = revealDelta * this.revealRate;
+    this.revealTime = this.revealTarget > this.revealTime
+      ? Math.min(this.revealTarget, this.revealTime + step)
+      : Math.max(this.revealTarget, this.revealTime - step);
     const { cells, signature } = this.targetAt();
     const changed = signature !== this.signature;
     const wasAnimating = this.transitions.animating;
@@ -192,13 +205,23 @@ export class BirdFlight {
     return changed || wasAnimating || this.transitions.animating || wasEntering;
   }
   suspend() { this.lastTime = null; }
+  setVisible(visible, { duration = REVEAL_DURATION, immediate = this.paused } = {}) {
+    this.revealTarget = visible ? REVEAL_DURATION : 0;
+    this.revealRate = REVEAL_DURATION / duration;
+    if (immediate || duration <= 0) this.revealTime = this.revealTarget;
+    // Scrub the original center-out stitch reveal in either direction, without
+    // restarting the flight, wingbeat, or changing any stored embroidery.
+    this.entrance.finished = this.revealTime >= REVEAL_DURATION;
+    this.cells = this.reveal(this.transitions.sample(this.elapsed));
+  }
   setPaused(paused) {
     this.paused = paused;
     this.lastTime = null;
     if (paused) {
-      this.entrance.finish();
+      this.revealTime = this.revealTarget;
+      this.entrance.finished = this.revealTime >= REVEAL_DURATION;
       this.transitions.setTarget(this.transitions.target, this.elapsed, true);
-      this.cells = this.transitions.sample(this.elapsed);
+      this.cells = this.reveal(this.transitions.sample(this.elapsed));
     }
   }
 }

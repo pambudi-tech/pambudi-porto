@@ -139,6 +139,28 @@ export function drawCross(ctx, x, y, colorId, variation = 0, progress = 1) {
   ctx.restore();
 }
 
+export function threadSprite(sprites, color, variation, progress = 1) {
+  const step = Math.round(progress * 12);
+  const key = `${color}:${variation}:${step}`;
+  if (!sprites.has(key)) {
+    const sprite = document.createElement('canvas');
+    const scale = 3, margin = 5;
+    sprite.width = sprite.height = (GRID + margin * 2) * scale;
+    const ctx = sprite.getContext('2d');
+    ctx.scale(scale, scale);
+    drawCross(ctx, margin, margin, color, variation, step / 12);
+    if (sprites.size > 768) {
+      const transient = [...sprites.keys()].find(key => !key.endsWith(':12'));
+      sprites.delete(transient ?? sprites.keys().next().value);
+    }
+    sprites.set(key, sprite);
+  }
+  return sprites.get(key);
+}
+
+// The cloth's ground and perforation colours.
+export const CLOTH = Object.freeze({ ground: '#ffffff', hole: 'rgba(0,0,0,.20)' });
+
 export class SurfaceRenderer {
   constructor(cloth, embroidery, gesture) {
     this.clothCanvas = cloth;
@@ -170,7 +192,7 @@ export class SurfaceRenderer {
   drawCloth(view) {
     const ctx = this.cloth;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = CLOTH.ground;
     ctx.fillRect(0, 0, this.width, this.height);
     // Quiet perforations keep the stitchable grid without fabric grain.
     this.world(ctx, view);
@@ -180,7 +202,7 @@ export class SurfaceRenderer {
     const spacing = surfaceSpacing(this.width);
     const baselineScale = view.scale / spacing;
     const holeRadius = Math.max(1.5, .42 / baselineScale) / spacing;
-    ctx.fillStyle = 'rgba(0,0,0,.20)';
+    ctx.fillStyle = CLOTH.hole;
     ctx.beginPath();
     for (let row = Math.floor(top / GRID); row <= Math.ceil((top + height) / GRID); row++) {
       for (let col = Math.floor(left / GRID); col <= Math.ceil((left + width) / GRID); col++) {
@@ -192,23 +214,7 @@ export class SurfaceRenderer {
     ctx.fill();
   }
   sprite(color, variation, progress = 1) {
-    const step = Math.round(progress * 12);
-    const key = `${color}:${variation}:${step}`;
-    if (!this.sprites.has(key)) {
-      const sprite = document.createElement('canvas');
-      const scale = 3, margin = 5;
-      sprite.width = sprite.height = (GRID + margin * 2) * scale;
-      const ctx = sprite.getContext('2d');
-      ctx.scale(scale, scale);
-      drawCross(ctx, margin, margin, color, variation, step / 12);
-      if (this.sprites.size > 768) {
-        // Keep finished cotton sprites while short-lived motif frames cycle.
-        const transient = [...this.sprites.keys()].find(key => !key.endsWith(':12'));
-        this.sprites.delete(transient ?? this.sprites.keys().next().value);
-      }
-      this.sprites.set(key, sprite);
-    }
-    return this.sprites.get(key);
+    return threadSprite(this.sprites, color, variation, progress);
   }
   drawStitches(model, view, animations = new Map(), movingCells = new Map(), entrance = null, now = 0) {
     this.clear(this.stitch);

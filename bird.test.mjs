@@ -239,3 +239,51 @@ test('bird stays red on both sides of the paper throughout its outgoing and retu
   }
   assert.equal(directions.size, 2, 'both flight directions were checked');
 });
+
+test('page departure unsews the dove and return replays its initial reveal without resetting the flight', () => {
+  const view = { x: 640, y: 320, scale: 8.125 / 22 };
+  const bird = new BirdFlight(1280, 720, view, { paused: true });
+  const full = new BirdFlight(1280, 720, view, { paused: true });
+  bird.setPaused(false);
+  full.setPaused(false);
+  bird.update(0);
+  full.update(0);
+  const initial = new Map(bird.cells);
+  bird.setVisible(false, { duration: 900 });
+  assert.deepEqual(bird.cells, initial, 'departure starts at the current thread lengths');
+  let partialDeparture = false;
+  for (let time = 50; time <= 900; time += 50) {
+    bird.update(time);
+    full.update(time);
+    assert.deepEqual(bird.position, full.position, 'unsewing does not change the flight');
+    if (time === 450) partialDeparture = bird.cells.size > 0 && bird.cells.size < full.cells.size;
+  }
+  assert.ok(partialDeparture, 'the dove retracts in patches instead of disappearing at the page handoff');
+  assert.equal(bird.cells.size, 0);
+  const travelTime = bird.travelTime;
+  bird.setVisible(true);
+  assert.equal(bird.cells.size, 0, 'return begins with bare cloth');
+  assert.equal(bird.travelTime, travelTime, 'return keeps its flight phase');
+  let partialReturn = false;
+  const end = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
+  for (let time = 950; time <= 900 + end + 50; time += 50) {
+    bird.update(time);
+    full.update(time);
+    assert.deepEqual(bird.position, full.position);
+    if (time === 1900) partialReturn = bird.cells.size > 0 && bird.cells.size < full.cells.size;
+  }
+  assert.ok(partialReturn, 'return uses the initial gradual stitch reveal');
+  assert.deepEqual(bird.cells, full.cells, 'the completed dove keeps the original geometry');
+});
+
+test('a hidden dove stays hidden through resize and reduced motion, and can return immediately', () => {
+  const bird = new BirdFlight(1280, 720, { x: 640, y: 320, scale: 8.125 / 22 }, { paused: true });
+  bird.setVisible(false);
+  assert.equal(bird.cells.size, 0);
+  bird.resize(390, 844, { x: 195, y: 357, scale: 5.25 / 22 });
+  bird.setPaused(true);
+  assert.equal(bird.cells.size, 0, 'layout and motion preferences do not flash the hidden dove');
+  bird.setVisible(true);
+  assert.ok(bird.cells.size > 0);
+  assert.ok([...bird.cells.values()].every(cell => cell.progress === 1));
+});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MOTIFS, MotifBag, createMotif, stampMotif, randomMotifRotation, MAX_MOTIF_ROTATION } from './motifs.mjs';
+import { MOTIFS, MotifBag, createMotif, stampMotif } from './motifs.mjs';
 import { StitchModel } from './model.mjs';
 import { SurfaceRenderer } from './render.mjs';
 
@@ -31,39 +31,17 @@ test('the green dinosaur keeps its brown eye and the dragon keeps its open eye c
   assert.ok(createMotif('lightning').some(cell => cell.color === '#fff7dc'));
 });
 
-test('left and right tilts stay within 15 degrees and keep motifs connected on the stitch grid', () => {
-  assert.equal(MAX_MOTIF_ROTATION, Math.PI / 12);
-  assert.equal(randomMotifRotation(() => 0), -MAX_MOTIF_ROTATION);
-  assert.equal(randomMotifRotation(() => .5), 0);
-  assert.equal(randomMotifRotation(() => 1), MAX_MOTIF_ROTATION);
-  const normalize = cells => cells.map(({ col, row, color }) => `${col},${row},${color}`).sort();
+test('every placed motif matches its upright source chart cell for cell across reveal seeds', () => {
   for (const motif of MOTIFS) {
-    const source = createMotif(motif.id);
-    const tilts = new Set();
-    for (const degrees of [-15, -10, -5, 5, 10, 15]) {
-      const cells = createMotif(motif.id, { col: 12, row: -7, rotation: degrees * Math.PI / 180 });
-      assert.ok(cells.length >= source.length * .8 && cells.length <= source.length * 1.25, motif.id);
-      assert.equal(new Set(cells.map(cell => `${cell.col},${cell.row}`)).size, cells.length);
-      assert.ok(cells.every(cell => Number.isInteger(cell.col) && Number.isInteger(cell.row) && motif.palette.includes(cell.color)));
-      tilts.add(normalize(cells).join(';'));
-      // A rotated thin stem or outline must not break into detached fragments.
-      const pending = new Set(cells.map(cell => `${cell.col},${cell.row}`));
-      const first = pending.values().next().value; pending.delete(first);
-      const queue = [first];
-      for (let i = 0; i < queue.length; i++) {
-        const [x, y] = queue[i].split(',').map(Number);
-        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-          const next = `${x + dx},${y + dy}`;
-          if (pending.delete(next)) queue.push(next);
-        }
-      }
-      assert.equal(pending.size, 0, `${motif.id}, ${degrees} degrees`);
+    const expected = new Map();
+    motif.rows.forEach((line, y) => [...line].forEach((symbol, x) => {
+      if (symbol !== '.') expected.set(`${12 + x - Math.floor(motif.columns / 2)},${-7 + y - Math.floor(motif.lines / 2)}`, motif.palette[parseInt(symbol, 36)]);
+    }));
+    for (const seed of [0, 123, 9999]) {
+      const model = new StitchModel();
+      stampMotif(model, motif.id, { col: 12, row: -7, seed });
+      assert.deepEqual(model.stitches, expected, `${motif.id}, seed ${seed}`);
     }
-    assert.equal(tilts.size, 6, motif.id);
-    for (const sign of [-1, 1]) assert.deepEqual(
-      normalize(createMotif(motif.id, { rotation: sign * Math.PI })),
-      normalize(createMotif(motif.id, { rotation: sign * MAX_MOTIF_ROTATION })),
-    );
   }
 });
 
