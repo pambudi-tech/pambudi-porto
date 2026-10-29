@@ -2,10 +2,11 @@ import { cornerPitch } from '../stitch/corners.mjs';
 import { mountProjectFrame, projectFrameGap } from './project-frame.mjs';
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from '../works/postage-stamp.mjs';
 import { mountProjectGallery } from './project-gallery.mjs';
-import { CARD_GUARD } from '../works/gallery.mjs';
+import { CARD_GUARD } from '../works/layout.mjs';
 
 export function mountProjectDetail(project) {
   document.title = `${project.title} — Ivan Pambudi`;
+  document.querySelector('meta[name="description"]')?.setAttribute('content', project.subtitle);
   for (const element of document.querySelectorAll('[data-project]')) {
     const key = element.dataset.project;
     element.textContent = project[key] ?? project.facts[key] ?? '';

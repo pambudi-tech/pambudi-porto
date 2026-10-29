@@ -84,12 +84,6 @@ function createProjectNavMorph(gallery, title) {
   };
 }
 
-export function projectHref(work, base) {
-  const url = new URL(work.href, base);
-  if (url.pathname.endsWith('/ocean.html')) url.searchParams.set('work', work.id);
-  return url.href;
-}
-
 export const flightBox = rect => ({
   left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
 });

@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw
 
 
 SOURCE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('/Users/mac/Downloads/CrossStitch-ezgif.com-resize.webp')
-TARGET = Path(__file__).resolve().parents[1] / 'bird-data.mjs'
+TARGET = Path(__file__).resolve().parents[1] / 'src' / 'bird' / 'bird-data.mjs'
 image = Image.open(SOURCE)
 image.seek(16)
 image.load()
@@ -90,7 +90,7 @@ source_ink = pixels[(red > 85) & (pixels[:, :, 1] < 145)]
 color = '#' + ''.join(f'{int(channel):02x}' for channel in np.median(source_ink, axis=0))
 
 data = [
-    "import { THREAD_COLORS } from './thread-colors.mjs';",
+    "import { THREAD_COLORS } from '../stitch/thread-colors.mjs';",
     '',
     '// Source: the supplied CrossStitch-ezgif.com-resize.webp, complete bird in frame 16.',
     '// Original X-stitch layout; wings articulated around registered shoulders.',

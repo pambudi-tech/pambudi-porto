@@ -1,39 +1,17 @@
 import { GRID } from '../stitch/model.mjs';
 import { paperFlipKeyframes } from '../paper/paper-flip.mjs';
-import { WORKS, EXPLORATION } from '../../content/works.mjs';
+import { WORKS, EXPLORATION, clockLabel, workHref, yearLabel } from '../content/works.mjs';
 import { clockTextLayout } from '../clock/clock.mjs';
 import { paperTarget, advancePaper } from '../paper/paper-motion.mjs';
-import { projectHref, transitionToProject } from './project-transition.mjs';
+import { transitionToProject } from './project-transition.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
-export { STAMP, stampShape } from './postage-stamp.mjs';
+import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
 // when edge-on; it returns through the second half, from the other side.
 export const PAPER_AWAY = Object.freeze({ duration: 560 });
 export const WORKS_MOTION = Object.freeze({ fade: 280 });
-// One card per column, leaning top, bottom, bottom, top, top, ...
-export const shelfAt = index => ((index + 1) >> 1) % 2 ? 'bottom' : 'top';
-// Each card sits at its own height within its shelf, the same on every visit.
-const scatter = (index, salt) => {
-  const n = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
-  return n - Math.floor(n);
-};
-export const placement = index => ({ lift: scatter(index, 3), shift: scatter(index, 5) });
-// How far a photo slides inside its window as the row scrolls, as a share of
-// the card's width either way.
-export const PHOTO_PARALLAX = .14;
-// Guards for the works row on tablets and desktops. Cards are `share` of the
-// screen's width, never under `min` pixels and never taller than `tallest`
-// of the height above the clock; every card but the first settles `settle`
-// of that height lower; and no two cards come within `gap` pixels of
-// overlapping. Upright screens hold the rows in a band `uprightBand` cards
-// tall. Phones and tablets (up to `tabletUpTo` wide) use fixed card widths.
-export const CARD_GUARD = Object.freeze({
-  share: .3, min: 260, tallest: .42, settle: .06, gap: 20, uprightBand: 2.8,
-  label: 36,   // room under a stamp for its password label
-  tablet: 380, tabletUpTo: 1024, phone: 300,
-});
 // Wheel scrolling glides toward where the wheel has sent it.
 export const WHEEL_GLIDE = 140;
 
@@ -45,17 +23,6 @@ export function halfFlipKeyframes(half) {
     .filter(frame => half === 'away' ? frame.offset <= .5 : frame.offset >= .5)
     .map(frame => ({ ...frame, offset: half === 'away' ? frame.offset * 2 : frame.offset * 2 - 1 }));
 }
-
-export const clockLabel = (work, short = false) => {
-  const from = Math.floor(work.start), to = work.end ? Math.floor(work.end) : 'now';
-  const years = from === to ? String(from) : `${from}-${to}`;
-  return `${work.title}${short ? '' : ` ${years}`}`.toUpperCase().replace(/[^A-Z0-9 -]/g, '').replace(/\s+/g, ' ').trim();
-};
-
-export const yearLabel = work => {
-  const from = Math.floor(work.start), to = work.end ? Math.floor(work.end) : 'now';
-  return from === to ? String(from) : `${from}—${to === 'now' ? to : String(to).slice(2)}`;
-};
 
 export class WorksGallery {
   constructor(root, { scene, paper, frontSeal, motionPreference, collections = { works: WORKS, exploration: EXPLORATION } }) {
@@ -91,7 +58,7 @@ export class WorksGallery {
       if (event.key === 'Escape' && this.isOpen) this.close();
     });
     addEventListener('popstate', () => {
-      if (location.pathname.endsWith('/ocean.html')) return;
+      if (location.pathname.startsWith('/work/')) return;
       if ((location.hash === '#works') !== this.isOpen) location.hash === '#works' ? this.open({ history: false }) : this.close({ history: false });
     });
     addEventListener('resize', () => {
@@ -121,7 +88,8 @@ export class WorksGallery {
     item.style.setProperty('--i', index);
     const link = document.createElement('a');
     link.className = 'works-link';
-    if (work.href) link.href = projectHref(work, location.href);
+    const href = workHref(work);
+    if (href) link.href = href;
     else link.setAttribute('aria-disabled', 'true');
     link.tabIndex = 0;
     link.setAttribute('aria-label', `${work.title}, ${work.tags.join(', ')}, ${yearLabel(work)}${work.passwordProtected ? ', password protected' : ''}`);
@@ -142,7 +110,7 @@ export class WorksGallery {
     // Work with a page shows a wax "details" seal in the middle of its photo
     // on hover: the homepage's seal and its light, without its wax-flow entrance.
     let seal = null;
-    if (work.href) {
+    if (href) {
       const element = Object.assign(document.createElement('span'), { className: 'works-seal works-details' });
       element.setAttribute('aria-hidden', 'true');
       element.innerHTML = '<img src="/assets/works-wax-seal.png" width="2076" height="758" alt="" draggable="false" />'
@@ -203,7 +171,7 @@ export class WorksGallery {
     requestAnimationFrame(() => this.root.classList.add('is-open'));
     this.keepPainting(this.items.length * 80 + 700);
     this.busy = false;
-    (this.items.find(entry => entry.work.href) ?? this.items[0]).link.focus({ preventScroll: true, focusVisible: false });
+    (this.items.find(entry => workHref(entry.work)) ?? this.items[0]).link.focus({ preventScroll: true, focusVisible: false });
   }
 
   async close({ history = true } = {}) {
@@ -483,7 +451,7 @@ export class WorksGallery {
     event.preventDefault();
     if (this.departing) return;
     // Touch has no hover, so a tap opens the work at once, without the seal.
-    if (entry.work.href) transitionToProject(this, entry, { seal: event.pointerType !== 'touch' });
+    if (workHref(entry.work)) transitionToProject(this, entry, { seal: event.pointerType !== 'touch' });
     else this.activate(entry);
   }
 }

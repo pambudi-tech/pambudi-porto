@@ -74,4 +74,4 @@ for id, name, origin, pitch, size, palette in SPECS:
 output = '// Traced from the user-supplied charts with tools/trace-motifs.py.\n'
 output += '// One colored source square becomes one X; dots are unstitched.\n'
 output += 'export const MOTIF_DATA = ' + json.dumps(motifs, indent=2) + ';\n'
-(ROOT / 'motif-data.mjs').write_text(output)
+(ROOT / 'src' / 'stitch' / 'motif-data.mjs').write_text(output)

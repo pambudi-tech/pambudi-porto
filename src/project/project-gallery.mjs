@@ -1,6 +1,6 @@
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from '../works/postage-stamp.mjs';
 import { cornerPitch } from '../stitch/corners.mjs';
-import { placement } from '../works/gallery.mjs';
+import { placement } from '../works/layout.mjs';
 
 // The project's gallery, entered in depth. The "gallery" seal pushes in
 // through the hero, whose layers part at their own speeds: the words rush
