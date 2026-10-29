@@ -1,0 +1,5 @@
+/* See home.css: one stylesheet per page, imported in cascade order. */
+@import "../base.css";
+@import "../postage-stamp.css";
+@import "../project-detail.css";
+@import "../project-transition.css";

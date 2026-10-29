@@ -1,0 +1,8 @@
+/* One stylesheet per page, imported in cascade order. Later files override
+   earlier ones at equal specificity (works.css restacks the postage stamp),
+   so keep the order here rather than in separate <link> tags, which the
+   build may regroup. */
+@import "../base.css";
+@import "../postage-stamp.css";
+@import "../works.css";
+@import "../project-transition.css";
