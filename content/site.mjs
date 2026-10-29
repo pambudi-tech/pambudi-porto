@@ -18,7 +18,7 @@ export const SITE = {
   // link that turns the paper over to About Me.
   intro: [
     'as a designer, {about} gets invested in a project as if he were its co-founder. he hates bad details as much as he hates the regime.',
-    'mostly corporate work lately, but his dream of working in sports hasn’t faded one stitch (pun intended)',
+    'mostly corporate work lately, but after hours he teams up with ai to bring his visions to life, one stitch at a time (pun intended)',
   ],
 
   // In the order the icons appear below the introduction. `icon` names a file
