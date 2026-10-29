@@ -7,6 +7,8 @@ import { transitionToProject } from './project-transition.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
+import { clamp } from '../shared/math.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
 // when edge-on; it returns through the second half, from the other side.
@@ -15,7 +17,6 @@ export const WORKS_MOTION = Object.freeze({ fade: 280 });
 // Wheel scrolling glides toward where the wheel has sent it.
 export const WHEEL_GLIDE = 140;
 
-const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 export function halfFlipKeyframes(half) {
   const frames = half === 'away' ? paperFlipKeyframes(0, 180) : paperFlipKeyframes(-180, 0);
@@ -36,6 +37,8 @@ export class WorksGallery {
     this.wall = root.querySelector('.works-wall');
     this.isOpen = false;
     this.busy = false;
+    this.lifetime = new AbortController();
+    const { signal } = this.lifetime;
     this.active = null;
     this.collections = collections;
     this.collection = 'works';
@@ -56,15 +59,15 @@ export class WorksGallery {
     frontSeal.addEventListener('click', () => this.open());
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && this.isOpen) this.close();
-    });
+    }, { signal });
     addEventListener('popstate', () => {
       if (location.pathname.startsWith('/work/')) return;
       if ((location.hash === '#works') !== this.isOpen) location.hash === '#works' ? this.open({ history: false }) : this.close({ history: false });
-    });
+    }, { signal });
     addEventListener('resize', () => {
       if (!this.isOpen) return;
       this.layout();
-    });
+    }, { signal });
     // The row scrolls sideways, freely. It lies over the cloth without taking
     // its pointer, so the wheel is passed on and the cloth stays stitchable.
     addEventListener('wheel', event => {
@@ -72,13 +75,18 @@ export class WorksGallery {
       event.preventDefault();
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       this.glideBy(event.deltaMode === 1 ? delta * 40 : delta);
-    }, { passive: false });
+    }, { passive: false, signal });
     // A native scroll (a swipe, or the keyboard) is drawn in the same frame loop.
     this.scroller.addEventListener('scroll', () => this.paint(), { passive: true });
   }
 
   get reduced() { return this.motionPreference.matches; }
-  get stacked() { return innerWidth <= 540; }
+  get stacked() { return isPhone(innerWidth); }
+
+  // Removes the gallery's window and document listeners.
+  destroy() {
+    this.lifetime.abort();
+  }
 
   createItem(work, index) {
     const item = document.createElement('li');

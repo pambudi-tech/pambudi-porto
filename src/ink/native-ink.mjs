@@ -1,6 +1,6 @@
+import { clamp } from '../shared/math.mjs';
 const SVG = 'http://www.w3.org/2000/svg';
 let sequence = 0;
-const clamp = value => Math.max(0, Math.min(1, value));
 
 export function nativeInkFrame(progress) {
   // Finish the mask early, leaving the last tenth of the entrance completely

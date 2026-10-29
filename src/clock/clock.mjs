@@ -2,6 +2,7 @@ import { GRID } from '../stitch/model.mjs';
 import { CORNER_SIZE } from '../stitch/corners.mjs';
 import { drawActiveDots } from '../stitch/dot-matrix.mjs';
 import { DepartureBoard } from './departure-board.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
 
 // One matrix point corresponds to one perforation in the cloth.
 const DIGITS = {
@@ -65,14 +66,14 @@ export function clockTextLayout(text, { width, height, view, safeBottom = 0 }) {
   const pitch = GRID * view.scale;
   // Keep long messages between the desktop ornaments. Mobile has a separate
   // clock row above their tails, so it can use the available screen width.
-  const maxColumns = Math.max(27, Math.floor(width / pitch) - (width <= 540 ? 6 : (CORNER_SIZE + 4) * 2));
+  const maxColumns = Math.max(27, Math.floor(width / pitch) - (isPhone(width) ? 6 : (CORNER_SIZE + 4) * 2));
   const lines = [];
   for (const word of text.split(' ')) {
     const last = lines.at(-1);
     if (last && textWidth(`${last} ${word}`) <= maxColumns) lines[lines.length - 1] += ` ${word}`;
     else lines.push(word);
   }
-  const bottomRows = width <= 540 ? 21 : 7;
+  const bottomRows = isPhone(width) ? 21 : 7;
   const row = Math.floor((height - safeBottom - view.y) / pitch) - bottomRows - (lines.length - 1) * 7;
   const glyphs = [];
   lines.forEach((line, index) => {

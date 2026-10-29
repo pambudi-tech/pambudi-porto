@@ -1,3 +1,4 @@
+import { isPhone } from '../shared/breakpoints.mjs';
 export const THREADS = [
   { id: 'garnet', name: 'Garnet', color: '#982c40' },
   { id: 'rose', name: 'Old rose', color: '#c48386' },
@@ -8,8 +9,8 @@ export const THREADS = [
 ];
 export const GRID = 22;
 export const SURFACE_SPACING = 1.25;
-export const surfaceSpacing = width => width <= 540 ? 1.5 : SURFACE_SPACING;
-export const edgeGapStitches = width => width <= 540 ? 1 : 3;
+export const surfaceSpacing = width => isPhone(width) ? 1.5 : SURFACE_SPACING;
+export const edgeGapStitches = width => isPhone(width) ? 1 : 3;
 export const keyOf = (x, y) => `${x},${y}`;
 export const parseKey = key => key.split(',').map(Number);
 export const DEFAULT_LAYOUT = { columns: 128, rows: 162, size: 94 };

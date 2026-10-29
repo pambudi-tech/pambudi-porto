@@ -1,7 +1,7 @@
 export const PRELOADER = Object.freeze({
   minimum: 2000, counterCatchup: 360,
   finalSteps: Object.freeze({ 97: 100, 98: 180, 99: 300 }),
-  completeHold: 120, exit: 320, welcomeDuration: 1000, paperDuration: 1400, resourceTimeout: 20000,
+  completeHold: 120, exit: 320, welcomeDuration: 1000, paperDuration: 1400, resourceTimeout: 20000, longestFrame: 100,
 });
 
 // Count settled resources rather than bytes: images must be decoded, fonts
@@ -51,27 +51,27 @@ export class LoadingCounter {
   }
 }
 
-// Hidden tabs throttle animation frames, which some loading steps wait for,
-// so only time spent visible counts toward the limit.
-export function settleWithin(task, milliseconds = PRELOADER.resourceTimeout, page = globalThis.document) {
-  let timer = null, remaining = milliseconds, resumedAt = 0, onVisibility;
+// Only time the page is actually drawn counts toward the limit. Hidden tabs,
+// and panes that are out of view without saying so, stop animation frames,
+// and with them the entrances and image decoding the loader waits for. A
+// long gap between frames counts as one short step.
+export function settleWithin(task, milliseconds = PRELOADER.resourceTimeout, {
+  requestFrame = globalThis.requestAnimationFrame, cancelFrame = globalThis.cancelAnimationFrame,
+} = {}) {
+  let frame, timer, elapsed = 0, last = null;
   const timeout = new Promise((_, reject) => {
-    const run = () => {
-      resumedAt = performance.now();
-      timer = setTimeout(() => reject(new Error('Resource loading timed out')), Math.max(0, remaining));
+    const fail = () => reject(new Error('Resource loading timed out'));
+    if (!requestFrame) { timer = setTimeout(fail, milliseconds); return; }
+    const tick = now => {
+      if (last !== null) elapsed += Math.min(now - last, PRELOADER.longestFrame);
+      last = now;
+      if (elapsed >= milliseconds) fail();
+      else frame = requestFrame(tick);
     };
-    onVisibility = () => {
-      if (page.hidden && timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-        remaining -= performance.now() - resumedAt;
-      } else if (!page.hidden && timer === null) run();
-    };
-    if (!page?.hidden) run();
-    page?.addEventListener('visibilitychange', onVisibility);
+    frame = requestFrame(tick);
   });
   return Promise.race([Promise.resolve(task), timeout]).finally(() => {
     clearTimeout(timer);
-    page?.removeEventListener('visibilitychange', onVisibility);
+    cancelFrame?.(frame);
   });
 }

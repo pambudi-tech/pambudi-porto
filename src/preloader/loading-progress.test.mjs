@@ -64,17 +64,32 @@ test('resource deadlines preserve success and failure and release stalled reques
   await assert.rejects(settleWithin(new Promise(() => {}), 5), /Resource loading timed out/);
 });
 
-test('time in a hidden tab does not count toward the resource deadline', async () => {
-  const page = Object.assign(new EventTarget(), { hidden: true });
+test('only time with animation frames counts toward the resource deadline', async () => {
+  // A scheduler that draws frames only while the page is shown.
+  let shown = false, now = 0, queued = null;
+  const requestFrame = callback => { queued = callback; return 1; };
+  const advance = (ms, step = 16) => {
+    for (let t = 0; t < ms; t += step) {
+      now += step;
+      if (shown && queued) { const callback = queued; queued = null; callback(now); }
+    }
+  };
   let finish;
-  const loading = settleWithin(new Promise(resolve => { finish = resolve; }), 20, page);
-  // Hidden for longer than the limit: the throttled work is still allowed to finish.
-  await new Promise(resolve => setTimeout(resolve, 40));
-  page.hidden = false;
-  page.dispatchEvent(new Event('visibilitychange'));
+  const loading = settleWithin(new Promise(resolve => { finish = resolve; }), 200, { requestFrame, cancelFrame() {} });
+  advance(1000); // Not drawn: nothing counts, however long it lasts.
+  shown = true;
+  advance(100);
   finish('ready');
   assert.equal(await loading, 'ready');
-  // Visible waiting still times out, after the page is shown.
-  const stalled = settleWithin(new Promise(() => {}), 10, Object.assign(new EventTarget(), { hidden: false }));
+  // Drawn frames do count, and a long pause between two counts as one short step.
+  queued = null;
+  const stalled = settleWithin(new Promise(() => {}), 200, { requestFrame, cancelFrame() {} });
+  let settled = false;
+  stalled.catch(() => {}).finally(() => { settled = true; });
+  advance(16);
+  advance(5000, 5000);
+  await new Promise(resolve => setTimeout(resolve));
+  assert.equal(settled, false, 'a five-second gap counts as 100ms');
+  advance(300);
   await assert.rejects(stalled, /Resource loading timed out/);
 });

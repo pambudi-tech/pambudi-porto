@@ -1,7 +1,6 @@
 /* The works gallery: stamp-framed cards in a sideways row on the white cloth. */
 
 .works-gallery {
-  --ink: #49483f;
   --muted: #8a877e;
   position: fixed;
   inset: 0;
@@ -183,13 +182,13 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #49483f;
+  background: var(--ink);
   opacity: .22;
   transition: opacity 200ms ease, scale 200ms ease;
 }
 .works-dot:hover::before { opacity: .5; }
 .works-dot[aria-current]::before { opacity: 1; scale: 1.2; }
-.works-dot:focus-visible { outline: 2px solid #49483f; outline-offset: -2px; border-radius: 50%; }
+.works-dot:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; border-radius: 50%; }
 .works-nav button {
   display: inline-flex;
   align-items: center;
@@ -207,8 +206,8 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
-.works-nav button:hover { color: #49483f; }
-.works-nav button:focus-visible { outline: 2px solid #49483f; outline-offset: 2px; }
+.works-nav button:hover { color: var(--ink); }
+.works-nav button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .works-nav-back,
 .works-nav-toggle {
   border: 1px solid rgb(73 72 63 / .14);
@@ -216,7 +215,7 @@
   background: rgb(255 255 255 / .92);
   box-shadow: 0 1px 2px rgb(0 0 0 / .05);
 }
-.works-nav .works-nav-back { height: 36px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); background: rgb(255 255 255 / .92); color: #49483f; }
+.works-nav .works-nav-back { height: 36px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); background: rgb(255 255 255 / .92); color: var(--ink); }
 .works-back-icon {
   width: 20px;
   height: 20px;
@@ -227,7 +226,7 @@
 .works-nav .works-nav-back:hover { background: #f4f3f0; }
 .works-nav-toggle { display: flex; padding: 3px; gap: 2px; }
 .works-nav-toggle button[aria-pressed="true"] {
-  background: #49483f;
+  background: var(--ink);
   color: #ffffff;
   cursor: default;
 }

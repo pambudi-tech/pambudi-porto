@@ -1,6 +1,6 @@
+import { clamp } from '../shared/math.mjs';
 // A matte enhancement over the approved image, not a replacement for it.
 // The image's luminance provides a subtle relief proxy; it is not a height map.
-const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 function noise(x, y) {
   let n = Math.imul(x + 71, 374761393) ^ Math.imul(y + 19, 668265263);
   n = Math.imul(n ^ (n >>> 13), 1274126177);

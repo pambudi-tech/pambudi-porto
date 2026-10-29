@@ -1,6 +1,7 @@
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from '../works/postage-stamp.mjs';
 import { cornerPitch } from '../stitch/corners.mjs';
 import { placement } from '../works/layout.mjs';
+import { clamp } from '../shared/math.mjs';
 
 // The project's gallery, entered in depth. The "gallery" seal pushes in
 // through the hero, whose layers part at their own speeds: the words rush
@@ -26,7 +27,6 @@ const LAYERS = [
   { selector: '.hero-postage-stamp, .cover-figure .project-image', z: 420, fade: .75 },
 ];
 
-const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const ease = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 
 // Where a stamp sits on screen, from the middle of the room between the dots

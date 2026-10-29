@@ -1,6 +1,6 @@
 import { DotClock } from '../clock/clock.mjs';
 import { GRID } from '../stitch/model.mjs';
-import { cornerPitch } from '../stitch/corners.mjs';
+import { cornerPitch, surfaceOrigin } from '../stitch/corners.mjs';
 import { PRELOADER, LoadingCounter, loadingProgress, minimumElapsed, settleWithin } from '../preloader/loading-progress.mjs';
 import { paperInkEntrance } from '../paper/paper-ink.mjs';
 import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
@@ -30,10 +30,7 @@ const total = surface.querySelectorAll('img').length + paperPreview.querySelecto
 
 function resizeClock() {
   const width = innerWidth, height = innerHeight;
-  clock.resize(width, height, {
-    x: Math.round(width / 2), y: Math.round((height - (width <= 540 ? 130 : 80)) / 2),
-    scale: cornerPitch(width) / GRID,
-  });
+  clock.resize(width, height, { ...surfaceOrigin(width, height), scale: cornerPitch(width) / GRID });
 }
 clock.setLoading(0);
 resizeClock();

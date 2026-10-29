@@ -1,6 +1,6 @@
 import { distanceTo } from './distance-field.mjs';
+import { clamp } from '../shared/math.mjs';
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const bump = (distance, center, spread) => Math.exp(-(((distance - center) / spread) ** 2));
 
 // Reconstructed relief, not measured geometry. Distances follow the actual

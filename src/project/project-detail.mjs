@@ -3,6 +3,7 @@ import { mountProjectFrame, projectFrameGap } from './project-frame.mjs';
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from '../works/postage-stamp.mjs';
 import { mountProjectGallery } from './project-gallery.mjs';
 import { CARD_GUARD } from '../works/layout.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
 
 export function mountProjectDetail(project) {
   document.title = `${project.title} — Ivan Pambudi`;
@@ -87,7 +88,7 @@ function alignCoverToSurface(container, figure) {
       } else {
         // One column: the stamp is the works index's card to the pixel, so the
         // flight between them only moves it.
-        const card = Math.round((innerWidth <= 540 ? CARD_GUARD.phone : CARD_GUARD.tablet) / perf) * perf;
+        const card = Math.round((isPhone(innerWidth) ? CARD_GUARD.phone : CARD_GUARD.tablet) / perf) * perf;
         const cardHeight = Math.round(((card - inset * 2) / STAMP.window + inset * 2) / perf) * perf;
         imageWidth = card - inset * 2 + shrinkX * 2;
         imageHeight = cardHeight - inset * 2 + shrinkY * 2;

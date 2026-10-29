@@ -1,9 +1,9 @@
 import { buildWaxSurface, shadeWaxSurface } from './wax-material.mjs';
 import { WaxEntrance } from './wax-entrance.mjs';
+import { clamp } from '../shared/math.mjs';
 
 export const WAX_LIGHT = Object.freeze({ reach: 100, fadeMs: 240, followMs: 110 });
 const restLight = () => ({ x: 0, y: -.35, strength: 0 });
-const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 export function waxLightTarget(bounds, x, y) {
   if (!bounds.width || !bounds.height) return restLight();

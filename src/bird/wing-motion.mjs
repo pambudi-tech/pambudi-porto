@@ -1,4 +1,5 @@
 import { BIRD_POSES } from './bird-data.mjs';
+import { clamp } from '../shared/math.mjs';
 
 // Retain the approved raised silhouette. Include the far wing's inner feathers
 // down to its actual shoulder; the old cut at row 24 left a rigid horizontal
@@ -9,7 +10,6 @@ const isFar = (x, y) => x >= 26 && (y < 24 || (x < 34 && y < 31));
 const near = raised.filter(([x, y]) => isNear(x, y));
 const far = raised.filter(([x, y]) => isFar(x, y));
 const body = raised.filter(([x, y]) => !isNear(x, y) && !isFar(x, y));
-const clamp = value => Math.max(0, Math.min(1, value));
 
 // A separate torso sits underneath the moving wing roots. The old source
 // segmentation used those roots to supply the back, so lowering the wings

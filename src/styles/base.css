@@ -1,3 +1,5 @@
+@import "./tokens.css";
+
 @font-face {
   font-family: "Syne Mono";
   src: url("/assets/fonts/syne-mono-latin.woff2") format("woff2");
@@ -9,12 +11,10 @@
 :root {
   color-scheme: light;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  color: #49483f;
-  background: #ffffff;
+  color: var(--ink);
+  background: var(--paper);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
-  --ink: #49483f;
-  --muted: #79796c;
 }
 
 * { box-sizing: border-box; }
@@ -458,7 +458,7 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   filter: brightness(.74) drop-shadow(0 1px 1px rgb(69 0 0 / .18));
 }
 .works-seal:focus-visible {
-  outline: 2px solid #952e40;
+  outline: 2px solid var(--accent);
   outline-offset: 5px;
   border-radius: 50%;
 }

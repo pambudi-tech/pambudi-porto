@@ -3,6 +3,7 @@ import { coverageTable, traceWordmark, WORDMARK_RATIO } from './wordmark-grid.mj
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from './stitch-entrance.mjs';
 import { drawActiveDots, ORNAMENT_COLOR } from './dot-matrix.mjs';
 import { StitchUnpick } from './stitch-unpick.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
 
 export class StitchWordmark {
   constructor(canvas, sprite, { requestFrame, motionPreference, entranceStarted } = {}) {
@@ -34,7 +35,7 @@ export class StitchWordmark {
     if (!this.table || !this.view) return;
     const { width, view, canvas } = this;
     const pitch = GRID * view.scale;
-    this.isDots = width <= 540;
+    this.isDots = isPhone(width);
     const options = this.isDots ? { startRow: Math.ceil(-view.y / pitch) + 1 } : {};
     const { cells, height, bottomRow } = traceWordmark(this.table, this.sourceWidth, this.sourceHeight, width, view, pitch, options);
     const dpr = Math.min(devicePixelRatio || 1, 2);

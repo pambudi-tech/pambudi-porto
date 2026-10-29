@@ -1,11 +1,11 @@
 import { INK_ENTRANCE } from '../paper/paper-ink.mjs';
+import { clamp } from '../shared/math.mjs';
 
 export const WAX_ENTRANCE = Object.freeze({
   ...INK_ENTRANCE, points: 192,
   // Start the original soft label reveal while the outer rim is still flowing.
   labelAt: .5,
 });
-const clamp = value => Math.max(0, Math.min(1, value));
 const smooth = value => { const t = clamp(value); return t * t * (3 - 2 * t); };
 
 export function waxFlowAt(progress) {

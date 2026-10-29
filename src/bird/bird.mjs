@@ -3,6 +3,7 @@ import { GRID, surfaceSpacing, keyOf } from '../stitch/model.mjs';
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
 import { WING_POSES } from './wing-motion.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
 
 const REVEAL_DURATION = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
 
@@ -13,7 +14,7 @@ export function flightAt(elapsed, { width, height, birdWidth, birdHeight }) {
   const direction = leg % 2 === 0 ? 1 : -1;
   const distance = width + birdWidth * 2;
   const x = direction === 1 ? -birdWidth + progress * distance : width + birdWidth - progress * distance;
-  const centerY = height * (width <= 540 ? .24 : .45);
+  const centerY = height * (isPhone(width) ? .24 : .45);
   const y = centerY - birdHeight / 2 + Math.sin(progress * Math.PI * 2) * Math.min(22, height * .025);
   return { x, y, direction, legMs };
 }

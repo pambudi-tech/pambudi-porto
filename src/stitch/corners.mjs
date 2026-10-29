@@ -1,5 +1,6 @@
 import { surfaceSpacing, edgeGapStitches } from './model.mjs';
 import { ORNAMENT_COLOR } from './dot-matrix.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
 
 // Traced square-for-square from the supplied 31 × 31 pixel ornament.
 export const CORNER_ROWS = [
@@ -54,9 +55,15 @@ export function cornerPattern(color = ORNAMENT_COLOR) {
 
 // Never zero or negative: a page can load in a collapsed, zero-width frame.
 export function cornerPitch(width) {
-  const pitch = width <= 540 ? Math.min(3.5, Math.max(1, (width - 48) / 90)) : Math.min(6.5, width * .165 / CORNER_SIZE);
+  const pitch = isPhone(width) ? Math.min(3.5, Math.max(1, (width - 48) / 90)) : Math.min(6.5, width * .165 / CORNER_SIZE);
   return pitch * surfaceSpacing(width);
 }
+
+// Where the surface's lattice is anchored: centered, a little above the middle
+// to leave room for the clock.
+export const surfaceOrigin = (width, height) => ({
+  x: Math.round(width / 2), y: Math.round((height - (isPhone(width) ? 130 : 80)) / 2),
+});
 
 export function cornerPositions(width, height, view, grid) {
   const step = grid * view.scale;

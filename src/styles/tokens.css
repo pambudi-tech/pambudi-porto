@@ -1,0 +1,10 @@
+/* Shared colors and type. The canvases draw the same ink from JavaScript:
+   MATRIX_COLOR in src/stitch/dot-matrix.mjs. */
+:root {
+  --paper: #ffffff;
+  --ink: #49483f;
+  --muted: #79796c;
+  --line: #deded6;
+  --accent: #952e40;
+  --mono: "Syne Mono", monospace;
+}
