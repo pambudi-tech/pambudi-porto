@@ -1,6 +1,9 @@
 :root {
   --works-paper-light: #f8f4ec;
   --works-paper-dark: #efe8db;
+  /* A stamp's photo is this much wider than its window, so it can slide with
+     the works row; the project cover shows the same size, held still. */
+  --photo-overscan: 1.32;
   --works-paper-shadow: drop-shadow(0 0 .5px rgb(58 55 50 / .45)) drop-shadow(0 .5px .5px rgb(58 55 50 / .15));
 }
 .postage-stamp {

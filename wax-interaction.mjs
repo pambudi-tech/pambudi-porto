@@ -30,11 +30,13 @@ export function advanceWaxLight(current, target, elapsed) {
 }
 
 export class WaxInteraction {
-  constructor(element, motionPreference, { startWhen } = {}) {
+  // `entrance: false` skips the wax-flow entrance, for a seal that appears
+  // some other way.
+  constructor(element, motionPreference, { startWhen, entrance = true } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
     this.motionPreference = motionPreference;
-    this.entrance = new WaxEntrance(element, motionPreference, { startWhen });
+    this.entrance = entrance ? new WaxEntrance(element, motionPreference, { startWhen }) : null;
     this.current = restLight();
     this.target = restLight();
     this.frame = null;
@@ -67,7 +69,7 @@ export class WaxInteraction {
     element.addEventListener('blur', () => this.resetLight());
     motionPreference.addEventListener('change', () => this.resetLight(element.matches(':focus-visible')));
     this.ready = Promise.all([
-      this.entrance.ready,
+      this.entrance?.ready,
       this.prepare().catch(error => console.warn('Wax material:', error)),
     ]);
   }

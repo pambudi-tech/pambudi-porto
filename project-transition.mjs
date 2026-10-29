@@ -1,6 +1,6 @@
 import { BRAND_UNPICK_SWEEP, UNPICK_STITCH } from './stitch-unpick.mjs';
 import { cornerPitch } from './corners.mjs';
-import { STAMP, createPostageStamp, drawPostageStamp } from './postage-stamp.mjs';
+import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from './postage-stamp.mjs';
 
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
@@ -94,13 +94,27 @@ export const flightBox = rect => ({
   left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
 });
 
+// Where a card's photo sits in its window: slid by the row's parallax. The
+// cover holds the same photo centred, so the flight eases between the two
+// instead of swapping one crop for another.
+const photoPose = entry => {
+  const width = entry.image.clientWidth;
+  return { translate: `${width ? (entry.parallax / width * 100).toFixed(3) : 0}% 0` };
+};
+const COVER_POSE = { translate: '0% 0' };
+
+// The flight's stamp at a size: its paper whole, under the photo, which fills
+// it to its perforations, as on a card and on the cover.
+function shapeFlight(stamp, media, width, height, perf) {
+  drawPostageStamp(stamp, width, height, perf, { whole: true });
+  media.style.clipPath = `path('${stampOutline(width, height, perf)}')`;
+}
+
 function followPostage(flight, stamp, media, animation, fromPerf, toPerf) {
   const paint = () => {
     const progress = animation.effect.getComputedTiming().progress ?? 0;
-    const perf = fromPerf + (toPerf - fromPerf) * progress;
     const box = flight.getBoundingClientRect();
-    const { inset } = drawPostageStamp(stamp, box.width, box.height, perf);
-    media.style.inset = `${inset}px`;
+    shapeFlight(stamp, media, box.width, box.height, fromPerf + (toPerf - fromPerf) * progress);
     if (flight.isConnected && animation.playState !== 'finished' && animation.playState !== 'idle') requestAnimationFrame(paint);
   };
   paint();
@@ -140,7 +154,7 @@ async function prepareProject(href) {
   } finally { clearTimeout(timer); }
 }
 
-export async function transitionToProject(gallery, entry, { history = true } = {}) {
+export async function transitionToProject(gallery, entry, { history = true, seal = true } = {}) {
   if (gallery.departing) return;
   const href = entry.link.href;
   if (new URL(href).origin !== location.origin) {
@@ -148,8 +162,11 @@ export async function transitionToProject(gallery, entry, { history = true } = {
     return;
   }
   gallery.departing = true;
+  // The clicked card's seal stays pressed from here until it fades out. A tap
+  // never showed the seal, so its stamp simply flies.
+  if (seal) entry.item.classList.add('is-departing');
   const navMorph = createProjectNavMorph(gallery, entry.work.title);
-  let preview, flight, inDetail = false, returning = false;
+  let preview, flight, sealOut, inDetail = false, returning = false;
   const galleryTitle = document.title;
   const duration = gallery.reduced ? 0 : PROJECT_FLIGHT.duration;
   const requestBack = () => window.history.back();
@@ -158,7 +175,8 @@ export async function transitionToProject(gallery, entry, { history = true } = {
     flight?.remove();
     navMorph.restore();
     gallery.root.classList.remove('is-navigating', 'is-returning');
-    entry.item.classList.remove('is-flight-source');
+    entry.item.classList.remove('is-flight-source', 'is-departing');
+    sealOut?.cancel();
     document.body.classList.remove('is-project-transition');
     gallery.scene.resume();
     gallery.departing = false;
@@ -181,27 +199,44 @@ export async function transitionToProject(gallery, entry, { history = true } = {
     flight.className = 'project-flight';
     flight.setAttribute('aria-hidden', 'true');
     const fromImage = new Image(), toImage = new Image();
-    fromImage.src = gallery.capturePhoto(entry) || entry.image.currentSrc || entry.image.src;
+    fromImage.src = entry.image.currentSrc || entry.image.src;
     toImage.src = targetImage.currentSrc || targetImage.src;
     toImage.className = 'project-flight-target';
     const media = Object.assign(document.createElement('div'), { className: 'project-flight-media' });
     const postage = createPostageStamp(`flight-paper-${entry.work.id}`);
+    // Held where the card shows it until the flight starts.
+    for (const image of [fromImage, toImage]) Object.assign(image.style, photoPose(entry));
     media.append(fromImage, toImage);
-    flight.append(media, postage);
+    flight.append(postage, media);
     Object.assign(flight.style, flightBox(source));
-    document.body.append(flight);
-    media.style.inset = `${drawPostageStamp(postage, source.width, source.height, sourcePerf).inset}px`;
+    shapeFlight(postage, media, source.width, source.height, sourcePerf);
+    // Only cover the card once its photo can be painted, so it never blinks
+    // to an empty window.
     await Promise.allSettled([fromImage.decode(), toImage.decode()]);
+    // The pressed seal fades off the card first; then the stamp flies.
+    if (seal) {
+      sealOut = entry.seal?.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: gallery.reduced ? 0 : 200, easing: 'ease', fill: 'forwards' });
+      await sealOut?.finished;
+    }
+    document.body.append(flight);
     gallery.root.inert = true;
     gallery.root.classList.add('is-navigating');
     document.body.classList.add('is-project-transition');
     gallery.scene.unpickBranding();
+    gallery.scene.unpickVisitorStitches();
     gallery.keepPainting(PROJECT_FLIGHT.duration + 100);
-    // The original cropped photograph travels first; the destination's
-    // full-size photograph resolves as it reaches the hero's final bounds.
+    // The card's photograph travels first; the destination's full-size
+    // photograph resolves as it reaches the hero's final bounds.
     const movement = flight.animate([flightBox(source), flightBox(destination)], {
       duration, easing: PROJECT_FLIGHT.easing, fill: 'forwards',
     });
+    const posePhotos = (from, to) => [fromImage, toImage].map(image => {
+      image.getAnimations().filter(animation => animation.id === 'pose').forEach(animation => animation.cancel());
+      const animation = image.animate([from, to], { duration, easing: PROJECT_FLIGHT.easing, fill: 'forwards' });
+      animation.id = 'pose';
+      return animation;
+    });
+    posePhotos(photoPose(entry), COVER_POSE);
     const finishPostage = followPostage(flight, postage, media, movement, sourcePerf, targetPerf);
     toImage.animate([{ opacity: 0, offset: 0 }, { opacity: 0, offset: .3 }, { opacity: 1, offset: .88 }, { opacity: 1 }], {
       duration, fill: 'forwards',
@@ -227,6 +262,7 @@ export async function transitionToProject(gallery, entry, { history = true } = {
       if (returning || !inDetail) return;
       returning = true;
       preview.style.pointerEvents = 'none';
+      preview.contentWindow.dispatchEvent(new Event('project-route-reset'));
       if (preview.contentWindow.scrollY > 1) {
         await new Promise(resolve => {
           let timer;
@@ -260,6 +296,7 @@ export async function transitionToProject(gallery, entry, { history = true } = {
       // The iframe becomes transparent while its red stitches retract, so
       // the portfolio's stitches can sew back underneath it at the same time.
       const returningImage = flight.animate([flightBox(hero), flightBox(card)], { duration, easing: PROJECT_FLIGHT.easing, fill: 'forwards' });
+      posePhotos(COVER_POSE, photoPose(entry));
       const finishReturningPostage = followPostage(flight, postage, media, returningImage,
         Number(targetPostage.dataset.perforation), STAMP.perf * cornerPitch(innerWidth));
       await Promise.all([

@@ -30,50 +30,97 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .eyebrow { font-size: 14px; line-height: 1.6; color: var(--muted); }
 .project-overview { align-self: center; font-size: 14px; line-height: 1.75; }
 .project-overview p + p { margin-top: 20px; }
+/* Visit site: the back button's pill, icon first, below the overview. The
+   outbound box is drawn a little smaller to sit as lightly as the arrow. */
+.project-visit { display: inline-flex; align-items: center; gap: 4px; height: 36px; margin-top: 24px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: #49483f; font: 12px/1 "Syne Mono", monospace; text-decoration: none; transition: background-color 160ms ease; }
+.project-visit::before { content: ''; display: block; flex: none; width: 20px; height: 20px; background: currentColor; mask: url('./assets/contact/external-link.svg') center / 16px no-repeat; }
+.project-visit:hover { background: #f4f3f0; }
+.project-visit:focus-visible { outline: 2px solid #49483f; outline-offset: 2px; }
 .project-facts { font-size: 14px; line-height: 1.65; }
 .project-facts > div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; padding: 17px 0; border-bottom: 0; }
 .project-facts > div:last-child { border-bottom: 0; padding-bottom: 0; }
 .project-facts dt { color: var(--muted); }
 .project-facts dd { font-variant-numeric: tabular-nums; }
 .project-cover { display: flex; justify-content: center; justify-self: center; min-width: 0; width: var(--framed-cover-width, 100%); padding: var(--frame-margin, 0px); }
-.cover-figure { position: relative; flex: none; width: var(--cover-width, 100%); }
+.cover-figure { position: relative; flex: none; width: var(--cover-width, 100%); height: var(--cover-height, auto); aspect-ratio: 4 / 3; }
 .cover-frame { position: absolute; z-index: 4; pointer-events: none; }
+/* The homepage's wax seal, "gallery", pinned at the bottom centre of the
+   screen; the scene gives it the homepage seal's light and wax-flow entrance. */
+.project-opening { position: relative; }
+.project-gallery-seal { position: fixed; top: calc(100dvh - 64px); z-index: 4; width: 160px; transition: transform .16s ease, filter .16s ease, opacity 200ms ease; }
+/* While the page has more to scroll, it fades into the cloth at that edge,
+   as the About Me paper does; each fade grows with what is left to scroll. */
+.project-fade { position: fixed; left: 0; right: 0; z-index: 3; pointer-events: none; }
+.project-fade-top { top: 0; height: 88px; background: linear-gradient(#ffffff 40%, rgb(255 255 255 / 0)); opacity: var(--fade-top, 0); }
+.project-fade-bottom { bottom: 0; height: 128px; background: linear-gradient(rgb(255 255 255 / 0), #ffffff 60%); opacity: var(--fade-bottom, 0); }
+.gallery-active .project-fade { opacity: 0; }
+.project-gallery-seal .works-seal-label { font-size: 19px; }
+.project-route-leaving .project-gallery-seal { opacity: 0; }
+/* The homepage paper's ink bleed on the project's words, each in its own colour. */
+.project-opening :is(h1, p, dt, dd) { position: relative; }
+.project-opening .ink-bleed { color: inherit; }
+/* The depth gallery the seal opens, between the cloth and the page: stamps
+   one behind another, seen through one shared perspective. */
+.project-depth { position: fixed; inset: 0; z-index: 1; perspective: 1000px; pointer-events: none; }
+.project-depth-stamp { position: absolute; left: 50%; top: 50%; margin: 0; visibility: hidden; will-change: transform, opacity; }
+.project-depth-paper { z-index: 0; }
+.project-depth-photo { position: absolute; inset: 0; z-index: 1; overflow: hidden; background: #eeefeb; }
+.project-depth-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* In the gallery the seal is the way back, so the top bar keeps only the
+   project's name, with the gallery's dots beneath it. */
+.project-nav-back { max-width: 120px; overflow: hidden; transition: max-width 360ms ease, padding 360ms ease, margin 360ms ease, opacity 240ms ease, border-width 360ms ease, background-color 160ms ease; }
+.gallery-open .project-nav-back { max-width: 0; padding-inline: 0; margin-right: -8px; border-width: 0; opacity: 0; pointer-events: none; }
+.gallery-open .project-intro, .gallery-open .project-facts, .gallery-open .project-overview, .gallery-open .gallery-item { pointer-events: none; }
+.gallery-active, .gallery-active body { overflow: hidden; }
+.project-depth-dots { position: fixed; top: calc(66px + env(safe-area-inset-top, 0px)); left: 50%; z-index: 11; display: flex; translate: -50% 0; opacity: 0; visibility: hidden; transition: opacity 300ms ease, visibility 0s linear 300ms; }
+.gallery-open .project-depth-dots { opacity: 1; visibility: visible; transition: opacity 300ms ease 400ms, visibility 0s; }
+.project-depth-dot { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.project-depth-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #49483f; opacity: .22; transition: opacity 200ms ease, scale 200ms ease; }
+.project-depth-dot:hover::before { opacity: .5; }
+.project-depth-dot[aria-current]::before { opacity: 1; scale: 1.2; }
+.project-depth-dot:focus-visible { outline: 2px solid #49483f; outline-offset: -2px; border-radius: 50%; }
 .project-cover figcaption { display: none; }
-.project-gallery { min-width: 0; padding: 80px 0 180px; }
-.gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; row-gap: 144px; align-items: start; }
 .gallery-item { position: relative; min-width: 0; scroll-margin-top: 32px; }
-.gallery-plate { display: flex; min-width: 0; }
-.gallery-plate-wide { grid-column: 1 / -1; justify-content: center; padding-inline: var(--accent-gutter); }
-.gallery-plate[data-corner="top-left"] { justify-content: flex-end; padding-left: var(--accent-gutter); }
-.gallery-plate[data-corner="bottom-right"] { padding-right: var(--accent-gutter); margin-top: 112px; }
-.gallery-plate .gallery-item { flex: none; }
-.gallery-plate .project-image, .gallery-plate .project-image img { height: 100%; }
-.gallery-plate .project-image img { object-fit: cover; }
-.gallery-accent { position: absolute; inset: auto; pointer-events: none; }
-.gallery-item[data-corner="top-right"] .gallery-accent { left: calc(100% + 40px); top: 0; }
-.gallery-item[data-corner="top-left"] .gallery-accent { right: calc(100% + 40px); top: 0; }
-.gallery-item[data-corner="bottom-right"] .gallery-accent { left: calc(100% + 40px); bottom: 0; }
-.gallery-item[data-corner="bottom-left"] .gallery-accent { right: calc(100% + 40px); bottom: 0; }
 .project-image { position: relative; display: block; width: 100%; padding: 0; border: 0; background: #eeefeb; text-align: left; }
 .project-image img { display: block; width: 100%; height: auto; }
-.cover-figure .project-image img { aspect-ratio: 4 / 3; object-fit: cover; }
+/* The photo fills the whole stamp, which sits inside the figure, over the
+   paper; sized as on the works stamps, held still. */
+.cover-figure .project-image { position: absolute; inset: var(--stamp-y, 0px) var(--stamp-x, 0px); z-index: 1; width: auto; overflow: hidden; }
+.hero-postage-stamp { z-index: 0; }
+.cover-figure .project-image img { width: calc(var(--photo-overscan) * 100%); max-width: none; height: 100%; margin-left: calc((1 - var(--photo-overscan)) * 50%); object-fit: cover; }
 @media (max-width: 1000px) {
-  .project-opening { grid-template-columns: 1fr; gap: 40px; }
+  /* One column: room below the text for the seal. */
+  .project-opening { grid-template-columns: 1fr; gap: 40px; padding-bottom: 128px; }
+  /* The title and its tag, then the cover, then the facts and overview. */
+  .project-info { display: contents; }
+  .project-intro { order: 1; margin-bottom: 0; }
+  /* Centred in the column; the stitches reach into the page's margin. */
+  .project-cover { order: 2; width: 100%; padding-inline: 0; }
+  .project-facts { order: 3; }
+  .project-overview { order: 4; }
+  /* The stitched corners, and the hero's nudge onto the cloth's grid, may reach
+     past the screen's edge but never scroll it. */
+  .project-layout { overflow: clip; }
 }
 @media (max-width: 760px) {
   .project-layout { padding: 0 20px; }
-  .project-opening { grid-template-columns: 1fr; gap: 40px; padding: 32px 0; }
-  .project-intro { margin-bottom: 20px; }
-  h1 { font-size: 16px; }
+  /* From the top, just below the top bar, with room at the bottom for the
+     pinned seal; a longer page scrolls beneath it. */
+  .project-opening { grid-template-columns: 1fr; align-content: start; gap: 10px; padding: 58px 0 84px; }
+  /* The stitched corners keep clear of the words above and below. */
+  .project-cover { padding-block: calc(var(--frame-margin, 0px) + 12px); }
+  h1 { font-size: 16px; margin-bottom: 2px; }
   .eyebrow { font-size: 14px; }
-  .project-facts { font-size: 14px; }
-  .project-facts > div { grid-template-columns: 64px minmax(0, 1fr); padding: 12px 0; }
-  .project-overview { font-size: 14px; }
-  .project-gallery { padding-top: 72px; padding-bottom: 88px; }
-  .gallery-grid { grid-template-columns: 1fr; gap: 88px; }
-  .gallery-plate, .gallery-plate-wide, .gallery-plate[data-corner="top-left"], .gallery-plate[data-corner="bottom-right"] { justify-content: center; padding: 0 0 calc(40px + var(--accent-height) + 12px); margin: 0; }
-  .gallery-item[data-corner] .gallery-accent { top: calc(100% + 40px); bottom: auto; }
-  .gallery-item[data-corner="top-right"] .gallery-accent, .gallery-item[data-corner="bottom-right"] .gallery-accent { left: auto; right: 0; }
-  .gallery-item[data-corner="top-left"] .gallery-accent, .gallery-item[data-corner="bottom-left"] .gallery-accent { left: 0; right: auto; }
+  /* The facts two by two, each label above its value. */
+  .project-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; font-size: 14px; line-height: 1.4; }
+  .project-facts > div, .project-facts > div:last-child { display: block; padding: 0; }
+  .project-facts dt { font-size: 12px; }
+  .project-overview { margin-top: 14px; font-size: 14px; line-height: 1.5; }
+  .project-overview p + p { margin-top: 8px; }
+  .project-gallery-seal { top: calc(100dvh - 44px); width: 128px; }
+  .project-gallery-seal .works-seal-label { font-size: 15px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+  .project-opening .ink-source { color: inherit; }
+}

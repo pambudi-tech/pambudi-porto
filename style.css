@@ -272,26 +272,16 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
 .about-resume h1 { font-size: 1em; margin-bottom: .5em; }
 .about-resume h2 { font-size: calc(1em - 2pt); letter-spacing: .12em; margin-bottom: .8em; text-transform: uppercase; }
 .about-heading > p { font-size: 14px; opacity: .88; }
-.about-role { font-size: 14px; }
 .about-detail { opacity: .7; }
-.about-role + .about-role { margin-top: calc(1.75em - 8px); }
-.about-role-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .5em; margin-bottom: .45em; }
-.about-role-heading > p:first-child { flex-shrink: 0; }
-.about-role-heading .about-detail { margin-left: auto; text-align: right; }
-.about-role > p, .about-more { display: inline; }
-.about-role > p, .about-more-content > p { opacity: .7; }
-.about-more summary {
-  display: inline;
-  cursor: pointer;
-  list-style: none;
-  text-decoration: underline;
-  text-underline-offset: .2em;
-}
-.about-more summary::-webkit-details-marker { display: none; }
-.about-more summary:focus-visible { outline: 1px solid currentColor; outline-offset: 3px; }
-.about-more-content { padding: .6em 0 .25em; }
-.about-more-content > * + * { margin-top: .85em !important; }
-.about-more h3 { margin: 0; font: inherit; }
+/* Short lists, no explanations: a row per role, names and dates apart. */
+.about-list { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.about-row { display: flex; align-items: baseline; justify-content: space-between; gap: .5em; }
+.about-row + .about-row { margin-top: .45em; }
+.about-row .about-detail { text-align: right; }
+/* Specific enough to beat `.about-resume p { font: inherit }`. */
+.about-resume .about-items { font-size: 14px; opacity: .88; }
+.about-items a { color: inherit; text-underline-offset: .2em; }
+.about-items a:focus-visible { outline: 1px solid currentColor; outline-offset: 3px; }
 .about-footer { margin-top: .25em; }
 .about-signature {
   display: block;
@@ -495,6 +485,8 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   .ink-entrance.ink-preparing p { opacity: 1; }
 }
 body.paper-hover #surface { cursor: pointer; }
+/* A cloth to look at only keeps the ordinary pointer. */
+#surface[data-stitching="off"] { cursor: default; }
 .top-wordmark {
   inset: 0 auto auto 0;
   width: 100%;

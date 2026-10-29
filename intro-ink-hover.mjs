@@ -41,9 +41,12 @@ function hasRuntLastLine(source) {
   return Math.abs(tops[1] - tops[0]) > parseFloat(getComputedStyle(source).lineHeight) / 2;
 }
 
+// `selector` picks the blocks of text inside `copy` that take the ink: the
+// paper's paragraphs by default, or a project's title, facts and overview.
 export class IntroInkHover {
-  constructor(copy, motionPreference) {
+  constructor(copy, motionPreference, { selector = 'p' } = {}) {
     this.copy = copy;
+    this.selector = selector;
     this.motionPreference = motionPreference;
     this.layers = [];
     this.measurements = [];
@@ -126,7 +129,9 @@ export class IntroInkHover {
     definitions.setAttribute('aria-hidden', 'true');
     definitions.setAttribute('focusable', 'false');
     document.body.append(definitions);
-    for (const paragraph of this.copy.querySelectorAll('p')) {
+    // Lines can rewrap after the first layout settles; measure again then.
+    const resized = new ResizeObserver(() => { for (const measure of this.measurements) measure(); });
+    for (const paragraph of this.copy.querySelectorAll(this.selector)) {
       const filter = this.createFilter(definitions);
       const source = document.createElement('span');
       source.className = 'ink-source';
@@ -172,6 +177,7 @@ export class IntroInkHover {
       };
       measure();
       this.measurements.push(measure);
+      resized.observe(paragraph);
       const draw = state => this.drawInk(filter, glyphs, state);
       this.entries.push({ paragraph, layer, draw, current: { x: 0, y: 0, strength: 0 }, target: { x: 0, y: 0, strength: 0 } });
     }

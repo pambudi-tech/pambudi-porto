@@ -4,7 +4,9 @@ import { WORKS, EXPLORATION } from './works-data.mjs';
 import { clockTextLayout } from './clock.mjs';
 import { paperTarget, advancePaper } from './paper-motion.mjs';
 import { projectHref, transitionToProject } from './project-transition.mjs';
-import { STAMP, stampShape, createPostageStamp } from './postage-stamp.mjs';
+import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
+import { WaxInteraction } from './wax-interaction.mjs';
+import { printRiso } from './works-shader.mjs';
 export { STAMP, stampShape } from './postage-stamp.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
@@ -19,6 +21,9 @@ const scatter = (index, salt) => {
   return n - Math.floor(n);
 };
 export const placement = index => ({ lift: scatter(index, 3), shift: scatter(index, 5) });
+// Whether the stamps show their photos as riso prints. Off for now: the
+// windows show the photographs themselves.
+export const PRINT_RISO = false;
 // How far a photo slides inside its window as the row scrolls, as a share of
 // the card's width either way.
 export const PHOTO_PARALLAX = .14;
@@ -72,12 +77,19 @@ export class WorksGallery {
     this.collections = collections;
     this.collection = 'works';
     this.items = collections.works.map((work, index) => this.createItem(work, index));
+    // Each collection's cards are made once and kept, with their riso prints.
+    this.built = { works: this.items };
     // Along the top: the way back to the paper, and a toggle between the
     // selected works and exploration.
     this.nav = root.querySelector('.works-nav');
     this.nav.querySelector('.works-nav-back').addEventListener('click', () => this.close());
     this.toggles = [...this.nav.querySelectorAll('[data-collection]')];
     for (const toggle of this.toggles) toggle.addEventListener('click', () => this.show(toggle.dataset.collection));
+    // Above the clock: a dot per stamp, the current one filled; a dot glides
+    // the row to its stamp.
+    this.dots = Object.assign(document.createElement('nav'), { className: 'works-dots' });
+    this.dots.setAttribute('aria-label', 'Works');
+    root.append(this.dots);
     frontSeal.addEventListener('click', () => this.open());
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && this.isOpen) this.close();
@@ -116,29 +128,41 @@ export class WorksGallery {
     if (work.href) link.href = projectHref(work, location.href);
     else link.setAttribute('aria-disabled', 'true');
     link.tabIndex = 0;
-    link.setAttribute('aria-label', `${work.title}, ${work.field}, ${work.client}, ${work.role}, ${yearLabel(work)}${work.passwordProtected ? ', password protected' : ''}. ${work.summary}`);
-    // The photograph fills the stamp's window and sits beneath its paper.
+    link.setAttribute('aria-label', `${work.title}, ${work.tags.join(', ')}, ${yearLabel(work)}${work.passwordProtected ? ', password protected' : ''}`);
+    // The photograph fills the stamp, over its paper.
     const frame = document.createElement('span');
     frame.className = 'works-frame';
     const picture = document.createElement('span');
     picture.className = 'works-window';
     const image = new Image();
-    // CORS also lets the image flight capture the current photographic crop.
-    image.crossOrigin = 'anonymous';
     image.decoding = 'async';
     image.alt = work.alt;
-    image.src = work.image;
     image.draggable = false;
     picture.append(image);
+    // With the riso print on, the photograph itself stays off the page and the
+    // window shows its print, made once the card's size is known.
+    let photo = null;
+    if (PRINT_RISO) {
+      photo = new Image();
+      photo.crossOrigin = 'anonymous';
+      photo.decoding = 'async';
+      photo.src = work.image;
+    } else image.src = work.image;
     // The stamp's paper is drawn once the card's size is known.
     const stamp = createPostageStamp(`works-paper-${work.id}`, 'works-stamp');
-    const text = cardText(work);
-    frame.append(picture, stamp, text.box);
-    // A fixed opening keeps the moving slip tucked beneath the photograph.
-    const pocket = document.createElement('span');
-    pocket.className = 'works-info-pocket';
-    pocket.append(infoSlip(work));
-    link.append(frame, pocket);
+    frame.append(picture, stamp, cardText(work));
+    // Work with a page shows a wax "details" seal in the middle of its photo
+    // on hover: the homepage's seal and its light, without its wax-flow entrance.
+    let seal = null;
+    if (work.href) {
+      const element = Object.assign(document.createElement('span'), { className: 'works-seal works-details' });
+      element.setAttribute('aria-hidden', 'true');
+      element.innerHTML = '<img src="./assets/works-wax-seal.png" width="2076" height="758" alt="" draggable="false" />'
+        + '<span class="works-seal-label">details</span>';
+      frame.append(element);
+      seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false }) };
+    }
+    link.append(frame);
     // Work behind a password says so on a small tag just below the frame.
     if (work.passwordProtected) {
       const tag = Object.assign(document.createElement('span'), { className: 'works-protected', textContent: 'password protected' });
@@ -147,8 +171,9 @@ export class WorksGallery {
     }
     item.append(link);
     this.wall.append(item);
-    const entry = { work, index, item, link, frame, image, stamp, text, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
+    const entry = { work, index, item, link, frame, picture, image, photo, printed: null, stamp, seal, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
     image.addEventListener('load', () => this.paint());
+    photo?.addEventListener('load', () => this.printPhoto(entry));
     link.addEventListener('pointermove', event => {
       entry.pointer = { x: event.clientX, y: event.clientY };
       this.paint();
@@ -228,7 +253,8 @@ export class WorksGallery {
     this.keepPainting(WORKS_MOTION.fade + 100);
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
     for (const entry of this.items) entry.item.remove();
-    this.items = this.collections[collection].map((work, index) => this.createItem(work, index));
+    this.items = this.built[collection] ??= this.collections[collection].map((work, index) => this.createItem(work, index));
+    for (const entry of this.items) this.wall.append(entry.item);
     this.gliding = false;
     this.layout();
     this.scroller.scrollLeft = 0;
@@ -257,13 +283,22 @@ export class WorksGallery {
     const snapRow = (y, round = Math.ceil) => view.y + round((y - view.y) / pitch) * pitch;
     const snapCol = (x, round = Math.round) => view.x + round((x - view.x) / pitch) * pitch;
 
+    // The details seals match the homepage's seal, size and lettering.
+    const label = this.frontSeal.querySelector('.works-seal-label');
+    this.root.style.setProperty('--seal-width', `${this.frontSeal.offsetWidth}px`);
+    this.root.style.setProperty('--seal-label-size', getComputedStyle(label).fontSize);
+
     const clockTop = view.y + (Math.floor((height - view.y) / pitch) - (stacked ? 21 : 7)) * pitch;
+    // The dots sit three rows above the clock, and the stamps stop three rows
+    // above the dots, so the space above the dots matches the space below.
+    if (this.dotsFor !== this.items) this.renderDots();
+    this.dots.style.top = `${clockTop - 3 * pitch}px`;
 
     // Cards lean to the top or the bottom of the space between the top bar
     // and the clock, each at its own height there; all share one size.
     const top = snapRow(this.nav.getBoundingClientRect().bottom + (stacked ? 16 : 24));
-    const bottom = snapRow(clockTop - 3 * pitch, Math.floor);
-    const ratio = STAMP.ratio;
+    const bottom = snapRow(clockTop - 6 * pitch, Math.floor);
+    const ratio = STAMP.window;
     const available = bottom - top;
     // Size guard: a share of the screen's width, but never taller than two
     // rows allow and never smaller than a readable card.
@@ -273,12 +308,18 @@ export class WorksGallery {
     // The stamp measures whole perforations, so its holes fall on the cloth's.
     const perf = STAMP.perf * pitch;
     const w = Math.round((fixed ?? Math.max(CARD_GUARD.min, Math.min(width * CARD_GUARD.share, available * CARD_GUARD.tallest * ratio))) / perf) * perf;
-    const h = Math.round(w / ratio / perf) * perf;
-    // Every card shares one size, so one stamp outline serves them all.
+    // The paper's height follows its 4:3 window, to the nearest perforation.
+    const inset = Math.round(perf * STAMP.margin);
+    const h = Math.round(((w - inset * 2) / ratio + inset * 2) / perf) * perf;
+    // Every card shares one size, so one stamp outline serves them all. The
+    // photo fills the whole stamp, cut to its perforations, over the paper;
+    // the text keeps to where the paper's margin would be.
     this.window = stampShape(w, h, perf);
+    const outline = stampOutline(w, h, perf);
     for (const entry of this.items) {
       entry.stamp.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      entry.stamp.lastChild.setAttribute('d', this.window.d);
+      entry.stamp.lastChild.setAttribute('d', outline);
+      entry.picture.style.clipPath = `path('${outline}')`;
       entry.frame.style.setProperty('--inset', `${this.window.inset}px`);
       entry.frame.style.height = `${h}px`;
     }
@@ -291,13 +332,20 @@ export class WorksGallery {
     let x = left, previous = null;
     this.cards = [];
     this.items.forEach((entry, index) => {
-      const shelf = shelfAt(index), { lift, shift } = placement(index);
+      // The last two cards close the row with a zig-zag rather than half a
+      // pair: each takes the shelf opposite the card before it, out at that
+      // shelf's far edge.
+      const closing = Boolean(previous) && index >= this.items.length - 2;
+      const shelf = closing ? (previous.shelf === 'top' ? 'bottom' : 'top') : shelfAt(index);
+      const { lift, shift } = placement(index);
+      entry.item.dataset.shelf = shelf;
       // Opposite shelves tuck into each other; the same shelf keeps apart.
       if (previous) x += previous.w * (shelf === previous.shelf ? 1.06 : .72) + (shift - .5) * w * .12;
       // The first card holds its place; the rest settle a little lower,
-      // into the room below.
-      const settle = index ? available * CARD_GUARD.settle : 0;
-      let y = shelf === 'top' ? bandTop + room * lift * .3 + settle : bandTop + band - h - room * lift * .3;
+      // into the room below, except the closing pair at the edges.
+      const settle = index && !closing ? available * CARD_GUARD.settle : 0;
+      const reach = closing ? 0 : room * lift * .3;
+      let y = shelf === 'top' ? bandTop + reach + settle : bandTop + band - h - reach;
       // A password label hangs below its stamp and counts as part of it.
       const tail = entry.work.passwordProtected ? CARD_GUARD.label : 0;
       y = snapRow(clamp(y, top, bottom - h - tail), Math.floor);
@@ -321,7 +369,29 @@ export class WorksGallery {
     // The row ends with the same margin it starts with.
     this.wall.style.width = `${end + left}px`;
     this.wall.style.height = `${height}px`;
+    for (const entry of this.items) this.printPhoto(entry);
     this.paint();
+  }
+
+  // Prints a card's photo as a riso at the size its window shows it, again
+  // only when that size changes. Without WebGL, the photograph shows instead.
+  printPhoto(entry) {
+    const { image, photo } = entry;
+    if (!photo) return;
+    const width = image.clientWidth, height = image.clientHeight;
+    if (!photo.complete || !photo.naturalWidth || !width || !height) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const key = `${width}x${height}@${dpr}`;
+    if (entry.printed === key) return;
+    entry.printed = key;
+    const print = printRiso(photo, width, height, dpr);
+    if (!print) { image.src = photo.src; return; }
+    print.toBlob(blob => {
+      if (entry.printed !== key || !blob) return;
+      const previous = image.src.startsWith('blob:') ? image.src : null;
+      image.src = URL.createObjectURL(blob);
+      if (previous) URL.revokeObjectURL(previous);
+    });
   }
 
   // Each photo's sideways parallax follows the scroll position, worked out
@@ -334,6 +404,30 @@ export class WorksGallery {
       entry.parallax = this.reduced ? 0 : -clamp((card.x + card.w / 2 - centre) / innerWidth, -1, 1) * card.w * PHOTO_PARALLAX;
       entry.image.style.translate = `${entry.parallax.toFixed(1)}px 0`;
     });
+    // The current stamp is the one nearest the middle, except at either end
+    // of the row, where it is the first or the last.
+    const max = this.scroller.scrollWidth - this.scroller.clientWidth, at = this.scroller.scrollLeft;
+    let current = 0;
+    if (max > 0 && at >= max - 1) current = this.cards.length - 1;
+    else if (at > 1) {
+      const distance = card => Math.abs(card.x + card.w / 2 - centre);
+      this.cards.forEach((card, index) => { if (distance(card) < distance(this.cards[current])) current = index; });
+    }
+    if (current !== this.current) {
+      this.current = current;
+      [...this.dots.children].forEach((dot, index) => index === current ? dot.setAttribute('aria-current', 'true') : dot.removeAttribute('aria-current'));
+    }
+  }
+
+  renderDots() {
+    this.dotsFor = this.items;
+    this.current = null;
+    this.dots.replaceChildren(...this.items.map((entry, index) => {
+      const dot = Object.assign(document.createElement('button'), { type: 'button', className: 'works-dot' });
+      dot.setAttribute('aria-label', entry.work.title);
+      dot.addEventListener('click', () => this.goTo(index));
+      return dot;
+    }));
   }
 
   // One frame loop moves everything together: the wheel glide, the row's
@@ -386,25 +480,6 @@ export class WorksGallery {
     this.paint();
   }
 
-  capturePhoto(entry) {
-    try {
-      const photo = entry.frame.querySelector('.works-window');
-      const width = photo.clientWidth, height = photo.clientHeight;
-      if (!entry.image.naturalWidth || !width || !height) return null;
-      const canvas = document.createElement('canvas');
-      const dpr = Math.min(devicePixelRatio || 1, 2);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      const ctx = canvas.getContext('2d');
-      ctx.scale(dpr, dpr);
-      const hoverScale = parseFloat(getComputedStyle(entry.image).scale) || 1;
-      const fit = Math.max(entry.image.clientWidth / entry.image.naturalWidth, entry.image.clientHeight / entry.image.naturalHeight) * hoverScale;
-      const imageWidth = entry.image.naturalWidth * fit, imageHeight = entry.image.naturalHeight * fit;
-      ctx.drawImage(entry.image, (width - imageWidth) / 2 + entry.parallax, (height - imageHeight) / 2, imageWidth, imageHeight);
-      return canvas.toDataURL();
-    } catch { return null; }
-  }
-
   // Eases the row toward its target, so wheel steps glide rather than jump.
   glideBy(delta) {
     const max = this.scroller.scrollWidth - this.scroller.clientWidth;
@@ -442,41 +517,22 @@ export class WorksGallery {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
     event.preventDefault();
     if (this.departing) return;
-    // Touch has no hover: the first tap picks the card, the second opens it.
-    if (event.pointerType === 'touch' && this.active !== entry) {
-      this.activate(entry);
-      return;
-    }
-    if (entry.work.href) transitionToProject(this, entry);
+    // Touch has no hover, so a tap opens the work at once, without the seal.
+    if (entry.work.href) transitionToProject(this, entry, { seal: event.pointerType !== 'touch' });
     else this.activate(entry);
   }
 }
 
-// A compact paper slip with the project's details. It slides out from
-// behind the card on hover, toward the open middle of the cloth.
-function infoSlip(work) {
-  const slip = document.createElement('span');
-  slip.className = 'works-info';
-  slip.setAttribute('aria-hidden', 'true');
-  const rows = [['client', work.client], ['role', work.role], ['year', yearLabel(work)]];
-  if (work.passwordProtected) rows.push(['access', 'password protected']);
-  slip.innerHTML = '<span class="works-info-rows"></span><span class="works-info-summary"></span>';
-  slip.firstChild.append(...rows.flatMap(([label, value]) => [
-    Object.assign(document.createElement('span'), { className: 'works-info-label', textContent: label }),
-    Object.assign(document.createElement('span'), { textContent: value }),
-  ]));
-  slip.lastChild.textContent = work.summary;
-  return slip;
-}
-
-// Printed on the picture: the title in the window's top left, the year in
-// its top right as the stamp's value, and the field in its bottom right.
+// Printed on the picture: the title in the stamp's top left, the years in its
+// top right as the stamp's value, and the tags as pills in its bottom right.
 function cardText(work) {
   const box = document.createElement('span');
   box.className = 'works-text';
   box.setAttribute('aria-hidden', 'true');
   const part = (className, textContent) => Object.assign(document.createElement('span'), { className, textContent });
-  box.append(part('works-title', work.title), part('works-value', yearLabel(work)), part('works-meta', work.field));
-  return { box };
+  const tags = part('works-meta', '');
+  tags.append(...work.tags.map(tag => part('works-tag', tag)));
+  box.append(part('works-title', work.title), part('works-value', yearLabel(work)), tags);
+  return box;
 }
 

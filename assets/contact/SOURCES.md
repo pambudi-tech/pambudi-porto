@@ -15,6 +15,7 @@ Files from the pinned repository:
 - instagram.svg: icons/SVG/brands/instagram.svg
 - behance.svg: icons/SVG/brands/behance.svg
 - angle-left.svg: icons/SVG/regular/angle-left.svg (Works back button, rendered at 20px)
+- external-link.svg: icons/SVG/regular/external-link.svg (project visit site button, drawn at 16px in a 20px box)
 
 Modification: root fill set to #49483f to match the portfolio ink. Original pixel geometry is unchanged. Icons use the original 24-unit viewBox and render at 20px on desktop, or 16px at viewport widths of 540px and below.
 

@@ -18,12 +18,11 @@
     <a class="project-nav-back" href="./#works" aria-label="Back to works">back</a>
     <span class="project-nav-name" data-project="title">Ocean by BCA</span>
   </nav>
-  <div id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls" aria-busy="true">
+  <div id="surface" aria-hidden="true" aria-busy="true">
     <canvas id="cloth" aria-hidden="true"></canvas>
     <canvas id="embroidery" aria-hidden="true"></canvas>
     <canvas id="gesture" aria-hidden="true"></canvas>
   </div>
-  <p id="canvas-help" class="sr-only">Click or tap the open surface to stitch a motif. Right-click or long-press for free stitch, colors, Unpick, and undo or redo. Scroll to read the project. Use arrow keys and Enter to stitch with a keyboard.</p>
   <a class="skip-link" href="#cover">Skip to hero image</a>
   <main class="project-layout">
     <header class="project-opening" aria-labelledby="project-title">
@@ -45,10 +44,12 @@
         <p data-project="overview"></p>
       </div>
     </header>
-    <section id="project-gallery" class="project-gallery" aria-label="Project image gallery">
-      <div class="gallery-grid"></div>
-    </section>
   </main>
+  <!-- Pinned to the bottom of the screen, above whatever scrolls beneath it. -->
+  <button class="works-seal project-gallery-seal" type="button" aria-label="gallery">
+    <img src="./assets/works-wax-seal.png" width="2076" height="758" alt="" aria-hidden="true" draggable="false" />
+    <span class="works-seal-label">gallery</span>
+  </button>
 
     <div id="stitch-controls" class="context-panel" role="dialog" aria-label="Stitch controls" data-mode="motif" hidden>
       <div class="tool-tray" role="toolbar" aria-label="Stitch tools">

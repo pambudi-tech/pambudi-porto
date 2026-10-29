@@ -19,11 +19,14 @@ import { FreeStitch, FREE_THREADS } from './free-stitch.mjs';
 import { StitchPanel } from './stitch-panel.mjs';
 import { SurfaceCamera, mountSurfaceNavigation } from './surface-zoom.mjs';
 
-export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavigation = true } = {}) {
+// `stitching: false` leaves the cloth to look at: no motifs, free stitch or
+// stitch controls, by pointer or keyboard.
+export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavigation = true, stitching = true } = {}) {
 let running = false, releaseEntrance;
 const startWhen = new Promise(resolve => { releaseEntrance = resolve; });
 const $ = id => document.getElementById(id);
 const surface = $('surface');
+if (!stitching) surface.dataset.stitching = 'off';
 const controls = $('stitch-controls');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const panel = new StitchPanel(controls, motionPreference);
@@ -113,7 +116,7 @@ function freeCell(x, y) {
   return [col, row];
 }
 function stitchAt(x, y) {
-  if (paper?.contains(x, y)) return;
+  if (!stitching || paper?.contains(x, y)) return;
   if (stitchMode === 'motif') return stampAt(x, y);
   freeStitch.begin(freeCell(x, y), performance.now(), motionPreference.matches);
   finishFreeStitch();
@@ -129,6 +132,7 @@ function closeControls({ focus = false } = {}) {
   if (focus) surface.focus({ preventScroll: true });
 }
 function openControls(x, y) {
+  if (!stitching) return;
   finishFreeStitch();
   updateControls();
   paper?.reset();
@@ -325,7 +329,7 @@ surface.addEventListener('pointermove', event => {
   if (event.buttons && document.querySelector('.paper-copy.ink-selecting')) return;
   if (suppressTouch || panel.isOpen) return;
   if (activeTap?.id === event.pointerId && Math.hypot(event.clientX - activeTap.x, event.clientY - activeTap.y) > 8) {
-    if (stitchMode === 'free') {
+    if (stitching && stitchMode === 'free') {
       freePointer = event.pointerId;
       freeStitch.begin(freeCell(activeTap.x, activeTap.y), performance.now(), motionPreference.matches);
     }
@@ -343,7 +347,7 @@ surface.addEventListener('pointermove', event => {
     requestFrame({ stitches: true });
   }
   keyboardMode = false;
-  hover = event.pointerType === 'touch' ? null : position(event.clientX, event.clientY);
+  hover = !stitching || event.pointerType === 'touch' ? null : position(event.clientX, event.clientY);
   requestFrame();
 });
 function pointerEnd(event) {
@@ -398,7 +402,7 @@ function keyboardPreview() {
   requestFrame();
 }
 surface.addEventListener('keydown', event => {
-  if (event.target.closest('.works-seal, .intro-link, .contact-link, .paper-flip-control, .about-resume')) return;
+  if (!stitching || event.target.closest('.works-seal, .intro-link, .contact-link, .paper-flip-control, .about-resume')) return;
   if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
     event.preventDefault();
     const step = GRID * view.scale;
@@ -547,6 +551,35 @@ return {
     wordmark?.unpick(started, motionPreference.matches);
     bird?.setVisible(false, { duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH });
     hover = null;
+    requestFrame({ stitches: true });
+  },
+  // Unpicks every stitch a visitor added, motifs and free stitch alike, back
+  // to the cloth's own ornaments, and forgets them: undo cannot bring them back.
+  unpickVisitorStitches() {
+    finishFreeStitch();
+    if (panel.isOpen) closeControls();
+    const original = new Map(initial.entries), started = performance.now();
+    const changed = [...model.stitches].filter(([key, color]) => original.get(key) !== color)
+      .concat([...original].filter(([key]) => !model.stitches.has(key)).map(([key]) => [key, undefined]));
+    // A quick sweep across the cloth, left to right.
+    const order = changed.map(([key]) => Number(key.split(',')[0]));
+    const low = Math.min(...order), span = Math.max(1, Math.max(...order) - low);
+    for (const [key, color] of changed) {
+      const before = original.get(key);
+      if (before === undefined) model.stitches.delete(key);
+      else model.stitches.set(key, before);
+      if (color === undefined || motionPreference.matches) continue;
+      animations.set(key, {
+        kind: 'unpick', color, from: 1, revealUnderneath: true,
+        started: started + (Number(key.split(',')[0]) - low) / span * BRAND_UNPICK_SWEEP * .5,
+        duration: UNPICK_STITCH,
+      });
+    }
+    model.undoStack = [];
+    model.redoStack = [];
+    motifLifetimes.records.clear();
+    motifLifetimes.journal.clear();
+    updateControls();
     requestFrame({ stitches: true });
   },
   restoreBranding({ animate = false } = {}) {
