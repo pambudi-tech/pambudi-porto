@@ -107,18 +107,3 @@ export class StitchModel {
   }
 }
 
-export function readStored(value) {
-  if (!value || value.version !== 3 || !Array.isArray(value.stitches)) return null;
-  if (value.stitches.length > 50000) return null;
-  const colors = new Set(THREADS.map(t => t.id));
-  const entries = [];
-  for (const entry of value.stitches) {
-    if (!Array.isArray(entry) || entry.length !== 2) return null;
-    const [key, color] = entry;
-    if (typeof key !== 'string' || !/^-?\d+,-?\d+$/.test(key) || (!colors.has(color) && !/^#[0-9a-f]{6}$/i.test(color))) return null;
-    const coordinates = parseKey(key);
-    if (coordinates.some(n => !Number.isSafeInteger(n) || Math.abs(n) > 100000)) return null;
-    entries.push([key, color]);
-  }
-  return entries;
-}

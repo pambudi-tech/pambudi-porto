@@ -1,4 +1,4 @@
-import { distanceTo } from './paper-relief-kernel.mjs';
+import { distanceTo } from './distance-field.mjs';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const bump = (distance, center, spread) => Math.exp(-(((distance - center) / spread) ** 2));

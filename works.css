@@ -77,7 +77,7 @@
   user-select: none;
   -webkit-user-drag: none;
 }
-/* Blank until its riso print is ready. */
+/* Blank until its photo is set. */
 .works-window img:not([src]) { visibility: hidden; }
 
 /* The homepage's wax seal, "details", settling onto the photo's centre while

@@ -6,7 +6,6 @@ import { paperTarget, advancePaper } from './paper-motion.mjs';
 import { projectHref, transitionToProject } from './project-transition.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from './wax-interaction.mjs';
-import { printRiso } from './works-shader.mjs';
 export { STAMP, stampShape } from './postage-stamp.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
@@ -21,9 +20,6 @@ const scatter = (index, salt) => {
   return n - Math.floor(n);
 };
 export const placement = index => ({ lift: scatter(index, 3), shift: scatter(index, 5) });
-// Whether the stamps show their photos as riso prints. Off for now: the
-// windows show the photographs themselves.
-export const PRINT_RISO = false;
 // How far a photo slides inside its window as the row scrolls, as a share of
 // the card's width either way.
 export const PHOTO_PARALLAX = .14;
@@ -77,7 +73,7 @@ export class WorksGallery {
     this.collections = collections;
     this.collection = 'works';
     this.items = collections.works.map((work, index) => this.createItem(work, index));
-    // Each collection's cards are made once and kept, with their riso prints.
+    // Each collection's cards are made once and kept.
     this.built = { works: this.items };
     // Along the top: the way back to the paper, and a toggle between the
     // selected works and exploration.
@@ -139,15 +135,7 @@ export class WorksGallery {
     image.alt = work.alt;
     image.draggable = false;
     picture.append(image);
-    // With the riso print on, the photograph itself stays off the page and the
-    // window shows its print, made once the card's size is known.
-    let photo = null;
-    if (PRINT_RISO) {
-      photo = new Image();
-      photo.crossOrigin = 'anonymous';
-      photo.decoding = 'async';
-      photo.src = work.image;
-    } else image.src = work.image;
+    image.src = work.image;
     // The stamp's paper is drawn once the card's size is known.
     const stamp = createPostageStamp(`works-paper-${work.id}`, 'works-stamp');
     frame.append(picture, stamp, cardText(work));
@@ -171,9 +159,8 @@ export class WorksGallery {
     }
     item.append(link);
     this.wall.append(item);
-    const entry = { work, index, item, link, frame, picture, image, photo, printed: null, stamp, seal, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
+    const entry = { work, index, item, link, frame, picture, image, stamp, seal, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
     image.addEventListener('load', () => this.paint());
-    photo?.addEventListener('load', () => this.printPhoto(entry));
     link.addEventListener('pointermove', event => {
       entry.pointer = { x: event.clientX, y: event.clientY };
       this.paint();
@@ -369,29 +356,7 @@ export class WorksGallery {
     // The row ends with the same margin it starts with.
     this.wall.style.width = `${end + left}px`;
     this.wall.style.height = `${height}px`;
-    for (const entry of this.items) this.printPhoto(entry);
     this.paint();
-  }
-
-  // Prints a card's photo as a riso at the size its window shows it, again
-  // only when that size changes. Without WebGL, the photograph shows instead.
-  printPhoto(entry) {
-    const { image, photo } = entry;
-    if (!photo) return;
-    const width = image.clientWidth, height = image.clientHeight;
-    if (!photo.complete || !photo.naturalWidth || !width || !height) return;
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    const key = `${width}x${height}@${dpr}`;
-    if (entry.printed === key) return;
-    entry.printed = key;
-    const print = printRiso(photo, width, height, dpr);
-    if (!print) { image.src = photo.src; return; }
-    print.toBlob(blob => {
-      if (entry.printed !== key || !blob) return;
-      const previous = image.src.startsWith('blob:') ? image.src : null;
-      image.src = URL.createObjectURL(blob);
-      if (previous) URL.revokeObjectURL(previous);
-    });
   }
 
   // Each photo's sideways parallax follows the scroll position, worked out

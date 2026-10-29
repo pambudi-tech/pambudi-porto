@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read the supplied pixel charts into one-cell-per-stitch patterns.
 
-Requires Pillow. Sources are retained in previews/motif-references/. Cell
+Requires Pillow. Sources are retained in tools/motif-references/. Cell
 centers avoid chart lines; measured row/column pitches handle photographed
 grids. Palettes consolidate compression noise while retaining the chart hues.
 Run from any directory with: python3 tools/trace-motifs.py
@@ -40,7 +40,7 @@ def sample(image, x, y):
 
 motifs = []
 for id, name, origin, pitch, size, palette in SPECS:
-    image = Image.open(ROOT / 'previews' / 'motif-references' / f'{id}.png').convert('RGB')
+    image = Image.open(ROOT / 'tools' / 'motif-references' / f'{id}.png').convert('RGB')
     values = [rgb(color) for color in palette]
     cells = {}
     for row in range(size[1]):

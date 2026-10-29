@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { StitchModel, cellsBetween, readStored, THREADS } from './model.mjs';
+import { StitchModel, cellsBetween } from './model.mjs';
 
 test('a fast drag has no missing squares in any direction', () => {
   for (const end of [[30, 4], [-4, 30], [-30, -4], [4, -30], [0, 0]]) {
@@ -51,17 +51,6 @@ test('a new gesture invalidates redo, while a no-op does not', () => {
   assert.equal(model.redoStack.length, 1);
   model.put(1, 1, 'pine'); model.commit();
   assert.equal(model.redoStack.length, 0);
-});
-
-test('storage distinguishes an intentionally empty cloth from an invalid save', () => {
-  assert.deepEqual(readStored({ version: 3, stitches: [] }), []);
-  assert.equal(readStored({ version: 3, stitches: [['0,0', 'unknown']] }), null);
-  assert.equal(readStored({ version: 3, stitches: [['Infinity,0', 'pine']] }), null);
-  assert.equal(readStored({ version: 3, stitches: [['2.5,0', 'pine']] }), null);
-  assert.equal(readStored({ version: 4, stitches: [] }), null);
-  const entries = [['0,0', 'garnet'], ['1,2', 'pine'], ['-2,1', '#c40000']];
-  assert.deepEqual(readStored({ version: 3, stitches: entries }), entries);
-  assert.ok(entries.every(([, color]) => THREADS.some(thread => thread.id === color) || /^#[0-9a-f]{6}$/i.test(color)));
 });
 
 test('undo and redo restore pattern density and size together with the stitches', () => {
