@@ -63,7 +63,7 @@ test('the bird shares the stitch canvas while permanent embroidery and history r
 test('settled embroidery is drawn once to a layer, then only copied while the bird moves', () => {
   const layerCalls = [], screenCalls = [];
   const renderer = Object.create(SurfaceRenderer.prototype);
-  renderer.stitch = { setTransform() {}, drawImage: (image, ...bounds) => screenCalls.push(image.color ?? 'layer') };
+  renderer.stitch = { setTransform() {}, drawImage: image => screenCalls.push(image.color ?? 'layer') };
   renderer.stitchCanvas = { width: 1600, height: 1600 };
   renderer.layer = { getContext: () => ({ drawImage: image => layerCalls.push(image.color) }) };
   renderer.clear = () => {};
