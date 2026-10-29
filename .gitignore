@@ -4,6 +4,4 @@ dist/
 .env
 .env.*
 !.env.example
-previews/*.jpg
-previews/*.png
 *.log

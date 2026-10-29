@@ -7,9 +7,9 @@
     <meta name="description" content="An open cross-stitch surface. Sew motifs, draw with thread, and zoom into the details." />
     <title>Stitch Surface — Pambudi</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='m8 8 16 16m0-16L8 24' stroke='%23952e40' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
-    <link rel="preload" href="./assets/fonts/syne-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="./style.css" />
-    <link rel="stylesheet" href="./surface-only.css" />
+    <link rel="preload" href="/assets/fonts/syne-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/styles/base.css" />
+    <link rel="stylesheet" href="/src/styles/surface-only.css" />
   </head>
   <body>
     <main id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls" aria-busy="true">
@@ -26,44 +26,10 @@
       <button id="zoom-reset" type="button" aria-label="Reset view to 100 percent" title="Reset view (0)">100%</button>
       <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in (+)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14" /></svg></button>
     </nav>
-    <div id="stitch-controls" class="context-panel" role="dialog" aria-label="Stitch controls" data-mode="motif" hidden>
-      <div class="tool-tray" role="toolbar" aria-label="Stitch tools">
-        <div class="tool-group mode-tools">
-          <button id="motif-tool" class="tool-button selected" aria-pressed="true" title="Click the surface to stitch a random motif">
-            <svg viewBox="0 0 24 24"><path d="m6 6 5 5m0-5-5 5m7 2 5 5m0-5-5 5M13 6h5v5M6 13v5h5"/></svg>
-            <span>Motif</span>
-          </button>
-          <button id="free-tool" class="tool-button" aria-pressed="false" title="Click or drag on the surface to draw individual stitches">
-            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
-            <span>Free stitch</span>
-          </button>
-        </div>
-        <div id="free-options" class="free-options" aria-hidden="true" inert>
-          <div class="free-options-inner">
-            <div class="thread-palette" role="group" aria-label="Thread color"></div>
-            <div class="free-action-row">
-              <button id="unpick-tool" class="unpick-toggle" role="switch" aria-checked="false" title="Remove stitches instead of drawing">
-                <span>Unpick</span><span class="switch-track" aria-hidden="true"></span>
-              </button>
-            </div>
-          </div>
-        </div>
-        <span class="separator"></span>
-        <div class="tool-group history-tools">
-          <button id="undo" class="tool-button" aria-label="Undo" title="Undo (⌘/Ctrl Z)" disabled>
-            <svg viewBox="0 0 24 24"><path d="m9 6-4 4 4 4M5.5 10H14a5 5 0 0 1 0 10"/></svg>
-            <span>Undo</span>
-          </button>
-          <button id="redo" class="tool-button" aria-label="Redo" title="Redo (⌘/Ctrl Shift Z)" disabled>
-            <svg viewBox="0 0 24 24"><path d="m15 6 4 4-4 4m3.5-4H10a5 5 0 0 0 0 10"/></svg>
-            <span>Redo</span>
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- partial:stitch-controls -->
 
     <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
     <noscript>Enable JavaScript to use the interactive stitch surface.</noscript>
-    <script type="module" src="./surface-only.mjs"></script>
+    <script type="module" src="/src/pages/surface.mjs"></script>
   </body>
 </html>

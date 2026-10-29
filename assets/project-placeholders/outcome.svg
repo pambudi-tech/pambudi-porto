@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1000" viewBox="0 0 1200 1000">
-<title>Image 04 placeholder</title>
-<rect width="1200" height="1000" fill="#eeefeb"/>
-<g fill="none" stroke="#d8dbd2" stroke-width="1"><path d="M0 0 1200 1000M1200 0 0 1000"/><rect x="40" y="40" width="1120" height="920"/></g>
-<rect x="430" y="430.0" width="340" height="140" fill="#eeefeb"/>
-<text x="600" y="492.0" text-anchor="middle" font-family="monospace" font-size="34" fill="#777e6e">04</text>
-<text x="600" y="531.0" text-anchor="middle" font-family="monospace" font-size="17" fill="#8b9083">Image placeholder</text>
-<g stroke="#a9afa0" stroke-width="1.5"><path d="M26 40h28M40 26v28M1146 40h28M1160 26v28M26 960h28M40 946v28M1146 960h28M1160 946v28"/></g>
-</svg>
