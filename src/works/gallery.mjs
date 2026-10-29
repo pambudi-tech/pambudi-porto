@@ -7,6 +7,7 @@ import { transitionToProject } from './project-transition.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
+import { ditherPhoto } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
 
@@ -111,7 +112,14 @@ export class WorksGallery {
     image.alt = work.alt;
     image.draggable = false;
     picture.append(image);
-    image.src = work.image;
+    // The card shows its photo dithered at the window's size (dither.mjs).
+    // The source loads alongside and stays off the page; where its pixels
+    // cannot be read, the card shows it as it is.
+    const photo = new Image();
+    photo.crossOrigin = 'anonymous';
+    photo.decoding = 'async';
+    photo.addEventListener('error', () => { image.src = work.image; }, { once: true });
+    photo.src = work.image;
     // The stamp's paper is drawn once the card's size is known.
     const stamp = createPostageStamp(`works-paper-${work.id}`, 'works-stamp');
     frame.append(picture, stamp, cardText(work));
@@ -135,8 +143,9 @@ export class WorksGallery {
     }
     item.append(link);
     this.wall.append(item);
-    const entry = { work, index, item, link, frame, picture, image, stamp, seal, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
+    const entry = { work, index, item, link, frame, picture, image, photo, dithered: null, stamp, seal, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
     image.addEventListener('load', () => this.paint());
+    photo.addEventListener('load', () => this.ditherCard(entry));
     link.addEventListener('pointermove', event => {
       entry.pointer = { x: event.clientX, y: event.clientY };
       this.paint();
@@ -332,7 +341,28 @@ export class WorksGallery {
     // The row ends with the same margin it starts with.
     this.wall.style.width = `${end + left}px`;
     this.wall.style.height = `${height}px`;
+    for (const entry of this.items) this.ditherCard(entry);
     this.paint();
+  }
+
+  // Dithers a card's photo at the size its window shows it, again only when
+  // that size changes. Without WebGL, the photograph shows instead.
+  ditherCard(entry) {
+    const { image, photo } = entry;
+    const width = image.clientWidth, height = image.clientHeight;
+    if (!photo.complete || !photo.naturalWidth || !width || !height) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const key = `${width}x${height}@${dpr}`;
+    if (entry.dithered === key) return;
+    entry.dithered = key;
+    const result = ditherPhoto(photo, width, height, dpr);
+    if (!result) { image.src = photo.src; return; }
+    result.toBlob(blob => {
+      if (entry.dithered !== key || !blob) return;
+      const previous = image.src.startsWith('blob:') ? image.src : null;
+      image.src = URL.createObjectURL(blob);
+      if (previous) URL.revokeObjectURL(previous);
+    });
   }
 
   // Each photo's sideways parallax follows the scroll position, worked out
@@ -340,10 +370,12 @@ export class WorksGallery {
   updateRow() {
     if (!this.cards) return;
     const centre = this.scroller.scrollLeft + innerWidth / 2;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
     this.cards.forEach((card, index) => {
       const entry = this.items[index];
       entry.parallax = this.reduced ? 0 : -clamp((card.x + card.w / 2 - centre) / innerWidth, -1, 1) * card.w * PHOTO_PARALLAX;
-      entry.image.style.translate = `${entry.parallax.toFixed(1)}px 0`;
+      // Whole device pixels keep the dither dots sharp as the photo slides.
+      entry.image.style.translate = `${Math.round(entry.parallax * dpr) / dpr}px 0`;
     });
     // The current stamp is the one nearest the middle, except at either end
     // of the row, where it is the first or the last.

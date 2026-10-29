@@ -76,7 +76,7 @@
   user-select: none;
   -webkit-user-drag: none;
 }
-/* Blank until its photo is set. */
+/* Blank until its dithered photo is ready. */
 .works-window img:not([src]) { visibility: hidden; }
 
 /* The homepage's wax seal, "details", settling onto the photo's centre while
