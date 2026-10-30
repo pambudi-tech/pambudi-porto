@@ -82,6 +82,11 @@ export class FlightPath {
     const { birdWidth, birdHeight } = this.stage;
     return { x: this.x - birdWidth / 2, y: this.y - birdHeight / 2, direction: this.direction, pitch: this.pitch, wing: this.wing };
   }
+  get hidden() {
+    const { avoid, birdWidth } = this.stage, inset = birdWidth * .2;
+    return Boolean(avoid) && this.x > avoid.left + inset && this.x < avoid.left + avoid.width - inset
+      && this.y > avoid.top + inset && this.y < avoid.top + avoid.height - inset;
+  }
   get offscreen() {
     const { width, birdWidth } = this.stage;
     return this.x < -birdWidth / 2 || this.x > width + birdWidth / 2;
@@ -112,21 +117,20 @@ export class FlightPath {
       this.target = { x: side > 0 ? width + birdWidth : -birdWidth, y: this.low + (this.high - this.low) * random() };
       this.left = Infinity;
     } else if (mode === 'circle') {
-      // An orbit seen edge-on: onward, up and over, back, and down again,
-      // centred in the open area the bird is in. It joins the ellipse from
-      // where it is, turning the way it already faces.
-      const area = this.area(), span = this.high - this.low;
-      // Never so tight that it is forever turning back.
-      const rx = clamp(width * (.08 + .07 * random()), birdWidth * .6, Math.max(birdWidth * .6, (area.right - area.left) / 2));
-      const ry = Math.min(rx * (.25 + .15 * random()), span / 2);
-      const cx = clamp(this.x + ahead * rx * .4, area.left + rx, Math.max(area.left + rx, area.right - rx));
-      const cy = clamp(this.y + (random() - .5) * span * .4, this.low + ry, Math.max(this.low + ry, this.high - ry));
+      // A wide lap round the paper, seen edge-on: across, turning at one end
+      // and back at another height. It joins the ellipse from where it is,
+      // turning the way it already faces.
+      const span = this.high - this.low;
+      const rx = Math.max(birdWidth * .6, Math.min(width / 2 - birdWidth / 2, width * (.3 + .1 * random())));
+      const ry = Math.min(rx * (.15 + .1 * random()), span / 2);
+      const cx = width / 2;
+      const cy = clamp(this.y + (random() - .5) * span * .3, this.low + ry, Math.max(this.low + ry, this.high - ry));
       const angle = Math.atan2((this.y - cy) / Math.max(1, ry), (this.x - cx) / rx);
       this.circle = { cx, cy, rx, ry, angle, spin: -ahead * (Math.sign(Math.sin(angle)) || -1) };
-      this.left = (1 + .6 * random()) * Math.PI * (rx + ry) / (FLIGHT.modes.circle.speed * this.pace);
+      this.left = (.8 + .5 * random()) * Math.PI * (rx + ry) / (FLIGHT.modes.circle.speed * this.pace);
     } else {
       this.target = this.pick(mode);
-      this.left = { cruise: 4500 + 3500 * random(), climb: 2600 + 1600 * random(), glide: 1400 + 1400 * random(), swoop: 3200 }[mode];
+      this.left = { cruise: 6000 + 4000 * random(), climb: 3000 + 2000 * random(), glide: 1800 + 1400 * random(), swoop: 3600 }[mode];
     }
   }
   // Open cloth around the paper, as ranges for the bird's centre: the bands
@@ -144,41 +148,43 @@ export class FlightPath {
     ].filter(area => area.right >= area.left && area.bottom >= area.top);
     return areas.length ? areas : [sky];
   }
-  // The open area the bird is in, or the nearest one.
-  area() {
-    const distance = area => Math.hypot(this.x - clamp(this.x, area.left, area.right), this.y - clamp(this.y, area.top, area.bottom));
-    return this.areas.reduce((best, area) => distance(area) < distance(best) ? area : best);
-  }
-  // Most legs keep to the open area the bird is in, moving on within it;
-  // some cross behind the paper to another.
+  // Legs carry on the way the bird faces, usually across the paper to the
+  // open cloth on the far side, sometimes a shorter hop. It turns back only
+  // when there is no room left before the edge, so it never dithers on one side.
   pick(mode) {
-    const random = this.random, here = this.area(), others = this.areas.filter(area => area !== here);
-    const crossing = others.length > 0 && random() < { cruise: .45, glide: .5, swoop: .35, climb: .15 }[mode];
-    const area = crossing ? others[Math.floor(random() * others.length)] : here;
-    const fold = (value, low, high) => clamp(value > high ? 2 * high - value : value < low ? 2 * low - value : value, low, high);
-    const x = crossing ? area.left + (area.right - area.left) * random()
-      : fold(this.x + this.direction * (area.right - area.left) * (.3 + .5 * random()), area.left, area.right);
-    const span = area.bottom - area.top;
+    const { width, birdWidth } = this.stage, random = this.random;
+    const room = this.direction > 0 ? width - this.x : this.x;
+    const side = room < width * .3 ? -this.direction : this.direction;
+    const ahead = this.areas
+      .filter(area => side > 0 ? area.right > this.x + width * .15 : area.left < this.x - width * .15)
+      .sort((a, b) => side * (b.left + b.right - a.left - a.right));
+    const area = ahead.length && random() < .65 ? ahead[0] : null;
+    const pad = Math.min(birdWidth / 2, width / 2);
+    const x = area ? area.left + (area.right - area.left) * random()
+      : clamp(this.x + side * width * (.2 + .25 * random()), pad, width - pad);
+    const top = area?.top ?? this.low, bottom = area?.bottom ?? this.high, span = bottom - top;
     const y = {
-      cruise: () => area.top + span * random(),
-      climb: () => area.top + span * .25 * random(),
+      cruise: () => top + span * random(),
+      climb: () => top + span * .25 * random(),
       glide: () => this.y + (this.high - this.low) * (.12 + .2 * random()),
-      swoop: () => area.bottom - span * .15 * random(),
+      swoop: () => bottom - span * .15 * random(),
     }[mode]();
     // Never further up or down than the mode can reach on its way across.
     const reach = Math.abs(x - this.x) * Math.tan(FLIGHT.modes[mode].slope) * .9;
-    return { x, y: clamp(clamp(y, this.y - reach, this.y + reach), area.top, area.bottom) };
+    return { x, y: clamp(clamp(y, this.y - reach, this.y + reach), top, bottom) };
   }
   next() {
     if (this.mode === 'swoop') return this.begin('climb');
     const height = (this.y - this.low) / Math.max(1, this.high - this.low);
+    const room = this.direction > 0 ? this.stage.width - this.x : this.x;
     const weights = {
       cruise: 3,
       climb: height > .45 ? 2.5 : .4,
       glide: height < .6 ? 2 : .3,
       swoop: height < .5 ? 2.2 : 0,
-      circle: 1,
-      exit: this.onScreen > FLIGHT.exitAfter ? 1.1 : 0,
+      circle: .8,
+      // Leaving is likeliest when it is already heading out at an edge.
+      exit: this.onScreen > FLIGHT.exitAfter ? (room < this.stage.width * .25 ? 2.5 : .5) : 0,
     };
     // Glides and circles read best as occasional moments, never back to back.
     if (this.mode === 'glide' || this.mode === 'circle') weights[this.mode] = 0;
@@ -243,7 +249,8 @@ export class FlightPath {
     const reach = Math.tan(mode.slope);
     const slope = clamp(dy / Math.max(Math.abs(dx), 1) + wander, -reach, reach);
     // Without wingbeats it trades height for speed; flapping evens that out.
-    const speed = mode.speed * pace * (1 + (mode.flap ? .12 : .5) * slope / Math.hypot(1, slope));
+    // It hurries across behind the paper and takes its time on open cloth.
+    const speed = mode.speed * pace * (1 + (mode.flap ? .12 : .5) * slope / Math.hypot(1, slope)) * (this.hidden ? 1.45 : .9);
     const vx = side * speed / Math.hypot(1, slope), yaw = FLIGHT.yaw * pace * dt;
     this.vx += clamp((vx - this.vx) * (1 - Math.exp(-dt / 260)), -yaw, yaw);
     // Height changes only ever ride on horizontal travel.

@@ -41,7 +41,8 @@ test('flight is continuous, never climbs or dives without travelling across, and
       }
       if (flight.away) return;
       const dx = flight.x - before.x, dy = flight.y - before.y;
-      const maxSpeed = FLIGHT.modes.swoop.speed * flight.pace * 1.6;
+      // The fastest dive, hurrying behind the paper.
+      const maxSpeed = FLIGHT.modes.swoop.speed * flight.pace * 1.5 * 1.45;
       assert.ok(Math.hypot(dx, dy) <= maxSpeed * FLIGHT.step + 1e-9, 'no jumps on screen');
       assert.ok(Math.abs(dy) <= Math.abs(dx) * steepest + 1e-9, 'no straight climb or dive');
       assert.ok(flight.y >= flight.low - 1e-9 && flight.y <= flight.high + 1e-9);
@@ -75,15 +76,22 @@ test('a visit mixes cruising, climbs, glides with held wings, swoops and circles
   assert.ok(maxSpeed / minSpeed > 1.5, 'its speed changes');
 });
 
-test('it mostly shows on the open cloth beside the paper', () => {
-  const { avoid, birdWidth } = desktop, inset = birdWidth * .2;
-  let on = 0, hidden = 0;
+test('it carries on across the page, turning back near the edges rather than dithering on one side', () => {
+  let on = 0, hidden = 0, turns = 0, sameSide = 0, lastTurn = null, direction = null;
   fly(desktop, 11, 300000, flight => {
     if (flight.away || flight.offscreen) return;
     on++;
-    if (flight.x > avoid.left + inset && flight.x < avoid.left + avoid.width - inset) hidden++;
+    if (flight.hidden) hidden++;
+    if (direction !== null && flight.direction !== direction) {
+      turns++;
+      if (lastTurn !== null && (lastTurn < desktop.width / 2) === (flight.x < desktop.width / 2)) sameSide++;
+      lastTurn = flight.x;
+    }
+    direction = flight.direction;
   });
-  assert.ok(hidden / on < .35, `behind the paper ${Math.round(hidden / on * 100)}% of the time`);
+  assert.ok(on * FLIGHT.step / turns > 4500, 'it turns back no more than every few seconds');
+  assert.ok(sameSide / turns < .3, `${Math.round(sameSide / turns * 100)}% of turns on the side of the last`);
+  assert.ok(hidden / on < .42, `behind the paper ${Math.round(hidden / on * 100)}% of the time`);
 });
 
 test('narrow screens fly slower, so a crossing still takes a few seconds', () => {
