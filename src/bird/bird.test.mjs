@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BirdFlight, StitchTransitions } from './bird.mjs';
+import { BirdFlight, StitchTransitions, projectPose } from './bird.mjs';
 import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR } from './bird-data.mjs';
 import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, bodyMotionAt, moveBirdPoint } from './bird-motion.mjs';
@@ -282,4 +282,47 @@ test('a hidden dove stays hidden through resize and reduced motion, and can retu
   bird.setVisible(true);
   assert.ok(bird.cells.size > 0);
   assert.ok([...bird.cells.values()].every(cell => cell.progress === 1));
+});
+
+test('a perch fits only where the resting dove is on screen and clear of the clock, toes on its stitch', () => {
+  const view = { x: 640, y: 320, scale: 6.5 / 22 };
+  const clock = { left: 520, right: 760, top: 480, bottom: 520 };
+  const bird = new BirdFlight(1280, 720, view, { paused: true, sky: {
+    perches: [
+      { col: 40.5, row: 18, facing: -1 },
+      { col: -38.5, row: 18, facing: 1 },
+      { col: 90, row: 18, facing: -1 },
+      { col: 2, row: 33, facing: 1 },
+    ],
+    keepClear: [clock],
+  } });
+  const placed = bird.placePerches();
+  assert.deepEqual(placed.map(perch => perch.direction), [-1, 1], 'off-screen and clock-covering perches are left out');
+  for (const [perch, wanted] of placed.map((perch, i) => [perch, [{ col: 40.5, row: 18 }, { col: -38.5, row: 18 }][i]])) {
+    const cells = projectPose(bird.perchFrame, bird.columns, perch.direction, perch.col, perch.row);
+    const toesRow = perch.row + bird.toes.row;
+    assert.equal(toesRow, wanted.row - 1, 'the toes stand one row above the stitch');
+    const toes = cells.filter(([, row]) => row === toesRow).map(([col]) => col);
+    assert.ok(Math.min(...toes) <= wanted.col && Math.max(...toes) >= wanted.col, 'over the stitch itself');
+  }
+});
+
+test('resting, the dove holds its perched figure at the perch and stops asking for frames until woken', () => {
+  const view = { x: 640, y: 320, scale: 6.5 / 22 };
+  const bird = new BirdFlight(1280, 720, view, { sky: { perches: [{ col: 40.5, row: 18, facing: -1 }] } });
+  bird.setIdle(true);
+  let time = 0;
+  for (; time < 60000 && !bird.flight.resting; time += 20) bird.update(time);
+  assert.ok(bird.flight.resting, 'it comes to rest');
+  for (let end = time + 1000; time < end; time += 20) bird.update(time);
+  const perch = bird.flight.perch;
+  const expected = projectPose(bird.perchFrame, bird.columns, -1, perch.col, perch.row);
+  assert.deepEqual([...bird.cells.keys()].sort(), expected.map(cell => cell.join(',')).sort());
+  assert.ok([...bird.cells.values()].every(cell => cell.progress === 1));
+  assert.equal(bird.active, false, 'a settled dove needs no frames');
+  bird.setIdle(false);
+  assert.equal(bird.active, true, 'activity lifts it off');
+  bird.update(time += 20);
+  for (let end = time + 400; time < end; time += 20) bird.update(time);
+  assert.ok(!bird.flight.resting && bird.flight.y < perch.y, 'it is climbing away');
 });

@@ -4,6 +4,7 @@ import { StitchEntrance, ENTRANCE, flameEntranceOrder } from '../stitch/stitch-e
 import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
 import { WING_POSES } from './wing-motion.mjs';
 import { FlightPath, FLIGHT } from './flight-path.mjs';
+import { PERCH_POSE, toesOf } from './perch.mjs';
 
 const REVEAL_DURATION = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
 // About two thirds of the source chart, leaving room to wander around the paper.
@@ -75,7 +76,10 @@ export class StitchTransitions {
 
 // The surface owns the animation clock and draws these cells alongside its other stitches.
 // `sky` is the band the dove may use, { top, bottom } in px, with the paper's
-// bounds as `avoid`; the scene supplies it. The same seed flies the same path.
+// bounds as `avoid`; the scene supplies it. Its `perches` are lattice points
+// the dove may rest on, { col, row, facing }, and `keepClear` lists px rects
+// a resting dove must not cover. The same seed
+// flies the same path.
 export class BirdFlight {
   constructor(width, height, view, { paused = false, seed = 1, sky = {} } = {}) {
     this.paused = paused;
@@ -105,6 +109,8 @@ export class BirdFlight {
     this.columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / sourceSide));
     this.rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide));
     this.frames = WING_POSES.map(pose => samplePose(pose, this.columns, this.rows));
+    this.perchFrame = samplePose(PERCH_POSE, this.columns, this.rows);
+    this.toes = toesOf(this.perchFrame, this.columns);
     this.motionSignature = null;
     if (previousStage && this.revealTarget === REVEAL_DURATION) {
       this.revealTime = REVEAL_DURATION;
@@ -122,6 +128,7 @@ export class BirdFlight {
         silhouette.set(keyOf(x, y), [x, y]);
       }
     }
+    for (const cell of this.perchFrame) silhouette.set(keyOf(...cell), cell);
     // Replan on resize too: later reveals use the current surface lattice.
     for (const [col, row] of [...silhouette.values()]) {
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -133,13 +140,52 @@ export class BirdFlight {
     this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch, ...sky };
     if (this.flight) this.flight.resize(this.stage);
     else this.flight = new FlightPath(this.stage, { seed: this.seed, poses: this.frames.length });
+    this.flight.setPerches(this.placePerches());
     const { cells, signature } = this.targetAt();
     this.signature = signature;
     this.transitions.setTarget(cells, this.elapsed, true);
     this.cells = this.reveal(this.transitions.sample(this.elapsed));
     this.lastTime = null;
   }
+  // The perches whose resting figure fits on screen and clear of
+  // `keepClear`, with the toes one row above the stitch.
+  placePerches() {
+    const { perches = [], keepClear = [] } = this.sky;
+    const { width, height, birdWidth, birdHeight } = this.stage, step = this.pitch;
+    const placed = [];
+    for (const { col, row, facing } of perches) {
+      const toes = facing === 1 ? this.toes.col : this.columns - 1 - this.toes.col;
+      const origin = { col: Math.round(col - toes), row: row - 1 - this.toes.row };
+      const fits = projectPose(this.perchFrame, this.columns, facing, origin.col, origin.row).every(([c, r]) => {
+        const x = this.view.x + c * step, y = this.view.y + r * step;
+        return x >= 0 && y >= 0 && x + step <= width && y + step <= height
+          && !keepClear.some(rect => x + step > rect.left && x < rect.right && y + step > rect.top && y < rect.bottom);
+      });
+      if (fits) {
+        placed.push({
+          ...origin, direction: facing,
+          x: this.view.x + origin.col * step + birdWidth / 2, y: this.view.y + origin.row * step + birdHeight / 2,
+        });
+      }
+    }
+    return placed;
+  }
+  get idle() {
+    return this.flight.idle;
+  }
+  setIdle(idle) {
+    this.flight.setIdle(idle);
+  }
+  // Whether the scene still needs frames: a dove settled on its perch does not.
+  get active() {
+    return !this.paused && !(this.flight.resting && !this.transitions.animating && this.revealTime === this.revealTarget);
+  }
   targetAt() {
+    if (this.flight.resting && this.flight.perch) {
+      const { col, row, direction } = this.flight.perch;
+      this.position = { col, row, direction };
+      return { cells: projectPose(this.perchFrame, this.columns, direction, col, row), signature: `rest:${col}:${row}:${direction}` };
+    }
     // Wingbeats and the body's follow-through run on the flight's wing clock,
     // so they speed up in a climb and hold still in a glide.
     const { x, y, direction, pitch, wing } = this.flight.state;

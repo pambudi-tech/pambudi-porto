@@ -70,7 +70,8 @@ test('a visit mixes cruising, climbs, glides with held wings, swoops and circles
     minSpeed = Math.min(minSpeed, flight.speed);
     maxSpeed = Math.max(maxSpeed, flight.speed);
   });
-  for (const mode of Object.keys(FLIGHT.modes)) assert.ok(seen.has(mode), `${mode} happens`);
+  for (const mode of ['cruise', 'climb', 'glide', 'swoop', 'circle', 'exit']) assert.ok(seen.has(mode), `${mode} happens`);
+  assert.ok(!seen.has('land') && !seen.has('rest'), 'it only lands when the visitor is idle');
   assert.ok(held > 100, 'it glides for a while');
   assert.ok(maxY - minY > (flight.high - flight.low) * .6, 'it uses most of the sky');
   assert.ok(maxSpeed / minSpeed > 1.5, 'its speed changes');
@@ -110,4 +111,59 @@ test('resizing keeps its place in proportion and inside the new sky', () => {
   assert.ok(flight.y >= flight.low && flight.y <= flight.high);
   flight.advance(20000);
   assert.ok(flight.y >= flight.low && flight.y <= flight.high);
+});
+
+test('an idle visitor sends it off, to come back and settle on its perch facing the right way', () => {
+  const steepest = Math.tan(FLIGHT.maxSlope);
+  for (const [perch, seed] of [[{ x: 1180, y: 690, direction: -1 }, 1], [{ x: 1260, y: 640, direction: 1 }, 2], [{ x: 1180, y: 690, direction: -1 }, 3]]) {
+    const flight = new FlightPath(desktop, { seed });
+    flight.setPerches([perch]);
+    let restedAt = null, wasAway = false, entered = null;
+    for (let time = 0; time < 60000; time += FLIGHT.step) {
+      if (time === 5000) flight.setIdle(true);
+      const before = { x: flight.x, y: flight.y, away: flight.away };
+      flight.advance(FLIGHT.step);
+      if (wasAway && !flight.away) entered = { x: flight.x, direction: flight.direction };
+      wasAway = flight.away > 0;
+      if (!before.away && !flight.away && !flight.offscreen) {
+        assert.ok(Math.abs(flight.y - before.y) <= Math.abs(flight.x - before.x) * steepest + 1e-9, 'it glides down to land');
+      }
+      if (flight.resting) {
+        restedAt ??= time;
+        assert.ok(Math.hypot(flight.x - perch.x, flight.y - perch.y) < 3);
+        assert.equal(flight.direction, perch.direction);
+      }
+    }
+    assert.ok(entered && Math.sign(entered.x - perch.x) === -perch.direction, 'it comes in from behind, already facing its perch');
+    assert.ok(restedAt !== null && restedAt < 40000, 'it settles within a short while of the visitor going idle');
+    const rest = { x: flight.x, y: flight.y };
+    flight.advance(10000);
+    assert.deepEqual({ x: flight.x, y: flight.y }, rest, 'it stays put while the visitor is away');
+    flight.setIdle(false);
+    assert.ok(['takeoff', 'exit'].includes(flight.mode), 'activity lifts it off the perch');
+    const lifted = [];
+    for (let time = 0; time < 1500; time += FLIGHT.step) {
+      const before = { x: flight.x, y: flight.y };
+      flight.advance(FLIGHT.step);
+      lifted.push([flight.x - before.x, flight.y - before.y]);
+    }
+    assert.ok(lifted.every(([dx, dy]) => Math.abs(dy) <= Math.abs(dx) * steepest + 1e-9), 'it takes off travelling forward');
+    assert.ok(Math.sign(flight.x - rest.x) === perch.direction || flight.mode === 'exit', 'it leaves the way it faces');
+    assert.ok(flight.y < rest.y, 'and climbs away');
+  }
+});
+
+test('without a perch an idle visitor changes nothing, and activity turns a landing away', () => {
+  const free = new FlightPath(desktop, { seed: 8 }), idle = new FlightPath(desktop, { seed: 8 });
+  idle.setIdle(true);
+  free.advance(30000);
+  idle.advance(30000);
+  assert.deepEqual([idle.x, idle.y, idle.mode], [free.x, free.y, free.mode]);
+  const landing = new FlightPath(desktop, { seed: 8 });
+  landing.setPerches([{ x: 1180, y: 690, direction: -1 }]);
+  landing.setIdle(true);
+  for (let time = 0; time < 40000 && landing.mode !== 'land'; time += FLIGHT.step) landing.advance(FLIGHT.step);
+  assert.equal(landing.mode, 'land');
+  landing.setIdle(false);
+  assert.notEqual(landing.mode, 'land');
 });

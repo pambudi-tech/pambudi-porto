@@ -22,6 +22,9 @@ for (let x = 14; x <= 33; x++) {
   for (let y = top; y <= 34; y++) back.push([x, y]);
 }
 
+// The approved figure without its wings: head, back, belly and tail.
+export const TORSO = [...new Map([...body, ...back].map(cell => [cell.join(','), cell])).values()];
+
 function wingEnvelope(coverage) {
   const rows = new Map();
   for (const [key, area] of coverage) {

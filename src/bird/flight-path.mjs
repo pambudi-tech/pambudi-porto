@@ -13,6 +13,9 @@ export const FLIGHT = {
     swoop: { speed: .2, flap: 0, slope: .6 },
     circle: { speed: .13, flap: 1 / 95, slope: .45 },
     exit: { speed: .17, flap: 1 / 90, slope: .3 },
+    // Coming in to rest, and leaving the perch again.
+    land: { speed: .13, flap: 1 / 90, slope: .4 },
+    takeoff: { speed: .15, flap: 1 / 45, slope: .6 },
   },
   // It never rises or falls without travelling across too: no path is
   // steeper than this, and turning back is a level turn.
@@ -23,6 +26,12 @@ export const FLIGHT = {
   // Time on screen before it may leave, and time out of frame before it returns.
   exitAfter: 14000,
   away: [1200, 3600],
+  // A visitor idle this long sends the dove off, to come back and rest on its
+  // perch; the flare begins this far out (px, scaled by pace). Taking off, it
+  // crouches this long with its wings raised before it springs.
+  restAfter: 5000,
+  flare: 120,
+  crouch: 160,
 };
 
 export function seededRandom(seed = 1) {
@@ -59,6 +68,10 @@ export class FlightPath {
     this.holding = false;
     this.away = 0;
     this.onScreen = 0;
+    this.crouch = 0;
+    this.idle = false;
+    this.perches = [];
+    this.perch = null;
     this.begin('cruise');
   }
   // The highest and lowest the centre goes: the box stays inside the sky band,
@@ -87,6 +100,34 @@ export class FlightPath {
     return Boolean(avoid) && this.x > avoid.left + inset && this.x < avoid.left + avoid.width - inset
       && this.y > avoid.top + inset && this.y < avoid.top + avoid.height - inset;
   }
+  get resting() {
+    return this.mode === 'rest';
+  }
+  // `perches` are where it may rest, each { x, y, direction }: the centre it
+  // rests at and the way it faces there. It rests on the one on the side of
+  // the screen it last left by.
+  setPerches(perches) {
+    const using = this.mode === 'rest' || this.mode === 'land' ? this.perch : null;
+    this.perches = perches;
+    this.perch = using && perches.find(perch => perch.direction === using.direction) || null;
+    if (this.perch && this.mode === 'rest') Object.assign(this, { x: this.perch.x, y: this.perch.y });
+    if (this.perch || (this.mode !== 'rest' && this.mode !== 'land')) return;
+    if (this.mode === 'rest') this.begin('takeoff');
+    else this.begin('cruise');
+  }
+  // An idle visitor sends the bird to rest the next time it is out of frame;
+  // activity lifts it off the perch, or turns it away from landing.
+  setIdle(idle) {
+    if (idle === this.idle) return;
+    this.idle = idle;
+    // Going idle, it finishes what it is doing within a second, then leaves.
+    if (idle) {
+      if (this.perches.length && !this.away && this.mode !== 'exit') this.left = Math.min(this.left, 1000);
+      return;
+    }
+    if (this.mode === 'rest') this.begin('takeoff');
+    else if (this.mode === 'land') this.begin('cruise');
+  }
   get offscreen() {
     const { width, birdWidth } = this.stage;
     return this.x < -birdWidth / 2 || this.x > width + birdWidth / 2;
@@ -95,8 +136,9 @@ export class FlightPath {
     const previous = this.stage;
     this.stage = stage;
     this.x *= stage.width / Math.max(1, previous.width);
-    this.y = clamp(this.y * stage.height / Math.max(1, previous.height), this.low, this.high);
-    if (!this.away) this.begin(this.mode);
+    this.y *= stage.height / Math.max(1, previous.height);
+    if (this.mode !== 'rest' && this.mode !== 'land') this.y = clamp(this.y, this.low, this.high);
+    if (!this.away && this.mode !== 'rest') this.begin(this.mode);
   }
   advance(delta) {
     this.spare += delta;
@@ -110,7 +152,34 @@ export class FlightPath {
     this.circle = null;
     const { width, birdWidth } = this.stage;
     const ahead = this.direction, random = this.random;
-    if (mode === 'exit') {
+    if (mode === 'rest') {
+      this.vx = this.vy = 0;
+      this.left = Infinity;
+    } else if (mode === 'land') {
+      this.target = this.perch;
+      this.left = Infinity;
+    } else if (mode === 'takeoff') {
+      // It springs off the perch: wings raised and body tilted back for a
+      // moment, then already at speed, climbing as steeply as it ever does
+      // with quick wingbeats, the way it faces. From the very edge it leaves.
+      const launch = FLIGHT.modes.takeoff.speed * this.pace, slope = Math.tan(FLIGHT.modes.takeoff.slope);
+      this.wing = Math.ceil(this.wing / this.poses) * this.poses;
+      this.flap = FLIGHT.modes.takeoff.flap;
+      this.holding = true;
+      this.crouch = FLIGHT.crouch;
+      this.pitch = -FLIGHT.maxPitch * .7;
+      this.vx = ahead * launch / Math.hypot(1, slope);
+      this.vy = -Math.abs(this.vx) * slope;
+      const pad = Math.min(birdWidth / 2, width / 2);
+      const x = clamp(this.x + ahead * width * .3, pad, width - pad);
+      if (Math.abs(x - this.x) < width * .1) {
+        this.begin('exit');
+        this.target = { x: ahead > 0 ? width + birdWidth : -birdWidth, y: Math.max(this.low, this.y - birdWidth * .3) };
+        return;
+      }
+      this.target = { x, y: Math.max(this.low, this.y - Math.abs(x - this.x) * Math.tan(FLIGHT.modes.takeoff.slope) * .8) };
+      this.left = 3000;
+    } else if (mode === 'exit') {
       // Usually it leaves by the nearer edge, rather than crossing behind the paper.
       const nearer = this.x < width / 2 ? -1 : 1;
       const side = random() < .8 ? nearer : -nearer;
@@ -174,6 +243,7 @@ export class FlightPath {
     return { x, y: clamp(clamp(y, this.y - reach, this.y + reach), top, bottom) };
   }
   next() {
+    if (this.idle && this.perches.length) return this.begin('exit');
     if (this.mode === 'swoop') return this.begin('climb');
     const height = (this.y - this.low) / Math.max(1, this.high - this.low);
     const room = this.direction > 0 ? this.stage.width - this.x : this.x;
@@ -195,9 +265,25 @@ export class FlightPath {
     }
     this.begin('cruise');
   }
-  // Comes back from either edge at a new height, heading inward.
+  // Comes back from either edge at a new height, heading inward. To rest, it
+  // comes in from the side it will face away from, high enough to glide down
+  // to the perch without ever dropping more steeply than a landing allows.
   enter() {
     const { width, birdWidth } = this.stage;
+    if (this.idle && this.perches.length) {
+      this.perch = this.perches.find(perch => Math.sign(perch.x - width / 2) === this.exitSide) ?? this.perches[0];
+      const { x, y, direction } = this.perch;
+      this.x = direction < 0 ? width + birdWidth / 2 : -birdWidth / 2;
+      const reach = Math.abs(x - this.x) * Math.tan(FLIGHT.modes.land.slope) * .8;
+      this.y = Math.max(Math.min(this.low, y), y - reach * (.4 + .6 * this.random()));
+      this.direction = direction;
+      this.vx = direction * FLIGHT.modes.land.speed * this.pace;
+      this.vy = 0;
+      this.pitch = 0;
+      this.away = 0;
+      this.onScreen = 0;
+      return this.begin('land');
+    }
     const side = this.random() < .5 ? -1 : 1;
     this.x = side < 0 ? -birdWidth / 2 : width + birdWidth / 2;
     this.y = this.low + (this.high - this.low) * (.1 + .8 * this.random());
@@ -224,14 +310,23 @@ export class FlightPath {
   }
   step(dt) {
     this.time += dt;
+    if (this.mode === 'rest') return;
     if (this.away > 0) {
       this.flapWings(dt, FLIGHT.modes.cruise.flap);
       this.away -= dt;
       if (this.away <= 0) this.enter();
       return;
     }
-    const mode = FLIGHT.modes[this.mode];
-    this.flapWings(dt, mode.flap);
+    if (this.mode === 'takeoff' && this.crouch > 0) {
+      this.crouch -= dt;
+      return;
+    }
+    const mode = FLIGHT.modes[this.mode], landing = this.mode === 'land';
+    if (landing) this.target = this.perch;
+    const distance = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+    // Coming in to land it flares, wings held high, and settles.
+    const flaring = landing && distance < FLIGHT.flare * this.pace;
+    this.flapWings(dt, flaring ? 0 : mode.flap);
     this.onScreen += dt;
     if (this.circle) {
       const circle = this.circle;
@@ -245,12 +340,14 @@ export class FlightPath {
     const side = Math.abs(dx) > 2 ? Math.sign(dx) : Math.sign(this.vx) || this.direction;
     // The slope toward the target, with a little wander so no leg looks ruled,
     // and never steeper than the mode allows.
-    const wander = .08 * Math.sin(this.time / 1300 + this.phases[0]) + .05 * Math.sin(this.time / 470 + this.phases[1]);
+    const wander = (.08 * Math.sin(this.time / 1300 + this.phases[0]) + .05 * Math.sin(this.time / 470 + this.phases[1]))
+      * (landing ? clamp(distance / 300) : 1);
     const reach = Math.tan(mode.slope);
     const slope = clamp(dy / Math.max(Math.abs(dx), 1) + wander, -reach, reach);
     // Without wingbeats it trades height for speed; flapping evens that out.
     // It hurries across behind the paper and takes its time on open cloth.
-    const speed = mode.speed * pace * (1 + (mode.flap ? .12 : .5) * slope / Math.hypot(1, slope)) * (this.hidden ? 1.45 : .9);
+    const pacing = landing ? clamp(distance / (160 * pace), .06, 1) : this.hidden ? 1.45 : .9;
+    const speed = mode.speed * pace * (1 + (mode.flap ? .12 : .5) * slope / Math.hypot(1, slope)) * pacing;
     const vx = side * speed / Math.hypot(1, slope), yaw = FLIGHT.yaw * pace * dt;
     this.vx += clamp((vx - this.vx) * (1 - Math.exp(-dt / 260)), -yaw, yaw);
     // Height changes only ever ride on horizontal travel.
@@ -258,11 +355,17 @@ export class FlightPath {
     this.vy = clamp(this.vy + (slope * Math.abs(this.vx) - this.vy) * (1 - Math.exp(-dt / 300)), -cap, cap);
     this.x += this.vx * dt;
     this.y += this.vy * dt;
-    if (this.y < this.low || this.y > this.high) {
+    if (!landing && (this.y < this.low || this.y > this.high)) {
       this.y = clamp(this.y, this.low, this.high);
       this.vy = 0;
     }
+    if (landing && Math.hypot(this.target.x - this.x, this.target.y - this.y) < 3) {
+      this.direction = this.perch.direction;
+      this.pitch = 0;
+      return this.begin('rest');
+    }
     if (this.mode === 'exit' && this.offscreen) {
+      this.exitSide = this.x < this.stage.width / 2 ? -1 : 1;
       this.away = FLIGHT.away[0] + (FLIGHT.away[1] - FLIGHT.away[0]) * this.random();
       return;
     }
@@ -271,6 +374,6 @@ export class FlightPath {
     const climb = Math.atan2(-this.vy, Math.max(Math.abs(this.vx), .03 * pace));
     this.pitch += (clamp(-climb * .5, -FLIGHT.maxPitch, FLIGHT.maxPitch) - this.pitch) * (1 - Math.exp(-dt / 220));
     this.left -= dt;
-    if (this.left <= 0 || (!this.circle && this.mode !== 'exit' && Math.hypot(dx, dy) < 30)) this.next();
+    if (this.left <= 0 || (!this.circle && !landing && this.mode !== 'exit' && Math.hypot(dx, dy) < 30)) this.next();
   }
 }

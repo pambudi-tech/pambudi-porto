@@ -16,6 +16,7 @@ import { setupEmailCopy } from '../paper/contact-links.mjs';
 import { mountPaperTextContour, mountAboutTextMask } from '../paper/paper-text-contour.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { BirdFlight } from '../bird/bird.mjs';
+import { FLIGHT } from '../bird/flight-path.mjs';
 import { IntroInkHover } from '../ink/intro-ink-hover.mjs';
 import { settleWithin } from '../preloader/loading-progress.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
@@ -67,6 +68,8 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   let bird = null;
   // The wordmark's own holes, which the dove passes behind.
   let wordmarkHoles = null;
+  // The visitor's last input; once they are idle long enough the dove rests.
+  let lastActivity = performance.now();
   let cornersEntering = !motionPreference.matches;
   const touchHold = new TouchHold(({ x, y }) => {
     scene.cancelTap();
@@ -138,6 +141,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       scene.controls.update();
       scheduleMotifExpiry();
     }
+    if (bird && !bird.paused) bird.setIdle(now - lastActivity > FLIGHT.restAfter);
     if (bird?.update(now)) sceneDirty = true;
     const wordmarkEntering = wordmark?.update(now);
     const paperMoving = scene.paper?.update(now);
@@ -160,7 +164,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
     const free = scene.stitchMode === 'free', unpicking = free && freeStitch.tool === 'unpick';
     renderer.drawInteraction(view, animations, scene.hover, free ? freeStitch.color : MOTIF_HINT_COLOR, unpicking ? 'unpick' : 'motif', now, scene.keyboardMode);
-    if (animations.size || cornersEntering || wordmarkEntering || paperMoving || (bird && !bird.paused)) requestFrame();
+    if (animations.size || cornersEntering || wordmarkEntering || paperMoving || bird?.active) requestFrame();
   }
   function patternBounds() {
     return { width: Math.max(120, innerWidth - 64), height: Math.max(140, innerHeight - (isPhone(innerWidth) ? 260 : 210)) };
@@ -194,12 +198,28 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   }
   // The dove flies behind the paper and wordmark and keeps above the clock,
   // so no hole ever holds two threads. It prefers the cloth around the paper.
+  // It rests with its feet on the loop at the inner end of a lower corner
+  // ornament's bottom arm, always facing into the page: left on the right
+  // ornament, right on the left one. Each counts while that stitch is still
+  // there and the dove fits clear of the clock.
   function birdSky() {
-    const clockRow = clock?.layout().glyphs[0]?.row;
+    const step = GRID * view.scale;
+    const glyphs = clock?.layout().glyphs ?? [];
+    const clockBox = glyphs.length ? {
+      left: view.x + glyphs[0].col * step, right: view.x + (glyphs.at(-1).col + glyphs.at(-1).width) * step,
+      top: view.y + glyphs[0].row * step, bottom: view.y + (glyphs.at(-1).row + 5) * step,
+    } : null;
+    // In each ornament's own rows and columns; the left one mirrors the right.
+    const loops = [[corners[0], 2, -1], [corners[1], 27, 1]];
+    const perches = loops.filter(([corner, x]) => corner
+      && [x, x + 1].every(col => model.stitches.has(keyOf(...toStoredCell(corner.col + col, corner.row + 22, corners)))))
+      .map(([corner, x, facing]) => ({ col: corner.col + x + .5, row: corner.row + 22, facing }));
     return {
       top: 0,
-      bottom: clockRow === undefined ? innerHeight : view.y + (clockRow - 1) * GRID * view.scale,
+      bottom: clockBox ? clockBox.top - step : innerHeight,
       avoid: sheet?.bounds ?? null,
+      perches,
+      keepClear: clockBox ? [clockBox] : [],
     };
   }
   function position(x, y) {
@@ -269,7 +289,19 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   });
   mountSurfaceInput(scene, { signal });
 
+  // Any input counts as the visitor being back: a resting dove takes off.
+  const wake = () => {
+    lastActivity = performance.now();
+    if (bird?.idle) {
+      bird.setIdle(false);
+      requestFrame();
+    }
+  };
+  for (const type of ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll']) {
+    window.addEventListener(type, wake, { passive: true, signal });
+  }
   document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) wake();
     bird?.suspend();
     if (document.hidden) {
       scene.hover = null;
