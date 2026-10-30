@@ -168,6 +168,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     preview?.remove();
     flight?.remove();
     navMorph.restore();
+    gallery.nav.style.removeProperty('visibility');
     gallery.root.classList.remove('is-navigating', 'is-returning');
     entry.item.classList.remove('is-flight-source', 'is-departing');
     sealOut?.cancel();
@@ -248,6 +249,8 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     flight.remove();
     gallery.scene.pause();
     inDetail = true;
+    // The detail's own nav has taken over; hide this one beneath it.
+    gallery.nav.style.visibility = 'hidden';
     document.title = preview.contentDocument.title;
     if (history) window.history.pushState({ projectWork: entry.work.id }, '', href);
     window.addEventListener('project-route-back', requestBack);
@@ -285,6 +288,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       preview.classList.add('is-returning');
       // Its identical parent control takes over before starting the reverse
       // morph, so the departing iframe never covers the moving navigation.
+      gallery.nav.style.removeProperty('visibility');
       preview.contentDocument.documentElement.classList.add('project-nav-handoff');
       preview.contentWindow.dispatchEvent(new Event('project-route-exit'));
       // The iframe becomes transparent while its red stitches retract, so

@@ -98,7 +98,8 @@ function alignCoverToSurface(container, figure) {
       figure.style.setProperty('--cover-width', `${imageWidth}px`);
       figure.style.setProperty('--cover-height', imageHeight ? `${imageHeight}px` : 'auto');
       const rect = figure.getBoundingClientRect();
-      const left = rect.left - offsetX, top = rect.top - offsetY;
+      // Snap in page coordinates, so the opening stays put while it scrolls.
+      const left = rect.left - offsetX, top = rect.top - offsetY + scrollY;
       const snap = (value, origin) => origin + Math.round((value - origin) / pitch) * pitch;
       offsetX = snap(left, innerWidth / 2) - left;
       offsetY = snap(top, innerHeight / 2) - top;
@@ -122,7 +123,6 @@ function alignCoverToSurface(container, figure) {
   };
   new ResizeObserver(schedule).observe(opening);
   window.addEventListener('resize', schedule, { passive: true });
-  window.addEventListener('scroll', schedule, { passive: true });
   schedule();
   return { ready, reveal: () => drawFrame.reveal(), unpick: () => drawFrame.unpick() };
 }
