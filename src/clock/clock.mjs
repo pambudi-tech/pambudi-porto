@@ -73,7 +73,7 @@ export function clockTextLayout(text, { width, height, view, safeBottom = 0 }) {
     if (last && textWidth(`${last} ${word}`) <= maxColumns) lines[lines.length - 1] += ` ${word}`;
     else lines.push(word);
   }
-  const bottomRows = isPhone(width) ? 21 : 7;
+  const bottomRows = isPhone(width) ? 17 : 7;
   const row = Math.floor((height - safeBottom - view.y) / pitch) - bottomRows - (lines.length - 1) * 7;
   const glyphs = [];
   lines.forEach((line, index) => {
