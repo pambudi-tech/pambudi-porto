@@ -3,25 +3,13 @@ import { GRID, surfaceSpacing, keyOf } from '../stitch/model.mjs';
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
 import { WING_POSES } from './wing-motion.mjs';
-import { isPhone } from '../shared/breakpoints.mjs';
+import { FlightPath, FLIGHT } from './flight-path.mjs';
 
 const REVEAL_DURATION = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
-
-export function flightAt(elapsed, { width, height, birdWidth, birdHeight }) {
-  const legMs = Math.max(7000, (width + birdWidth * 2) / .13);
-  const trip = elapsed / legMs + .24;
-  const leg = Math.floor(trip), progress = trip - leg;
-  const direction = leg % 2 === 0 ? 1 : -1;
-  const distance = width + birdWidth * 2;
-  const x = direction === 1 ? -birdWidth + progress * distance : width + birdWidth - progress * distance;
-  const centerY = height * (isPhone(width) ? .24 : .45);
-  const y = centerY - birdHeight / 2 + Math.sin(progress * Math.PI * 2) * Math.min(22, height * .025);
-  return { x, y, direction, legMs };
-}
-
-export function rebaseFlightTime(time, previousStage, nextStage) {
-  return time * flightAt(0, nextStage).legMs / flightAt(0, previousStage).legMs;
-}
+// About two thirds of the source chart, leaving room to wander around the paper.
+export const FIGURE_SCALE = .66;
+// Pitch changes re-sample the figure only once they move it by about half a stitch.
+const PITCH_STEP = .02;
 
 // Area sampling preserves the outline at the surface's actual stitch spacing.
 // No sub-grid stitches or scaled bird image are needed.
@@ -86,11 +74,14 @@ export class StitchTransitions {
 }
 
 // The surface owns the animation clock and draws these cells alongside its other stitches.
+// `sky` is the band the dove may use, { top, bottom } in px, with the paper's
+// bounds as `avoid`; the scene supplies it. The same seed flies the same path.
 export class BirdFlight {
-  constructor(width, height, view, { paused = false } = {}) {
+  constructor(width, height, view, { paused = false, seed = 1, sky = {} } = {}) {
     this.paused = paused;
+    this.seed = seed;
+    this.sky = sky;
     this.elapsed = 0;
-    this.travelTime = 0;
     this.lastTime = null;
     this.revealTime = paused ? REVEAL_DURATION : 0;
     this.revealTarget = REVEAL_DURATION;
@@ -99,16 +90,17 @@ export class BirdFlight {
     this.entrance = new StitchEntrance({ sweep: ENTRANCE.wordmark, reduced: paused });
     this.resize(width, height, view);
   }
-  resize(width, height, view) {
+  resize(width, height, view, sky = this.sky) {
     const previousStage = this.stage;
     this.view = { ...view };
+    this.sky = sky;
     this.pitch = GRID * view.scale;
     const sourceSide = Math.max(BIRD_COLUMNS + 4, BIRD_ROWS + 4);
-    // Keep a source stitch for each surface cell wherever the viewport allows.
-    // Only reduce the pattern when it needs to fit a shorter or narrower screen.
-    // Preserve the existing pose's cell count when surface spacing changes.
+    // Scale the source chart, reducing it further only when it needs to fit
+    // a shorter or narrower screen. Preserve the pose's cell count when
+    // surface spacing changes.
     const referencePitch = this.pitch / surfaceSpacing(width);
-    const maxSide = Math.min(sourceSide * referencePitch, width * .72, height * .55);
+    const maxSide = Math.min(sourceSide * referencePitch, width * .72, height * .55) * FIGURE_SCALE;
     const side = Math.max(8, Math.round(maxSide / referencePitch));
     this.columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / sourceSide));
     this.rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide));
@@ -118,9 +110,18 @@ export class BirdFlight {
       this.revealTime = REVEAL_DURATION;
       this.entrance.finish();
     }
-    // Plan in bird-local coordinates across every pose, so the front travels
-    // with the bird and remains coherent while the wings change shape.
-    const silhouette = new Map(this.frames.flat().map(cell => [keyOf(...cell), cell]));
+    // Plan in bird-local coordinates across every pose and pitch, so the
+    // front travels with the bird and remains coherent while it changes shape.
+    const silhouette = new Map();
+    const pivotX = 28 * this.columns / (BIRD_COLUMNS + 4), pivotY = 37 * this.rows / (BIRD_ROWS + 4);
+    for (const angle of [0, -FLIGHT.maxPitch, -FLIGHT.maxPitch / 2, FLIGHT.maxPitch / 2, FLIGHT.maxPitch]) {
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      for (const [col, row] of this.frames.flat()) {
+        const x = Math.round(pivotX + (col - pivotX) * cos - (row - pivotY) * sin);
+        const y = Math.round(pivotY + (col - pivotX) * sin + (row - pivotY) * cos);
+        silhouette.set(keyOf(x, y), [x, y]);
+      }
+    }
     // Replan on resize too: later reveals use the current surface lattice.
     for (const [col, row] of [...silhouette.values()]) {
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -129,8 +130,9 @@ export class BirdFlight {
       }
     }
     this.entrance.plan([flameEntranceOrder([...silhouette.values()], { origin: 'center' })]);
-    this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch };
-    if (previousStage) this.travelTime = rebaseFlightTime(this.travelTime, previousStage, this.stage);
+    this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch, ...sky };
+    if (this.flight) this.flight.resize(this.stage);
+    else this.flight = new FlightPath(this.stage, { seed: this.seed, poses: this.frames.length });
     const { cells, signature } = this.targetAt();
     this.signature = signature;
     this.transitions.setTarget(cells, this.elapsed, true);
@@ -138,15 +140,18 @@ export class BirdFlight {
     this.lastTime = null;
   }
   targetAt() {
-    const pose = Math.floor(this.elapsed / BIRD_FRAME_MS) % this.frames.length;
-    const motion = Math.floor(this.elapsed / BODY_FRAME_MS);
-    const motionSignature = `${pose}:${motion}`;
+    // Wingbeats and the body's follow-through run on the flight's wing clock,
+    // so they speed up in a climb and hold still in a glide.
+    const { x, y, direction, pitch, wing } = this.flight.state;
+    const pose = Math.floor(wing) % this.frames.length;
+    const motion = Math.floor(wing * BIRD_FRAME_MS / BODY_FRAME_MS);
+    const attitude = Math.round(pitch / PITCH_STEP) * PITCH_STEP || 0;
+    const motionSignature = `${pose}:${motion}:${attitude}`;
     if (motionSignature !== this.motionSignature) {
-      this.movingPose = motion === 0 ? this.frames[pose]
-        : samplePose(articulatePose(WING_POSES[pose], motion * BODY_FRAME_MS), this.columns, this.rows);
+      this.movingPose = motion === 0 && attitude === 0 ? this.frames[pose]
+        : samplePose(articulatePose(WING_POSES[pose], motion * BODY_FRAME_MS, attitude), this.columns, this.rows);
       this.motionSignature = motionSignature;
     }
-    const { x, y, direction } = flightAt(this.travelTime, this.stage);
     const col = Math.round((x - this.view.x) / this.pitch);
     const row = Math.round((y - this.view.y) / this.pitch);
     this.position = { col, row, direction };
@@ -192,7 +197,7 @@ export class BirdFlight {
     const delta = Math.min(revealDelta, 100);
     this.lastTime = now;
     this.elapsed += delta;
-    this.travelTime += delta;
+    this.flight.advance(delta);
     const step = revealDelta * this.revealRate;
     this.revealTime = this.revealTarget > this.revealTime
       ? Math.min(this.revealTarget, this.revealTime + step)

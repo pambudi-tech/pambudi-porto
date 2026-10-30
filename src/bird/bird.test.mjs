@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { flightAt, rebaseFlightTime, BirdFlight, StitchTransitions } from './bird.mjs';
+import { BirdFlight, StitchTransitions } from './bird.mjs';
 import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR } from './bird-data.mjs';
 import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, bodyMotionAt, moveBirdPoint } from './bird-motion.mjs';
@@ -106,40 +106,36 @@ test('flapping poses are distinct, bounded stitch coordinates with no duplicated
   }
 });
 
-test('flight reverses direction beyond the screen edges without a position jump', () => {
-  for (const [width, height, birdWidth, birdHeight] of [[1280,720,210,210], [390,844,130,130]]) {
-    const stage = { width, height, birdWidth, birdHeight };
-    const { legMs } = flightAt(0, stage);
-    const rightBefore = flightAt(legMs * .76 - .01, stage);
-    const rightAfter = flightAt(legMs * .76 + .01, stage);
-    assert.equal(rightBefore.direction, 1);
-    assert.equal(rightAfter.direction, -1);
-    assert.ok(rightBefore.x > width && rightAfter.x > width);
-    assert.ok(Math.abs(rightBefore.x - rightAfter.x) < 1);
-    const leftBefore = flightAt(legMs * 1.76 - .01, stage);
-    const leftAfter = flightAt(legMs * 1.76 + .01, stage);
-    assert.equal(leftBefore.direction, -1);
-    assert.equal(leftAfter.direction, 1);
-    assert.ok(leftBefore.x + birdWidth < 1 && leftAfter.x + birdWidth < 1);
-    assert.ok(Math.abs(leftBefore.x - leftAfter.x) < 1);
-    for (let i = 0; i <= 100; i++) {
-      const { y } = flightAt(legMs * 2 * i / 100, stage);
-      assert.ok(y >= 0 && y + birdHeight <= height);
-    }
+test('climbs and dives pitch the whole figure about the breast without losing stitches', () => {
+  // The lowered-wing pose leaves the head clear to measure.
+  const pose = WING_POSES[4];
+  const up = articulatePose(pose, 0, -.3), down = articulatePose(pose, 0, .3);
+  const head = cells => {
+    const front = cells.filter(([x]) => x >= 36);
+    return front.reduce((sum, [, y]) => sum + y, 0) / front.length;
+  };
+  assert.ok(head(up) < head(pose) - 1.5, 'a climb raises the head');
+  assert.ok(head(down) > head(pose) + 1.5, 'a dive lowers it');
+  for (const moved of [up, down]) {
+    assert.ok(Math.abs(moved.length / pose.length - 1) < .08, 'rotation keeps the stitch area');
+    assert.equal(new Set(moved.map(cell => cell.join(','))).size, moved.length);
   }
 });
 
-test('resizing preserves travel progress and direction', () => {
-  const desktop = { width: 1280, height: 720, birdWidth: 210, birdHeight: 210 };
-  const mobile = { width: 390, height: 844, birdWidth: 130, birdHeight: 130 };
-  for (const time of [0, 5000, 12000, 17000, 30000, 60000]) {
-    const before = flightAt(time, desktop);
-    const after = flightAt(rebaseFlightTime(time, desktop, mobile), mobile);
-    assert.equal(before.direction, after.direction);
-    const progressBefore = (before.x + desktop.birdWidth) / (desktop.width + desktop.birdWidth * 2);
-    const progressAfter = (after.x + mobile.birdWidth) / (mobile.width + mobile.birdWidth * 2);
-    assert.ok(Math.abs(progressBefore - progressAfter) < 1e-10);
+test('the bird faces the way it flies, and only turns once it is clearly heading back', () => {
+  const bird = new BirdFlight(1280, 720, { x: 640, y: 320, scale: 6.5 / 22 });
+  let previous = bird.flight.x, faced = 0, checked = 0;
+  for (let time = 0; time <= 60000; time += 20) {
+    bird.update(time);
+    const { x, direction } = bird.flight;
+    if (!bird.flight.away && Math.abs(x - previous) > 2) {
+      checked++;
+      if (Math.sign(x - previous) === direction) faced++;
+    }
+    previous = x;
   }
+  assert.ok(checked > 500);
+  assert.ok(faced / checked > .97, 'it does not fly backwards');
 });
 
 test('the moving bird occupies only integer cells on the surface grid at every viewport size', () => {
@@ -260,10 +256,10 @@ test('page departure unsews the dove and return replays its initial reveal witho
   }
   assert.ok(partialDeparture, 'the dove retracts in patches instead of disappearing at the page handoff');
   assert.equal(bird.cells.size, 0);
-  const travelTime = bird.travelTime;
+  const flight = { ...bird.flight.state };
   bird.setVisible(true);
   assert.equal(bird.cells.size, 0, 'return begins with bare cloth');
-  assert.equal(bird.travelTime, travelTime, 'return keeps its flight phase');
+  assert.deepEqual(bird.flight.state, flight, 'return keeps its place in the flight');
   let partialReturn = false;
   const end = ENTRANCE.delay + ENTRANCE.wordmark + ENTRANCE.stitch;
   for (let time = 950; time <= 900 + end + 50; time += 50) {

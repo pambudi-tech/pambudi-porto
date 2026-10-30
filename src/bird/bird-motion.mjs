@@ -36,21 +36,29 @@ export function moveBirdPoint(x, y, motion) {
   ];
 }
 
-export function articulatePose(pose, time) {
-  if (time === 0) return pose;
+// `pitch` is the flight's climb or dive: it turns the whole figure about the
+// breast after the body's own follow-through. Negative raises the head.
+export function articulatePose(pose, time, pitch = 0) {
+  if (time === 0 && pitch === 0) return pose;
   const motion = bodyMotionAt(time);
   const source = new Set(pose.map(([x, y]) => `${x},${y}`));
   const cells = [];
+  const cos = Math.cos(pitch), sin = Math.sin(pitch);
   // Inverse sampling keeps solid feather areas solid when the body flexes.
   // The two-cell source padding already used by samplePose holds the small
-  // movement; each resulting X still lands on a hole of the surface grid.
-  for (let y = -2; y < BIRD_ROWS + 2; y++) {
-    for (let x = -2; x < BIRD_COLUMNS + 2; x++) {
-      let sx = x, sy = y;
+  // movement, widened by how far the pitch swings the wingtips and tail.
+  // Each resulting X still lands on a hole of the surface grid.
+  const reach = 2 + Math.ceil(36 * Math.abs(sin));
+  for (let y = -reach; y < BIRD_ROWS + reach; y++) {
+    for (let x = -reach; x < BIRD_COLUMNS + reach; x++) {
+      // Undo the pitch exactly, then solve for the body motion.
+      const ux = 26 + (x - 26) * cos + (y - 35) * sin;
+      const uy = 35 - (x - 26) * sin + (y - 35) * cos;
+      let sx = ux, sy = uy;
       for (let i = 0; i < 3; i++) {
         const [tx, ty] = moveBirdPoint(sx, sy, motion);
-        sx += x - tx;
-        sy += y - ty;
+        sx += ux - tx;
+        sy += uy - ty;
       }
       if (source.has(`${Math.round(sx)},${Math.round(sy)}`)) cells.push([x, y]);
     }

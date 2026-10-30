@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { GRID, surfaceSpacing } from './model.mjs';
 import { cornerPitch } from './corners.mjs';
 import { SurfaceRenderer } from './render.mjs';
-import { BirdFlight, samplePose } from '../bird/bird.mjs';
+import { BirdFlight, samplePose, FIGURE_SCALE } from '../bird/bird.mjs';
 import { BIRD_COLUMNS, BIRD_ROWS } from '../bird/bird-data.mjs';
 import { WING_POSES } from '../bird/wing-motion.mjs';
 
@@ -29,7 +29,7 @@ test('refined bird poses retain their cell density across surface spacing at eac
   for (const [width, height] of [[1665, 978], [1280, 720], [390, 844]]) {
     const pitch = cornerPitch(width);
     const previousPitch = pitch / surfaceSpacing(width);
-    const side = Math.max(8, Math.round(Math.min(70 * previousPitch, width * .72, height * .55) / previousPitch));
+    const side = Math.max(8, Math.round(Math.min(70 * previousPitch, width * .72, height * .55) * FIGURE_SCALE / previousPitch));
     const columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / 70));
     const rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / 70));
     const bird = new BirdFlight(width, height, { x: width / 2, y: height / 2, scale: pitch / GRID });

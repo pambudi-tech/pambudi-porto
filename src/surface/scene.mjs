@@ -65,6 +65,8 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   let frame = null, sceneDirty = true, clothDirty = true;
   let corners = [];
   let bird = null;
+  // The wordmark's own holes, which the dove passes behind.
+  let wordmarkHoles = null;
   let cornersEntering = !motionPreference.matches;
   const touchHold = new TouchHold(({ x, y }) => {
     scene.cancelTap();
@@ -152,7 +154,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     if (clothDirty) { renderer.drawCloth(view); clothDirty = false; }
     if (sceneDirty) {
       const settled = !animations.size && !cornersEntering;
-      renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now, { settled });
+      renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now, { settled, reserved: wordmarkHoles });
       sceneDirty = false;
     }
     $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
@@ -187,7 +189,18 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     layoutSurface();
     wordmark?.resize(innerWidth, view);
     sheet?.resize();
-    bird?.resize(renderer.width, renderer.height, view);
+    wordmarkHoles = wordmark?.cells ? new Set(wordmark.cells.map(cell => keyOf(...cell))) : null;
+    bird?.resize(renderer.width, renderer.height, view, birdSky());
+  }
+  // The dove flies behind the paper and wordmark and keeps above the clock,
+  // so no hole ever holds two threads. It prefers the cloth around the paper.
+  function birdSky() {
+    const clockRow = clock?.layout().glyphs[0]?.row;
+    return {
+      top: 0,
+      bottom: clockRow === undefined ? innerHeight : view.y + (clockRow - 1) * GRID * view.scale,
+      avoid: sheet?.bounds ?? null,
+    };
   }
   function position(x, y) {
     return { col: Math.floor((x - view.x) / (GRID * view.scale)), row: Math.floor((y - view.y) / (GRID * view.scale)), x, y };
@@ -294,7 +307,9 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       cornerEntrance.started = now;
       if (wordmark?.entrance) wordmark.entrance.started = now;
       sheet?.place(now);
-      if (!surfaceOnly) bird = new BirdFlight(renderer.width, renderer.height, view, { paused: motionPreference.matches });
+      if (!surfaceOnly) bird = new BirdFlight(renderer.width, renderer.height, view, {
+        paused: motionPreference.matches, seed: Math.floor(Math.random() * 2 ** 32), sky: birdSky(),
+      });
       running = true;
       releaseEntrance(now);
       requestFrame({ stitches: true });
