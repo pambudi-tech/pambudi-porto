@@ -176,6 +176,10 @@ export class BirdFlight {
   setIdle(idle) {
     this.flight.setIdle(idle);
   }
+  // The pointer moved to x, y in px; the dove sets off for it a moment later.
+  setLure(x, y) {
+    if (!this.paused) this.flight.setLure(x, y);
+  }
   // Whether the scene still needs frames: a dove settled on its perch does not.
   get active() {
     return !this.paused && !(this.flight.resting && !this.transitions.animating && this.revealTime === this.revealTarget);

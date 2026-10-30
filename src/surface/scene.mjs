@@ -290,18 +290,21 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   mountSurfaceInput(scene, { signal });
 
   // Any input counts as the visitor being back: a resting dove takes off.
-  const wake = () => {
+  // A moving mouse or pen, or any tap, calls the dove over to the pointer.
+  const wake = event => {
     lastActivity = performance.now();
     if (bird?.idle) {
       bird.setIdle(false);
       requestFrame();
     }
+    const pointing = event.type === 'pointerdown' || (event.type === 'pointermove' && event.pointerType !== 'touch');
+    if (bird && pointing) bird.setLure(event.clientX, event.clientY);
   };
   for (const type of ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll']) {
     window.addEventListener(type, wake, { passive: true, signal });
   }
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) wake();
+    if (!document.hidden) wake({ type: 'visibilitychange' });
     bird?.suspend();
     if (document.hidden) {
       scene.hover = null;

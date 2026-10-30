@@ -13,9 +13,10 @@ export const FLIGHT = {
     swoop: { speed: .2, flap: 0, slope: .6 },
     circle: { speed: .13, flap: 1 / 95, slope: .45 },
     exit: { speed: .17, flap: 1 / 90, slope: .3 },
-    // Coming in to rest, and leaving the perch again.
-    land: { speed: .13, flap: 1 / 90, slope: .4 },
+    // Coming in to rest, leaving the perch again, and answering the pointer.
+    land: { speed: .15, flap: 1 / 90, slope: .55 },
     takeoff: { speed: .15, flap: 1 / 45, slope: .6 },
+    follow: { speed: .2, flap: 1 / 60, slope: .55 },
   },
   // It never rises or falls without travelling across too: no path is
   // steeper than this, and turning back is a level turn.
@@ -26,12 +27,16 @@ export const FLIGHT = {
   // Time on screen before it may leave, and time out of frame before it returns.
   exitAfter: 14000,
   away: [1200, 3600],
-  // A visitor idle this long sends the dove off, to come back and rest on its
-  // perch; the flare begins this far out (px, scaled by pace). Taking off, it
-  // crouches this long with its wings raised before it springs.
-  restAfter: 5000,
+  // A visitor idle this long sends the dove to its nearest perch; the flare
+  // begins this far out (px, scaled by pace). Taking off, it crouches this
+  // long with its wings raised before it springs.
+  restAfter: 3000,
   flare: 120,
   crouch: 160,
+  // This soon after the pointer moves, the dove sets off for it, looking
+  // again for where it has got to this often until it arrives.
+  followDelay: 250,
+  followEvery: 250,
 };
 
 export function seededRandom(seed = 1) {
@@ -72,6 +77,8 @@ export class FlightPath {
     this.idle = false;
     this.perches = [];
     this.perch = null;
+    this.lure = null;
+    this.lured = null;
     this.begin('cruise');
   }
   // The highest and lowest the centre goes: the box stays inside the sky band,
@@ -104,8 +111,7 @@ export class FlightPath {
     return this.mode === 'rest';
   }
   // `perches` are where it may rest, each { x, y, direction }: the centre it
-  // rests at and the way it faces there. It rests on the one on the side of
-  // the screen it last left by.
+  // rests at and the way it faces there. It rests on the nearest.
   setPerches(perches) {
     const using = this.mode === 'rest' || this.mode === 'land' ? this.perch : null;
     this.perches = perches;
@@ -115,18 +121,28 @@ export class FlightPath {
     if (this.mode === 'rest') this.begin('takeoff');
     else this.begin('cruise');
   }
-  // An idle visitor sends the bird to rest the next time it is out of frame;
-  // activity lifts it off the perch, or turns it away from landing.
+  // An idle visitor sends the bird to its nearest perch, or to the one on
+  // its side when it is out of frame; activity lifts it off the perch, or
+  // turns it away from landing.
   setIdle(idle) {
     if (idle === this.idle) return;
     this.idle = idle;
-    // Going idle, it finishes what it is doing within a second, then leaves.
     if (idle) {
-      if (this.perches.length && !this.away && this.mode !== 'exit') this.left = Math.min(this.left, 1000);
+      if (this.perches.length && !this.away && this.mode !== 'rest' && this.mode !== 'land') this.land();
       return;
     }
     if (this.mode === 'rest') this.begin('takeoff');
     else if (this.mode === 'land') this.begin('cruise');
+  }
+  land() {
+    this.perch = this.perches.reduce((best, perch) =>
+      Math.hypot(perch.x - this.x, perch.y - this.y) < Math.hypot(best.x - this.x, best.y - this.y) ? perch : best);
+    this.begin('land');
+  }
+  // The pointer moved to x, y. A moment later the bird sets off for it.
+  setLure(x, y) {
+    this.lure = { x, y };
+    if (this.mode !== 'follow') this.lured ??= this.time;
   }
   get offscreen() {
     const { width, birdWidth } = this.stage;
@@ -156,8 +172,12 @@ export class FlightPath {
       this.vx = this.vy = 0;
       this.left = Infinity;
     } else if (mode === 'land') {
-      this.target = this.perch;
+      this.aim(this.perch);
       this.left = Infinity;
+    } else if (mode === 'follow') {
+      this.aim(this.lureTarget());
+      this.retarget = FLIGHT.followEvery;
+      this.left = 8000;
     } else if (mode === 'takeoff') {
       // It springs off the perch: wings raised and body tilted back for a
       // moment, then already at speed, climbing as steeply as it ever does
@@ -242,8 +262,26 @@ export class FlightPath {
     const reach = Math.abs(x - this.x) * Math.tan(FLIGHT.modes[mode].slope) * .9;
     return { x, y: clamp(clamp(y, this.y - reach, this.y + reach), top, bottom) };
   }
+  // The pointer's position as a target inside the sky.
+  lureTarget() {
+    const { width, birdWidth } = this.stage, pad = Math.min(birdWidth / 2, width / 2);
+    return { x: clamp(this.lure.x, pad, width - pad), y: clamp(this.lure.y, this.low, this.high) };
+  }
+  // Heads for `goal`. Where it lies too steeply above or below to reach
+  // without breaking the slope limit, the bird first flies out level, away
+  // from it, until it can come in on a clean diagonal.
+  aim(goal) {
+    this.goal = goal;
+    this.approach = this.runTo(goal) ? 'out' : 'in';
+  }
+  // How far out the bird must be to reach `goal` at this mode's slope, or 0
+  // when it already can.
+  runTo(goal) {
+    const run = Math.abs(goal.y - this.y) / Math.tan(FLIGHT.modes[this.mode].slope * .9);
+    return Math.abs(goal.x - this.x) < run ? run : 0;
+  }
   next() {
-    if (this.idle && this.perches.length) return this.begin('exit');
+    if (this.idle && this.perches.length) return this.land();
     if (this.mode === 'swoop') return this.begin('climb');
     const height = (this.y - this.low) / Math.max(1, this.high - this.low);
     const room = this.direction > 0 ? this.stage.width - this.x : this.x;
@@ -265,11 +303,25 @@ export class FlightPath {
     }
     this.begin('cruise');
   }
-  // Comes back from either edge at a new height, heading inward. To rest, it
-  // comes in from the side it will face away from, high enough to glide down
-  // to the perch without ever dropping more steeply than a landing allows.
+  // Comes back from either edge at a new height, heading inward: toward the
+  // pointer if it is following one. To rest, it comes in from the side it
+  // will face away from, high enough to glide down to the perch without ever
+  // dropping more steeply than a landing allows.
   enter() {
     const { width, birdWidth } = this.stage;
+    if (this.lured !== null && this.lure) {
+      const side = this.lure.x < width / 2 ? -1 : 1;
+      this.lured = null;
+      this.x = side < 0 ? -birdWidth / 2 : width + birdWidth / 2;
+      this.y = clamp(this.lure.y, this.low, this.high);
+      this.direction = -side;
+      this.vx = -side * FLIGHT.modes.follow.speed * this.pace;
+      this.vy = 0;
+      this.pitch = 0;
+      this.away = 0;
+      this.onScreen = 0;
+      return this.begin('follow');
+    }
     if (this.idle && this.perches.length) {
       this.perch = this.perches.find(perch => Math.sign(perch.x - width / 2) === this.exitSide) ?? this.perches[0];
       const { x, y, direction } = this.perch;
@@ -311,21 +363,45 @@ export class FlightPath {
   step(dt) {
     this.time += dt;
     if (this.mode === 'rest') return;
+    const answering = this.lured !== null && this.time - this.lured >= FLIGHT.followDelay && this.mode !== 'land';
     if (this.away > 0) {
       this.flapWings(dt, FLIGHT.modes.cruise.flap);
       this.away -= dt;
-      if (this.away <= 0) this.enter();
+      if (this.away <= 0 || answering) this.enter();
       return;
     }
     if (this.mode === 'takeoff' && this.crouch > 0) {
       this.crouch -= dt;
       return;
     }
+    if (answering) {
+      this.lured = null;
+      this.begin('follow');
+    }
+    if (this.mode === 'follow' && (this.retarget -= dt) <= 0) {
+      const goal = this.lureTarget();
+      if (Math.hypot(goal.x - this.goal.x, goal.y - this.goal.y) > 30) this.aim(goal);
+      this.retarget = FLIGHT.followEvery;
+    }
     const mode = FLIGHT.modes[this.mode], landing = this.mode === 'land';
-    if (landing) this.target = this.perch;
+    if (landing || this.mode === 'follow') {
+      const run = this.approach === 'out' && this.runTo(this.goal);
+      if (run) {
+        // Out on its own side if there is room for the run, else the other.
+        const { width, birdWidth } = this.stage, pad = Math.min(birdWidth / 2, width / 2);
+        const room = side => side > 0 ? width - pad - this.goal.x : this.goal.x - pad;
+        let out = Math.sign(this.x - this.goal.x) || -this.direction;
+        if (room(out) < run && room(-out) > room(out)) out = -out;
+        this.target = { x: clamp(this.goal.x + out * run, pad, width - pad), y: this.y };
+        if (Math.abs(this.target.x - this.x) < 20) this.approach = 'in';
+      } else {
+        this.approach = 'in';
+        this.target = this.goal;
+      }
+    }
     const distance = Math.hypot(this.target.x - this.x, this.target.y - this.y);
     // Coming in to land it flares, wings held high, and settles.
-    const flaring = landing && distance < FLIGHT.flare * this.pace;
+    const flaring = landing && this.approach === 'in' && distance < FLIGHT.flare * this.pace;
     this.flapWings(dt, flaring ? 0 : mode.flap);
     this.onScreen += dt;
     if (this.circle) {
@@ -346,7 +422,7 @@ export class FlightPath {
     const slope = clamp(dy / Math.max(Math.abs(dx), 1) + wander, -reach, reach);
     // Without wingbeats it trades height for speed; flapping evens that out.
     // It hurries across behind the paper and takes its time on open cloth.
-    const pacing = landing ? clamp(distance / (160 * pace), .06, 1) : this.hidden ? 1.45 : .9;
+    const pacing = landing && this.approach === 'in' ? clamp(distance / (160 * pace), .06, 1) : landing ? 1 : this.hidden ? 1.45 : .9;
     const speed = mode.speed * pace * (1 + (mode.flap ? .12 : .5) * slope / Math.hypot(1, slope)) * pacing;
     const vx = side * speed / Math.hypot(1, slope), yaw = FLIGHT.yaw * pace * dt;
     this.vx += clamp((vx - this.vx) * (1 - Math.exp(-dt / 260)), -yaw, yaw);
@@ -359,7 +435,7 @@ export class FlightPath {
       this.y = clamp(this.y, this.low, this.high);
       this.vy = 0;
     }
-    if (landing && Math.hypot(this.target.x - this.x, this.target.y - this.y) < 3) {
+    if (landing && this.approach === 'in' && Math.hypot(this.target.x - this.x, this.target.y - this.y) < 3) {
       this.direction = this.perch.direction;
       this.pitch = 0;
       return this.begin('rest');
@@ -374,6 +450,10 @@ export class FlightPath {
     const climb = Math.atan2(-this.vy, Math.max(Math.abs(this.vx), .03 * pace));
     this.pitch += (clamp(-climb * .5, -FLIGHT.maxPitch, FLIGHT.maxPitch) - this.pitch) * (1 - Math.exp(-dt / 220));
     this.left -= dt;
-    if (this.left <= 0 || (!this.circle && !landing && this.mode !== 'exit' && Math.hypot(dx, dy) < 30)) this.next();
+    // Following, only reaching the pointer counts, not the run out before it.
+    const arrived = this.mode === 'follow'
+      ? this.approach === 'in' && Math.hypot(this.goal.x - this.x, this.goal.y - this.y) < 40
+      : Math.hypot(dx, dy) < 30;
+    if (this.left <= 0 || (!this.circle && !landing && this.mode !== 'exit' && arrived)) this.next();
   }
 }
