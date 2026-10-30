@@ -268,17 +268,24 @@ export class FlightPath {
     return { x: clamp(this.lure.x, pad, width - pad), y: clamp(this.lure.y, this.low, this.high) };
   }
   // Heads for `goal`. Where it lies too steeply above or below to reach
-  // without breaking the slope limit, the bird first flies out level, away
-  // from it, until it can come in on a clean diagonal.
+  // within the slope limit, the bird first turns at a waypoint: past the goal
+  // if there is room, so it sweeps toward it at once and comes round, else
+  // out on its own side. The waypoint is fixed per goal, so it never dithers.
   aim(goal) {
     this.goal = goal;
-    this.approach = this.runTo(goal) ? 'out' : 'in';
+    this.waypoint = this.approachVia(goal);
+    this.approach = this.waypoint ? 'out' : 'in';
   }
-  // How far out the bird must be to reach `goal` at this mode's slope, or 0
-  // when it already can.
-  runTo(goal) {
-    const run = Math.abs(goal.y - this.y) / Math.tan(FLIGHT.modes[this.mode].slope * .9);
-    return Math.abs(goal.x - this.x) < run ? run : 0;
+  approachVia(goal) {
+    const slope = Math.tan(FLIGHT.modes[this.mode].slope * .9);
+    const dx = goal.x - this.x, dy = goal.y - this.y, run = Math.abs(dy) / slope;
+    if (Math.abs(dx) >= run) return null;
+    const { width, birdWidth } = this.stage, pad = Math.min(birdWidth / 2, width / 2);
+    const toward = Math.sign(dx) || this.direction;
+    let x = goal.x + toward * (run - Math.abs(dx)) / 2;
+    if (x < pad || x > width - pad) x = goal.x - toward * run;
+    x = clamp(x, pad, width - pad);
+    return { x, y: this.y + Math.sign(dy) * Math.min(Math.abs(dy), Math.abs(x - this.x) * slope) };
   }
   next() {
     if (this.idle && this.perches.length) return this.land();
@@ -385,19 +392,8 @@ export class FlightPath {
     }
     const mode = FLIGHT.modes[this.mode], landing = this.mode === 'land';
     if (landing || this.mode === 'follow') {
-      const run = this.approach === 'out' && this.runTo(this.goal);
-      if (run) {
-        // Out on its own side if there is room for the run, else the other.
-        const { width, birdWidth } = this.stage, pad = Math.min(birdWidth / 2, width / 2);
-        const room = side => side > 0 ? width - pad - this.goal.x : this.goal.x - pad;
-        let out = Math.sign(this.x - this.goal.x) || -this.direction;
-        if (room(out) < run && room(-out) > room(out)) out = -out;
-        this.target = { x: clamp(this.goal.x + out * run, pad, width - pad), y: this.y };
-        if (Math.abs(this.target.x - this.x) < 20) this.approach = 'in';
-      } else {
-        this.approach = 'in';
-        this.target = this.goal;
-      }
+      if (this.approach === 'out' && Math.abs(this.waypoint.x - this.x) < 20) this.approach = 'in';
+      this.target = this.approach === 'out' ? this.waypoint : this.goal;
     }
     const distance = Math.hypot(this.target.x - this.x, this.target.y - this.y);
     // Coming in to land it flares, wings held high, and settles.
