@@ -253,7 +253,8 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
-.works-nav button:hover { color: var(--ink); }
+.works-nav button:hover:not(:disabled) { color: var(--ink); }
+.works-nav button:disabled { opacity: .45; cursor: not-allowed; }
 .works-nav button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .works-nav-back,
 .works-nav-toggle {

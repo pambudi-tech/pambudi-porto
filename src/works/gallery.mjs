@@ -49,8 +49,8 @@ export class WorksGallery {
     // Protected work's covers dither coarser until the visitor has the PIN;
     // a project page tells the row when it is entered.
     this.passed = false;
-    this.checkPass();
-    addEventListener('works-pass', () => this.checkPass(), { signal });
+    this.passChecked = this.checkPass();
+    addEventListener('works-pass', () => { this.passChecked = this.checkPass(); }, { signal });
     // Along the top: the way back to the paper, and a toggle between the
     // selected works and exploration.
     this.nav = root.querySelector('.works-nav');
@@ -422,13 +422,16 @@ export class WorksGallery {
     entry.dithered = key;
     const result = ditherPhoto(photo, width, height, dpr, options);
     if (!result) { image.src = photo.src; return; }
-    const show = (target, canvas) => canvas?.toBlob(blob => {
-      if (entry.dithered !== key || !blob) return;
-      const previous = target.src.startsWith('blob:') ? target.src : null;
-      target.src = URL.createObjectURL(blob);
-      if (previous) URL.revokeObjectURL(previous);
-    });
-    show(image, result);
+    // `shown` settles once the card shows this dither, for a flight home to
+    // carry it (project-transition.mjs).
+    entry.shown = new Promise(resolve => result.toBlob(blob => {
+      if (entry.dithered === key && blob) {
+        const previous = image.src.startsWith('blob:') ? image.src : null;
+        image.src = URL.createObjectURL(blob);
+        if (previous) URL.revokeObjectURL(previous);
+      }
+      resolve();
+    }));
     if (this.glitched === entry) this.glitched = null;
   }
 

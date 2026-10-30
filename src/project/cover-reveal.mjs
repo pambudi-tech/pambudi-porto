@@ -1,41 +1,36 @@
-import { DITHER } from '../works/dither.mjs';
-
-// The full cover's arrival once the PIN is in: the photo as a coarse, stark
-// dither whose dots shrink and whose brightness steps multiply until it is as
-// fine as a screen can show, when the dither melts away into the photograph.
+// The full cover's arrival once the PIN is in. It starts as the locked
+// preview itself, then dithers the full photo on the preview's own grid: its
+// dots shrink, their colours sharpen and their brightness steps multiply until
+// the dither is as fine as the screen, when it melts away into the photograph.
 // A canvas laid over the cover's photo draws it, then leaves.
 export const COVER_REVEAL = Object.freeze({
-  duration: 3200,  // ms from the coarsest dither to the clean photo
-  cellFrom: 8,     // CSS pixels per dot at the start
-  levelsFrom: 2,   // brightness steps at the start
-  levelsTo: 32,    // ... and as the dither gives way to the photo
+  duration: 3200,  // ms from the locked preview to the clean photo
+  levelsTo: 32,    // brightness steps as the dither gives way to the photo
   sharpen: .78,    // the share of the time the dots take to reach their finest
 });
+
+// The locked preview's dither, as tools/locked-preview.py bakes it.
+const LOCKED = Object.freeze({ cell: 3, levels: 5, sample: 280 });
 
 const VERTEX = `
 precision highp float;
 attribute vec2 corner;
 void main() { gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0); }`;
 
-// `progress` runs 0 to 1. Until `sharpen`, the dots shrink from `cellFrom` to
-// `cellTo` device pixels, evenly to the eye, a whole pixel at a time, as the
+// `progress` runs 0 to 1. Both photos are 4:3 and shown as object-fit: cover
+// at the cover's focus, so one mapping places both. Until `sharpen`, the dots
+// shrink from the preview's to one device pixel, evenly to the eye, a whole
+// pixel at a time, as the blur of the preview's small sample clears and the
 // brightness steps multiply; after it, the finest dither fades to the photo.
 const FRAGMENT = `
 precision highp float;
-uniform sampler2D photo;
-uniform vec2 box, imageSize, focus;
-uniform float progress, cellFrom, cellTo, levelsFrom, levelsTo, sharpen;
+uniform sampler2D photo, preview;
+uniform vec2 box, previewSize, focus;
+uniform float progress, lockedCell, lockedLevels, lockedBlur, levelsTo, sharpen;
 
 float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
 float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
 float bayer8(vec2 a) { return bayer4(0.5 * a) * 0.25 + bayer2(a); }
-
-// The photo at a box pixel, as object-fit: cover at the cover's focus.
-vec3 photoAt(vec2 p) {
-  float scale = max(box.x / imageSize.x, box.y / imageSize.y);
-  vec2 offset = (box - imageSize * scale) * focus;
-  return texture2D(photo, clamp((p - offset) / scale / imageSize, 0.0, 1.0)).rgb;
-}
 
 vec3 dither(vec3 rgb, vec2 c, float steps) {
   float luma = dot(rgb, vec3(0.299, 0.587, 0.114));
@@ -47,12 +42,28 @@ vec3 dither(vec3 rgb, vec2 c, float steps) {
 
 void main() {
   vec2 p = vec2(gl_FragCoord.x, box.y - gl_FragCoord.y);
+  // Box pixels to the preview's pixels.
+  float scale = max(box.x / previewSize.x, box.y / previewSize.y);
+  vec2 q = (p - (box - previewSize * scale) * focus) / scale;
   float detail = smoothstep(0.0, sharpen, progress);
-  float cell = max(1.0, floor(exp(mix(log(cellFrom), log(cellTo), detail)) + 0.5));
-  vec2 c = floor(p / cell);
-  float steps = floor(exp(mix(log(levelsFrom), log(levelsTo), detail)));
-  vec3 dotted = dither(photoAt((c + 0.5) * cell), c, steps);
-  gl_FragColor = vec4(mix(dotted, photoAt(p), smoothstep(sharpen, 1.0, progress)), 1.0);
+  // Dots in device pixels: the preview's at first, then whole pixels down to one.
+  float start = lockedCell * scale;
+  float cell = min(start, max(1.0, ceil(exp(mix(log(start), 0.0, detail)) - 0.001))) / scale;
+  vec2 c = floor(q / cell);
+  vec2 centre = (c + 0.5) * cell;
+  // The preview's colours come from a small sample; that blur clears.
+  float blur = lockedBlur * (1.0 - detail);
+  vec3 rgb = (texture2D(photo, centre / previewSize).rgb * 2.0
+    + texture2D(photo, (centre + vec2(blur, 0.0)) / previewSize).rgb
+    + texture2D(photo, (centre - vec2(blur, 0.0)) / previewSize).rgb
+    + texture2D(photo, (centre + vec2(0.0, blur)) / previewSize).rgb
+    + texture2D(photo, (centre - vec2(0.0, blur)) / previewSize).rgb) / 6.0;
+  float steps = floor(exp(mix(log(lockedLevels), log(levelsTo), detail)));
+  vec3 dotted = dither(rgb, c, steps);
+  vec3 locked = texture2D(preview, q / previewSize).rgb;
+  vec3 clean = texture2D(photo, q / previewSize).rgb;
+  vec3 colour = mix(locked, dotted, smoothstep(0.0, 0.12, progress));
+  gl_FragColor = vec4(mix(colour, clean, smoothstep(sharpen, 1.0, progress)), 1.0);
 }`;
 
 function createRenderer(canvas) {
@@ -74,13 +85,19 @@ function createRenderer(canvas) {
   const corner = gl.getAttribLocation(program, 'corner');
   gl.enableVertexAttribArray(corner);
   gl.vertexAttribPointer(corner, 2, gl.FLOAT, false, 0, 0);
-  const uniforms = Object.fromEntries(['photo', 'box', 'imageSize', 'focus', 'progress', 'cellFrom', 'cellTo',
-    'levelsFrom', 'levelsTo', 'sharpen'].map(name => [name, gl.getUniformLocation(program, name)]));
+  const uniforms = Object.fromEntries(['photo', 'preview', 'box', 'previewSize', 'focus', 'progress',
+    'lockedCell', 'lockedLevels', 'lockedBlur', 'levelsTo', 'sharpen'].map(name => [name, gl.getUniformLocation(program, name)]));
+  // Each photo to its own texture unit; the preview's dots stay crisp.
+  const upload = (unit, image, filter) => {
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    for (const [key, value] of [[gl.TEXTURE_MIN_FILTER, filter], [gl.TEXTURE_MAG_FILTER, filter],
+      [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, key, value);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  };
   gl.uniform1i(uniforms.photo, 0);
-  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-  for (const [key, value] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
-    [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, key, value);
-  return { gl, uniforms };
+  gl.uniform1i(uniforms.preview, 1);
+  return { gl, uniforms, upload };
 }
 
 // '50% 84%' as fractions; the centre for anything else.
@@ -89,10 +106,10 @@ const focusOf = position => {
   return [x / 100, y / 100];
 };
 
-// Shows `full`, a decoded photo, in the cover's `img` with the sharpening
-// dither's arrival. Resolves once the photo stands clean. Where WebGL is
-// unavailable, or for reduced motion, the photo simply takes the preview's
-// place.
+// Shows `full`, a decoded photo, in the cover's `img`, which holds the
+// decoded locked preview, with the sharpening dither's arrival. Resolves once
+// the photo stands clean. Where WebGL is unavailable, or for reduced motion,
+// the photo simply takes the preview's place.
 export function revealCover(img, full, { reduced = false } = {}) {
   const swap = () => { img.src = full.src; };
   if (reduced) return Promise.resolve(swap());
@@ -105,7 +122,7 @@ export function revealCover(img, full, { reduced = false } = {}) {
     console.warn('Cover reveal unavailable; showing the photograph.', error);
     return Promise.resolve(swap());
   }
-  const { gl, uniforms } = renderer;
+  const { gl, uniforms, upload } = renderer;
   const settings = COVER_REVEAL;
   // Over the photo exactly: its box, which overscans the stamp.
   const place = () => {
@@ -116,13 +133,15 @@ export function revealCover(img, full, { reduced = false } = {}) {
     if (canvas.width !== w || canvas.height !== h) Object.assign(canvas, { width: w, height: h });
     gl.viewport(0, 0, w, h);
     gl.uniform2f(uniforms.box, w, h);
-    gl.uniform1f(uniforms.cellFrom, Math.round(settings.cellFrom * dpr));
-    gl.uniform1f(uniforms.cellTo, Math.max(1, Math.round(DITHER.cell * dpr)));
   };
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, full);
-  gl.uniform2f(uniforms.imageSize, full.naturalWidth, full.naturalHeight);
+  upload(0, full, gl.LINEAR);
+  upload(1, img, gl.NEAREST);
+  gl.uniform2f(uniforms.previewSize, img.naturalWidth, img.naturalHeight);
   gl.uniform2f(uniforms.focus, ...focusOf(getComputedStyle(img).objectPosition));
-  gl.uniform1f(uniforms.levelsFrom, settings.levelsFrom);
+  gl.uniform1f(uniforms.lockedCell, LOCKED.cell);
+  gl.uniform1f(uniforms.lockedLevels, LOCKED.levels);
+  // Half the width, in preview pixels, of one pixel of the small sample.
+  gl.uniform1f(uniforms.lockedBlur, img.naturalWidth / LOCKED.sample / 2);
   gl.uniform1f(uniforms.levelsTo, settings.levelsTo);
   gl.uniform1f(uniforms.sharpen, settings.sharpen);
   place();

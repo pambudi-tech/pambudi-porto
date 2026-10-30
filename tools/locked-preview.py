@@ -16,6 +16,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
+# src/project/cover-reveal.mjs starts its reveal from this dither: keep its
+# LOCKED in step with SAMPLE, CELL and LEVELS.
 SAMPLE = (280, 210)   # all the detail the preview keeps: enough to cover up
 SIZE = (1200, 900)    # the preview's size, 4:3 like every cover
 CELL = 3              # pixels per dither dot

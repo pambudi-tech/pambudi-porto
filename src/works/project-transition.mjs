@@ -252,7 +252,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       return animation;
     });
     const cardPoses = [photoPose(entry), photoPose(entry)];
-    const heroPoses = coverPoses(entry.work, toImage);
+    let heroPoses = coverPoses(entry.work, toImage);
     posePhotos(cardPoses, heroPoses, flyIn);
     const finishPostage = followPostage(flight, postage, media, movement, sourcePerf, targetPerf);
     fromImage.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: .3 }, { opacity: 0, offset: .88 }, { opacity: 0 }], {
@@ -300,6 +300,23 @@ export async function transitionToProject(gallery, entry, { history = true, seal
           timer = setTimeout(finish, gallery.reduced ? 0 : 800);
           preview.contentWindow.scrollTo({ top: 0, behavior: gallery.reduced ? 'instant' : 'smooth' });
         });
+      }
+      // A PIN entered on the project page changes both ends: the cover is the
+      // full photograph and the card dithers it as any other. The stamp flies
+      // home carrying them, not the locked ones it left with.
+      if (entry.work.passwordProtected) {
+        await gallery.passChecked;
+        await entry.photo.decode().catch(() => {});
+        gallery.ditherCard(entry);
+        await entry.shown;
+        const swapped = [[fromImage, entry.image], [toImage, targetImage]].filter(([flying, shown]) => {
+          const src = shown.currentSrc || shown.src;
+          if (flying.src === src) return false;
+          flying.src = src;
+          return true;
+        });
+        await Promise.allSettled(swapped.map(([flying]) => flying.decode()));
+        heroPoses = coverPoses(entry.work, toImage);
       }
       const hero = targetPostage.getBoundingClientRect();
       const card = entry.frame.getBoundingClientRect();
