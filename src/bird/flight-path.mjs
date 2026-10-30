@@ -1,18 +1,24 @@
 import { clamp } from '../shared/math.mjs';
 
-// Shared tuning for the dove's wandering flight. Speeds are px/ms, turns are
-// rad/ms and flaps are wing poses per ms (the source rhythm is one per 100ms).
-// A mode without wingbeats glides with its wings held at the top of the stroke.
+// Shared tuning for the dove's wandering flight. Speeds are px/ms, slopes are
+// the steepest climb or dive in radians, and flaps are wing poses per ms (the
+// source rhythm is one per 100ms). A mode without wingbeats glides with its
+// wings held at the top of the stroke.
 export const FLIGHT = {
   step: 20,
   modes: {
-    cruise: { speed: .15, flap: 1 / 100, turn: .0026 },
-    climb: { speed: .12, flap: 1 / 70, turn: .0024 },
-    glide: { speed: .15, flap: 0, turn: .0017 },
-    swoop: { speed: .2, flap: 0, turn: .0021 },
-    circle: { speed: .13, flap: 1 / 95, turn: .0045 },
-    exit: { speed: .17, flap: 1 / 90, turn: .0026 },
+    cruise: { speed: .15, flap: 1 / 100, slope: .35 },
+    climb: { speed: .12, flap: 1 / 70, slope: .5 },
+    glide: { speed: .15, flap: 0, slope: .3 },
+    swoop: { speed: .2, flap: 0, slope: .6 },
+    circle: { speed: .13, flap: 1 / 95, slope: .45 },
+    exit: { speed: .17, flap: 1 / 90, slope: .3 },
   },
+  // It never rises or falls without travelling across too: no path is
+  // steeper than this, and turning back is a level turn.
+  maxSlope: .6,
+  // How quickly it can change horizontal speed, in px/ms², when turning back.
+  yaw: .0004,
   maxPitch: .3,
   // Time on screen before it may leave, and time out of frame before it returns.
   exitAfter: 14000,
@@ -29,10 +35,8 @@ export function seededRandom(seed = 1) {
   };
 }
 
-const wrap = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
-
-// Steers the dove's centre toward changing targets around the open cloth,
-// with a limited turn rate so every change of course is a curve. Positions
+// Steers the dove's centre toward changing targets around the open cloth.
+// Speeds change smoothly, so every change of course is a curve. Positions
 // are continuous; the bird snaps them to the stitch lattice when it draws.
 // A fixed step and seeded randomness make the same seed fly the same path.
 export class FlightPath {
@@ -46,9 +50,9 @@ export class FlightPath {
     // Begin on screen, level and heading right, so the first-load reveal is seen.
     this.x = Math.max(stage.width * .16, stage.birdWidth / 2);
     this.y = this.low + (this.high - this.low) * .4;
-    this.heading = 0;
     this.direction = 1;
-    this.speed = FLIGHT.modes.cruise.speed * this.pace;
+    this.vx = FLIGHT.modes.cruise.speed * this.pace;
+    this.vy = 0;
     this.pitch = 0;
     this.wing = 0;
     this.flap = FLIGHT.modes.cruise.flap;
@@ -70,6 +74,9 @@ export class FlightPath {
   // Narrow screens fly slower, so a crossing still takes a few seconds.
   get pace() {
     return clamp(this.stage.width / 1280, .55, 1.1);
+  }
+  get speed() {
+    return Math.hypot(this.vx, this.vy);
   }
   get state() {
     const { birdWidth, birdHeight } = this.stage;
@@ -109,8 +116,9 @@ export class FlightPath {
       // centred in the open area the bird is in. It joins the ellipse from
       // where it is, turning the way it already faces.
       const area = this.area(), span = this.high - this.low;
-      const rx = Math.min(width * (.08 + .07 * random()), Math.max(40, (area.right - area.left) / 2));
-      const ry = Math.min(rx * (.35 + .2 * random()), span / 2);
+      // Never so tight that it is forever turning back.
+      const rx = clamp(width * (.08 + .07 * random()), birdWidth * .6, Math.max(birdWidth * .6, (area.right - area.left) / 2));
+      const ry = Math.min(rx * (.25 + .15 * random()), span / 2);
       const cx = clamp(this.x + ahead * rx * .4, area.left + rx, Math.max(area.left + rx, area.right - rx));
       const cy = clamp(this.y + (random() - .5) * span * .4, this.low + ry, Math.max(this.low + ry, this.high - ry));
       const angle = Math.atan2((this.y - cy) / Math.max(1, ry), (this.x - cx) / rx);
@@ -157,7 +165,9 @@ export class FlightPath {
       glide: () => this.y + (this.high - this.low) * (.12 + .2 * random()),
       swoop: () => area.bottom - span * .15 * random(),
     }[mode]();
-    return { x, y: clamp(y, area.top, area.bottom) };
+    // Never further up or down than the mode can reach on its way across.
+    const reach = Math.abs(x - this.x) * Math.tan(FLIGHT.modes[mode].slope) * .9;
+    return { x, y: clamp(clamp(y, this.y - reach, this.y + reach), area.top, area.bottom) };
   }
   next() {
     if (this.mode === 'swoop') return this.begin('climb');
@@ -166,7 +176,7 @@ export class FlightPath {
       cruise: 3,
       climb: height > .45 ? 2.5 : .4,
       glide: height < .6 ? 2 : .3,
-      swoop: height < .4 ? 1.6 : 0,
+      swoop: height < .5 ? 2.2 : 0,
       circle: 1,
       exit: this.onScreen > FLIGHT.exitAfter ? 1.1 : 0,
     };
@@ -185,9 +195,9 @@ export class FlightPath {
     const side = this.random() < .5 ? -1 : 1;
     this.x = side < 0 ? -birdWidth / 2 : width + birdWidth / 2;
     this.y = this.low + (this.high - this.low) * (.1 + .8 * this.random());
-    this.heading = (side < 0 ? 0 : Math.PI) + (this.random() - .5) * .5;
     this.direction = -side;
-    this.speed = FLIGHT.modes.cruise.speed * this.pace;
+    this.vx = -side * FLIGHT.modes.cruise.speed * this.pace;
+    this.vy = 0;
     this.pitch = 0;
     this.away = 0;
     this.onScreen = 0;
@@ -223,37 +233,36 @@ export class FlightPath {
       const lead = circle.angle + circle.spin * .5;
       this.target = { x: circle.cx + circle.rx * Math.cos(lead), y: circle.cy + circle.ry * Math.sin(lead) };
     }
-    const dx = this.target.x - this.x, dy = this.target.y - this.y;
-    // A little wander keeps even a straight leg from looking ruled.
-    const wander = .22 * Math.sin(this.time / 1300 + this.phases[0]) + .12 * Math.sin(this.time / 470 + this.phases[1]);
-    let turn = wrap(Math.atan2(dy, dx) + wander - this.heading);
-    // Turning back, it pulls up and over, unless it is already near the top.
-    if (Math.abs(turn) > 2.4) {
-      const up = this.y - this.low > (this.high - this.low) * .3 ? 1 : -1;
-      turn = Math.abs(turn) * Math.sign(wrap(-Math.PI / 2 - this.heading)) * up;
-    }
-    this.heading = wrap(this.heading + clamp(turn, -mode.turn * dt, mode.turn * dt));
-    let sin = Math.sin(this.heading);
-    const cos = Math.cos(this.heading);
+    const dx = this.target.x - this.x, dy = this.target.y - this.y, pace = this.pace;
+    // Head for the target's side. Turning back is a level turn: the bird
+    // slows, turns and sets off again, rather than looping up and over.
+    const side = Math.abs(dx) > 2 ? Math.sign(dx) : Math.sign(this.vx) || this.direction;
+    // The slope toward the target, with a little wander so no leg looks ruled,
+    // and never steeper than the mode allows.
+    const wander = .08 * Math.sin(this.time / 1300 + this.phases[0]) + .05 * Math.sin(this.time / 470 + this.phases[1]);
+    const reach = Math.tan(mode.slope);
+    const slope = clamp(dy / Math.max(Math.abs(dx), 1) + wander, -reach, reach);
     // Without wingbeats it trades height for speed; flapping evens that out.
-    const speed = mode.speed * this.pace * (1 + (mode.flap ? .12 : .5) * sin);
-    this.speed += (speed - this.speed) * (1 - Math.exp(-dt / 450));
-    this.x += cos * this.speed * dt;
-    this.y += sin * this.speed * dt;
+    const speed = mode.speed * pace * (1 + (mode.flap ? .12 : .5) * slope / Math.hypot(1, slope));
+    const vx = side * speed / Math.hypot(1, slope), yaw = FLIGHT.yaw * pace * dt;
+    this.vx += clamp((vx - this.vx) * (1 - Math.exp(-dt / 260)), -yaw, yaw);
+    // Height changes only ever ride on horizontal travel.
+    const cap = Math.tan(FLIGHT.maxSlope) * Math.abs(this.vx);
+    this.vy = clamp(this.vy + (slope * Math.abs(this.vx) - this.vy) * (1 - Math.exp(-dt / 300)), -cap, cap);
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
     if (this.y < this.low || this.y > this.high) {
       this.y = clamp(this.y, this.low, this.high);
-      this.heading = cos >= 0 ? 0 : Math.PI;
-      sin = 0;
+      this.vy = 0;
     }
     if (this.mode === 'exit' && this.offscreen) {
       this.away = FLIGHT.away[0] + (FLIGHT.away[1] - FLIGHT.away[0]) * this.random();
       return;
     }
-    // Facing flips only once it is clearly heading the other way.
-    if (cos > .2) this.direction = 1;
-    else if (cos < -.2) this.direction = -1;
-    const climb = Math.atan2(-sin, Math.abs(cos));
-    this.pitch += (clamp(-climb * .45, -FLIGHT.maxPitch, FLIGHT.maxPitch) - this.pitch) * (1 - Math.exp(-dt / 220));
+    // Facing flips only once it is clearly moving the other way.
+    if (Math.abs(this.vx) > .02 * pace) this.direction = Math.sign(this.vx);
+    const climb = Math.atan2(-this.vy, Math.max(Math.abs(this.vx), .03 * pace));
+    this.pitch += (clamp(-climb * .5, -FLIGHT.maxPitch, FLIGHT.maxPitch) - this.pitch) * (1 - Math.exp(-dt / 220));
     this.left -= dt;
     if (this.left <= 0 || (!this.circle && this.mode !== 'exit' && Math.hypot(dx, dy) < 30)) this.next();
   }

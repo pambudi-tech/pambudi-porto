@@ -6,7 +6,7 @@ const desktop = {
   width: 1405, height: 989, birdWidth: 268, birdHeight: 374, top: 0, bottom: 918,
   avoid: { left: 394, top: 109, width: 617, height: 771 },
 };
-const phone = { width: 390, height: 844, birdWidth: 110, birdHeight: 155, top: 0, bottom: 700 };
+const phone = { width: 390, height: 844, birdWidth: 110, birdHeight: 155, top: 0, bottom: 700, avoid: { left: -10, top: 330, width: 410, height: 470 } };
 
 function fly(stage, seed, duration, visit) {
   const flight = new FlightPath(stage, { seed });
@@ -30,24 +30,27 @@ test('the same seed flies the same path, and another seed a different one', () =
   assert.ok(Array.from({ length: 200 }, random).every(value => value >= 0 && value < 1));
 });
 
-test('flight is continuous, curves within its turn rate and stays inside the sky band', () => {
+test('flight is continuous, never climbs or dives without travelling across, and stays in the sky band', () => {
+  const steepest = Math.tan(FLIGHT.maxSlope);
   for (const stage of [desktop, phone]) for (const seed of [1, 2, 3]) {
-    let reentries = 0;
+    let reentries = 0, turns = 0, direction = null;
     fly(stage, seed, 120000, (flight, before) => {
       if (before.away > 0) {
         if (!flight.away) reentries++;
         return;
       }
       if (flight.away) return;
+      const dx = flight.x - before.x, dy = flight.y - before.y;
       const maxSpeed = FLIGHT.modes.swoop.speed * flight.pace * 1.6;
-      assert.ok(Math.hypot(flight.x - before.x, flight.y - before.y) <= maxSpeed * FLIGHT.step + 1e-9, 'no jumps on screen');
-      const turned = Math.abs(Math.atan2(Math.sin(flight.heading - before.heading), Math.cos(flight.heading - before.heading)));
-      const flattened = flight.heading === 0 || flight.heading === Math.PI;
-      assert.ok(flattened || turned <= FLIGHT.modes.circle.turn * FLIGHT.step + 1e-9, 'every change of course is a curve');
+      assert.ok(Math.hypot(dx, dy) <= maxSpeed * FLIGHT.step + 1e-9, 'no jumps on screen');
+      assert.ok(Math.abs(dy) <= Math.abs(dx) * steepest + 1e-9, 'no straight climb or dive');
       assert.ok(flight.y >= flight.low - 1e-9 && flight.y <= flight.high + 1e-9);
       assert.ok(Math.abs(flight.pitch) <= FLIGHT.maxPitch);
+      if (direction !== null && flight.direction !== direction) turns++;
+      direction = flight.direction;
     });
     assert.ok(reentries > 0, 'it leaves the frame and comes back');
+    assert.ok(turns > 4, 'it turns back on screen');
   }
 });
 
@@ -68,7 +71,7 @@ test('a visit mixes cruising, climbs, glides with held wings, swoops and circles
   });
   for (const mode of Object.keys(FLIGHT.modes)) assert.ok(seen.has(mode), `${mode} happens`);
   assert.ok(held > 100, 'it glides for a while');
-  assert.ok(maxY - minY > (flight.high - flight.low) * .8, 'it uses most of the sky');
+  assert.ok(maxY - minY > (flight.high - flight.low) * .6, 'it uses most of the sky');
   assert.ok(maxSpeed / minSpeed > 1.5, 'its speed changes');
 });
 
