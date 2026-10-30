@@ -199,6 +199,21 @@
   transition: opacity 300ms ease;
 }
 .works-gallery.is-open .works-nav { opacity: 1; }
+/* A slow project's opening (opening-cue.mjs): the ring sewn around its
+   stamp, and a word under the nav. */
+.works-opening { position: absolute; z-index: 0; pointer-events: none; }
+.works-nav-status {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+  color: #8a877e;
+  font: 12px/1 "Syne Mono", monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: works-status-in 320ms ease both;
+}
+@keyframes works-status-in { from { opacity: 0; translate: -50% -4px; } }
 
 /* The slide dots, centred just above the clock. */
 .works-dots {

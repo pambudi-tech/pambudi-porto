@@ -2,6 +2,7 @@ import { BRAND_UNPICK_SWEEP, UNPICK_STITCH } from '../stitch/stitch-unpick.mjs';
 import { cornerPitch } from '../stitch/corners.mjs';
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from './postage-stamp.mjs';
 import { coverFocus, projectPageHref } from '../content/works.mjs';
+import { OPENING, sewAround } from './opening-cue.mjs';
 
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
@@ -127,6 +128,10 @@ function followPostage(flight, stamp, media, animation, fromPerf, toPerf) {
   return paint;
 }
 
+// For testing the opening cue on the dev server only: /?slow-open=<ms> holds
+// every project back that long before it reports ready.
+const SLOW_OPEN = import.meta.env?.DEV ? Number(new URLSearchParams(location.search).get('slow-open')) || 0 : 0;
+
 // Measure the real destination, including its responsive columns, fonts and
 // stitch-grid snapping. No duplicate estimates of the hero's layout.
 async function prepareProject(href) {
@@ -140,12 +145,13 @@ async function prepareProject(href) {
   let timer;
   try {
     await new Promise((resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('Project preview timed out')), 8000);
+      timer = setTimeout(() => reject(new Error('Project preview timed out')), OPENING.giveUp);
       frame.addEventListener('error', () => reject(new Error('Project preview unavailable')), { once: true });
       frame.addEventListener('load', () => {
+        const opened = performance.now();
         const check = () => {
           if (!frame.isConnected) return;
-          if (frame.contentDocument?.documentElement.dataset.projectReady === 'true') resolve();
+          if (frame.contentDocument?.documentElement.dataset.projectReady === 'true' && performance.now() - opened >= SLOW_OPEN) resolve();
           else requestAnimationFrame(check);
         };
         check();
@@ -179,11 +185,29 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   // The pill names the work as its card does, as the page's pill will.
   const navMorph = createProjectNavMorph(gallery, entry.work.title);
   let preview, flight, sealOut, inDetail = false, returning = false;
+  // A slow project shows it is on its way: its stamp is sewn around, then
+  // the nav says so (opening-cue.mjs). Opened by its own address, the row
+  // is not on show, so there is nothing to cue.
+  let ring = null, preparing = null;
+  const cues = arrived ? [] : [
+    setTimeout(() => { ring = sewAround(entry.frame, { reduced: gallery.reduced }); }, OPENING.cue),
+    setTimeout(() => {
+      preparing = Object.assign(document.createElement('span'), { className: 'works-nav-status', textContent: 'preparing…', role: 'status' });
+      gallery.nav.append(preparing);
+    }, OPENING.words),
+  ];
+  const settleCues = () => {
+    cues.forEach(clearTimeout);
+    ring?.stop();
+    preparing?.remove();
+    ring = preparing = null;
+  };
   const galleryTitle = document.title;
   const duration = gallery.reduced ? 0 : PROJECT_FLIGHT.duration;
   const flyIn = arrived ? 0 : duration;
   const requestBack = () => window.history.back();
   const restore = () => {
+    settleCues();
     preview?.remove();
     flight?.remove();
     navMorph.restore();
@@ -201,6 +225,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   };
   try {
     preview = await prepareProject(new URL(projectPageHref(entry.work.id), location.origin).href);
+    settleCues();
     const targetImage = preview.contentDocument.querySelector('.project-cover .project-image img');
     const targetPostage = preview.contentDocument.querySelector('.hero-postage-stamp');
     const destination = targetPostage.getBoundingClientRect();
