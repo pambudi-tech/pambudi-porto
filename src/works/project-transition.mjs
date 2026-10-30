@@ -316,7 +316,6 @@ export async function transitionToProject(gallery, entry, { history = true, seal
           return true;
         });
         await Promise.allSettled(swapped.map(([flying]) => flying.decode()));
-        heroPoses = coverPoses(entry.work, toImage);
       }
       const hero = targetPostage.getBoundingClientRect();
       const card = entry.frame.getBoundingClientRect();
@@ -324,6 +323,9 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       flight.getAnimations().forEach(animation => animation.cancel());
       Object.assign(flight.style, flightBox(hero));
       document.body.append(flight);
+      // Measured on the page, where the photos have their size: the cover's
+      // pose for whichever photograph the flight now carries.
+      heroPoses = coverPoses(entry.work, toImage);
       gallery.root.classList.remove('is-navigating');
       gallery.root.classList.add('is-returning');
       entry.item.classList.add('is-flight-source');
