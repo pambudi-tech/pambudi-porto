@@ -13,6 +13,11 @@
 const unsplash = id => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&h=900&q=80`;
 
 export const WORKS = [
+  { id: 'bca-prioritas', title: 'bca prioritas', client: 'bank central asia', tags: ['website', 'art direction', 'prototype'],
+    role: 'designer · contract', passwordProtected: true,
+    summary: "a revamp of bca's private banking website, with a live prototype and design documentation.",
+    from: '2026-05', to: '2026-09', page: true,
+    image: unsplash('1557672172-298e090bd0f1'), alt: 'Sample cover: an abstract gradient' },
   { id: 'ocean', title: 'ocean by bca', client: 'bank central asia', tags: ['product design', 'design system'],
     role: 'product designer · embedded retainer',
     summary: "a new digital banking platform for bca's business customers.",
@@ -23,15 +28,10 @@ export const WORKS = [
     summary: 'a live, testable prototype of a proposed bca.co.id, built for usability research.',
     from: '2026-05', to: '2026-09', page: true,
     image: unsplash('1563986768609-322da13575f3'), alt: 'Sample cover: someone using a banking app beside a laptop' },
-  { id: 'bca-prioritas', title: 'bca prioritas', client: 'bank central asia', tags: ['website', 'art direction', 'prototype'],
-    role: 'designer · contract', passwordProtected: true,
-    summary: "a revamp of bca's private banking website, with a live prototype and design documentation.",
-    from: '2026-05', to: '2026-09', page: true,
-    image: unsplash('1557672172-298e090bd0f1'), alt: 'Sample cover: an abstract gradient' },
   { id: 'runrise', title: 'runrise running club', client: 'runrise running club', tags: ['branding'],
     role: 'brand designer',
     summary: 'sample: a placeholder line for the running club.',
-    from: '2025-10', to: null, page: true,
+    from: '2026-01', to: null, page: true,
     image: unsplash('1461896836934-ffe607ba8211'), alt: 'Sample cover: a sprinter in the blocks on a red track' },
   { id: 'rana', title: 'rana graduation', client: 'rana', tags: ['website', 'interactive'],
     role: 'designer',

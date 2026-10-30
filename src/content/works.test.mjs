@@ -22,7 +22,7 @@ test('year labels and clock messages read the months as years', () => {
 });
 
 test('project pages live at /work/<id>, and only works with a page get one', () => {
-  assert.equal(workHref(WORKS[0]), '/work/ocean');
+  assert.equal(workHref(WORKS.find(entry => entry.id === 'ocean')), '/work/ocean');
   assert.equal(workHref(EXPLORATION[0]), null);
   assert.equal(projectId('/work/ocean'), 'ocean');
   assert.equal(projectId('/work/ocean/'), 'ocean');
@@ -34,7 +34,7 @@ test('project pages live at /work/<id>, and only works with a page get one', () 
 test('a case study keeps its own text; other works borrow its gallery under their own cover', () => {
   const ocean = projectPage('ocean');
   assert.equal(ocean.title, 'Ocean by BCA');
-  assert.equal(ocean.images[0].src, WORKS[0].image);
+  assert.equal(ocean.images[0].src, WORKS.find(entry => entry.id === 'ocean').image);
   assert.equal(ocean.images.length, 5);
   const mandalika = projectPage('mandalika');
   const work = WORKS.find(entry => entry.id === 'mandalika');
