@@ -5,6 +5,7 @@ import { IntroInkHover } from '../ink/intro-ink-hover.mjs';
 import { fetchGallery } from '../project/project-pass.mjs';
 import { mountPinPanel } from '../project/project-pin.mjs';
 import { revealCover } from '../project/cover-reveal.mjs';
+import { mountSwipeBack } from '../project/swipe-back.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
 
@@ -91,6 +92,12 @@ if (preview) {
     window.parent.dispatchEvent(new Event('project-route-back'));
   });
 }
+// A swipe to the right goes back as the "back" link does: over the works
+// row, by the flight home.
+mountSwipeBack(() => {
+  if (preview) window.parent.dispatchEvent(new Event('project-route-back'));
+  else document.querySelector('.project-nav-back').click();
+});
 document.documentElement.dataset.projectReady = 'true';
 if (welcome) {
   welcome.ready();

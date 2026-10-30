@@ -128,6 +128,20 @@ function followPostage(flight, stamp, media, animation, fromPerf, toPerf) {
   return paint;
 }
 
+// A back swipe the browser animates itself (iOS Safari's edge swipe,
+// Android's predictive back) has already slid the row in by the time the page
+// hears of it, so the flight home would play a second transition over the
+// first. Browsers that can say so set `hasUAVisualTransition`; for the rest, a
+// touch that began at the screen's edge just before stands in for it.
+const SWIPE = Object.freeze({ edge: 24, within: 1500 });
+let edgeTouched = -Infinity;
+const noteEdgeTouch = event => {
+  const x = event.touches[0]?.clientX, width = event.view?.innerWidth ?? innerWidth;
+  if (x < SWIPE.edge || x > width - SWIPE.edge) edgeTouched = performance.now();
+};
+if (typeof addEventListener === 'function') addEventListener('touchstart', noteEdgeTouch, { capture: true, passive: true });
+const swipedBack = event => event.hasUAVisualTransition === true || performance.now() - edgeTouched < SWIPE.within;
+
 // For testing the opening cue on the dev server only: /?slow-open=<ms> holds
 // every project back that long before it reports ready.
 const SLOW_OPEN = import.meta.env?.DEV ? Number(new URLSearchParams(location.search).get('slow-open')) || 0 : 0;
@@ -307,10 +321,21 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       window.history.pushState({ projectWork: entry.work.id }, '', href);
     } else if (history) window.history.pushState({ projectWork: entry.work.id }, '', href);
     window.addEventListener('project-route-back', requestBack);
+    // Touches on the project land in its own page; edge swipes there count too.
+    preview.contentWindow.addEventListener('touchstart', noteEdgeTouch, { capture: true, passive: true });
 
-    const reverse = async () => {
+    // `swiped`: the browser has already slid the row in, so the page is
+    // simply there, with no flight over it.
+    const reverse = async ({ swiped = false } = {}) => {
       if (returning || !inDetail) return;
       returning = true;
+      if (swiped) {
+        inDetail = false;
+        restore();
+        gallery.scene.restoreBranding();
+        entry.link.focus({ preventScroll: true });
+        return;
+      }
       preview.style.pointerEvents = 'none';
       preview.contentWindow.dispatchEvent(new Event('project-route-reset'));
       if (preview.contentWindow.scrollY > 1) {
@@ -380,10 +405,10 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       entry.link.focus({ preventScroll: true });
     };
     if (gallery.projectHistoryHandler) window.removeEventListener('popstate', gallery.projectHistoryHandler);
-    gallery.projectHistoryHandler = () => {
+    gallery.projectHistoryHandler = event => {
       if (location.href === href) {
         if (!inDetail && !gallery.departing) transitionToProject(gallery, entry, { history: false });
-      } else reverse();
+      } else reverse({ swiped: swipedBack(event) });
     };
     window.addEventListener('popstate', gallery.projectHistoryHandler);
   } catch (error) {
