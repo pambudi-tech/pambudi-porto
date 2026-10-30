@@ -17,6 +17,8 @@ export const PAPER_AWAY = Object.freeze({ duration: 560 });
 export const WORKS_MOTION = Object.freeze({ fade: 280 });
 // Wheel scrolling glides toward where the wheel has sent it.
 export const WHEEL_GLIDE = 140;
+// How far a pressed card gives, and the least time a press shows.
+export const CARD_PRESS = Object.freeze({ scale: .97, hold: 120 });
 
 
 export function halfFlipKeyframes(half) {
@@ -160,11 +162,17 @@ export class WorksGallery {
       this.glitch(entry, event);
       this.paint();
     });
-    // Pressing a card flattens it a little, like the paper on the homepage.
+    // Pressing a card flattens it, like the paper on the homepage but deeper,
+    // as a stamp gives under a thumb. A quick tap still shows: the press
+    // holds CARD_PRESS.hold ms at the least.
+    let pressedAt = 0, letGo;
     const press = pressed => event => {
       if (event.pointerType === 'mouse' && event.button !== 0 && pressed) return;
-      entry.pressed = pressed;
-      this.paint();
+      clearTimeout(letGo);
+      if (pressed) pressedAt = performance.now();
+      const set = () => { entry.pressed = pressed; this.paint(); };
+      if (pressed || !entry.pressed) set();
+      else letGo = setTimeout(set, Math.max(0, CARD_PRESS.hold - (performance.now() - pressedAt)));
     };
     link.addEventListener('pointerdown', press(true));
     for (const type of ['pointerup', 'pointercancel', 'pointerleave']) link.addEventListener(type, press(false));
@@ -550,7 +558,7 @@ export class WorksGallery {
       const target = paperTarget({
         x: (entry.pointer.x - anchor.left) / anchor.width * 2 - 1,
         y: (entry.pointer.y - anchor.top) / anchor.height * 2 - 1,
-        hovered, pressed: entry.pressed, reduced: this.reduced,
+        hovered, pressed: entry.pressed, reduced: this.reduced, pressScale: CARD_PRESS.scale,
       });
       entry.pose = this.reduced ? target : advancePaper(entry.pose, target, elapsed);
       const { rx, ry, scale } = entry.pose;

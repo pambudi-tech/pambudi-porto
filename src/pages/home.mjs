@@ -2,6 +2,7 @@ import { DotClock } from '../clock/clock.mjs';
 import { settleWithin } from '../preloader/loading-progress.mjs';
 import { fitClock, startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
 import { projectId } from '../content/works.mjs';
+import { mountPress } from '../shared/press.mjs';
 
 // The index, and every project's own address, /work/<id>: there the project
 // shows over the works row as though its card had just been chosen, so
@@ -10,6 +11,7 @@ import { projectId } from '../content/works.mjs';
 const surface = document.getElementById('surface');
 surface.inert = true;
 const preference = matchMedia('(prefers-reduced-motion: reduce)');
+mountPress(preference);
 const opened = projectId(location.pathname);
 const welcome = welcomeSeen() ? null : startWelcome({
   // The portfolio's images, the traced artwork, Syne Mono and the scene's code.

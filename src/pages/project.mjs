@@ -8,10 +8,12 @@ import { revealCover } from '../project/cover-reveal.mjs';
 import { mountSwipeBack } from '../project/swipe-back.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
+import { mountPress } from '../shared/press.mjs';
 
 // work.html?work=<id>: the case study in content/projects/, or for a work
 // without one yet, its card's details over the stand-in gallery. The index
 // shows it at /work/<id>, over its works row (home.mjs).
+mountPress();
 const id = projectId(location.pathname) ?? new URLSearchParams(location.search).get('work');
 const project = projectPage(id);
 if (!project) {
