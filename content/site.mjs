@@ -7,10 +7,10 @@ export const SITE = {
   name: 'ivan pambudi',
   role: 'ui & brand designer',
   title: 'Ivan Pambudi - The Portfolio',
-  description: "Ivan Pambudi's portfolio. A white surface, embroidered details, and room to make something.",
+  description: 'House of selected works & exploration by Ivan Pambudi',
   // Link previews need absolute URLs. The image is 1200×630
   // (master: tools/source-images/opengraph.webp).
-  url: 'https://pambudi-porto.vercel.app',
+  url: 'https://pambudi.xyz',
   image: { src: '/assets/opengraph.jpg', width: 1200, height: 630, alt: 'ui & brand designer, on embossed paper below the PAMBUDI wordmark' },
   email: 'pambu.design@gmail.com',
 
