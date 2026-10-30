@@ -74,7 +74,18 @@ export class StitchWordmark {
     canvas.dataset.entrance = this.animating ? 'stitching' : 'complete';
     if (this.departure) canvas.dataset.departure = this.departure.active(now) ? 'unpick' : 'complete';
   }
-  progress(key, now) { return this.entrance.progress(key, now) * (this.departure?.progress(key, now) ?? 1); }
+  progress(key, now) {
+    if (this.covered?.has(key)) return 0;
+    return this.entrance.progress(key, now) * (this.departure?.progress(key, now) ?? 1);
+  }
+  // Leaves out the stitches in `covered` holes, which the dove is sewing over,
+  // so no hole holds two threads; they return as it moves on.
+  cover(covered) {
+    const previous = this.covered ?? new Set();
+    if (covered.size === previous.size && [...covered].every(key => previous.has(key))) return;
+    this.covered = covered;
+    if (this.cells && !this.animating) this.paint(performance.now());
+  }
   unpick(started, reduced = false) {
     this.entrance?.finish();
     this.departure = new StitchUnpick([flameEntranceOrder(this.cells ?? [])], { started, reduced });

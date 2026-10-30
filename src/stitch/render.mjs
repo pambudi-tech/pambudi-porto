@@ -223,7 +223,7 @@ export class SurfaceRenderer {
   invalidate() {
     this.layerKey = null;
   }
-  drawStitches(model, view, animations = new Map(), movingCells = new Map(), entrance = null, now = 0, { settled = false, reserved = null } = {}) {
+  drawStitches(model, view, animations = new Map(), movingCells = new Map(), entrance = null, now = 0, { settled = false } = {}) {
     this.clear(this.stitch);
     let occupied;
     if (settled) {
@@ -258,11 +258,10 @@ export class SurfaceRenderer {
         }
       }
     }
-    // One thread per surface cell. Permanent embroidery, and the `reserved`
-    // holes of layers drawn elsewhere, keep their place as the bird stitches
-    // and unpicks the surrounding holes.
+    // One thread per surface cell. Permanent embroidery keeps its place as
+    // the bird stitches and unpicks the surrounding holes.
     for (const [key, { col, row, color, progress }] of movingCells) {
-      if (occupied.has(key) || reserved?.has(key)) continue;
+      if (occupied.has(key)) continue;
       const x = col * GRID, y = row * GRID;
       const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
       if (sx < -GRID * view.scale || sy < -GRID * view.scale || sx > this.width || sy > this.height) continue;

@@ -66,7 +66,8 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   let frame = null, sceneDirty = true, clothDirty = true;
   let corners = [];
   let bird = null;
-  // The wordmark's own holes, which the dove passes behind.
+  // The wordmark's own holes. The dove flies in front of the wordmark: the
+  // stitches in the holes it covers give way until it moves on.
   let wordmarkHoles = null;
   // The visitor's last input; once they are idle long enough the dove rests.
   let lastActivity = performance.now();
@@ -143,6 +144,11 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     }
     if (bird && !bird.paused) bird.setIdle(now - lastActivity > FLIGHT.restAfter);
     if (bird?.update(now)) sceneDirty = true;
+    if (bird && wordmarkHoles) {
+      const covered = new Set();
+      for (const key of bird.cells.keys()) if (wordmarkHoles.has(key)) covered.add(key);
+      wordmark.cover(covered);
+    }
     const wordmarkEntering = wordmark?.update(now);
     const paperMoving = scene.paper?.update(now);
     const wasEntering = cornersEntering;
@@ -158,7 +164,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     if (clothDirty) { renderer.drawCloth(view); clothDirty = false; }
     if (sceneDirty) {
       const settled = !animations.size && !cornersEntering;
-      renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now, { settled, reserved: wordmarkHoles });
+      renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now, { settled });
       sceneDirty = false;
     }
     $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
@@ -196,8 +202,8 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     wordmarkHoles = wordmark?.cells ? new Set(wordmark.cells.map(cell => keyOf(...cell))) : null;
     bird?.resize(renderer.width, renderer.height, view, birdSky());
   }
-  // The dove flies behind the paper and wordmark and keeps above the clock,
-  // so no hole ever holds two threads. It prefers the cloth around the paper.
+  // The dove flies behind the paper, in front of the wordmark, and keeps
+  // above the clock. It prefers the cloth around the paper.
   // It rests with its feet on the loop at the inner end of a lower corner
   // ornament's bottom arm, always facing into the page: left on the right
   // ornament, right on the left one. Each counts while that stitch is still

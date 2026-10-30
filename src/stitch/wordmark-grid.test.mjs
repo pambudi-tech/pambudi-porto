@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { coverageTable, traceWordmark, traceStackedWordmark, WORDMARK_RATIO, WORDMARK_LINES } from './wordmark-grid.mjs';
 import { cornerPattern, withoutUpperCorners, CORNER_SIZE } from './corners.mjs';
 import { edgeGapStitches } from './model.mjs';
+import { StitchWordmark } from './wordmark.mjs';
 
 test('wordmark side margins use one stitch on mobile and three on desktop', () => {
   const width = 128, height = 32;
@@ -61,4 +62,18 @@ test('removing upper ornaments preserves lower corners and unrelated saved edits
     const [col, row] = key.split(',').map(Number);
     if (col >= -1300 && col < -1200 + CORNER_SIZE && row >= 0 && row < CORNER_SIZE) assert.equal(remaining.get(key), color);
   }
+});
+
+test('the stitches the dove covers give way while it is there and return once it moves on', () => {
+  const painted = [];
+  const wordmark = Object.assign(Object.create(StitchWordmark.prototype), {
+    cells: [[0, 0], [1, 0]],
+    entrance: { progress: () => 1 },
+    animating: false,
+    paint(now) { painted.push([this.progress('0,0', now), this.progress('1,0', now)]); },
+  });
+  wordmark.cover(new Set(['0,0']));
+  wordmark.cover(new Set(['0,0']));
+  wordmark.cover(new Set());
+  assert.deepEqual(painted, [[0, 1], [1, 1]], 'one repaint per change, leaving out only the covered hole');
 });
