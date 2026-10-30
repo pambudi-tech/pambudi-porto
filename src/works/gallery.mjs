@@ -1,13 +1,13 @@
 import { GRID } from '../stitch/model.mjs';
 import { paperFlipKeyframes } from '../paper/paper-flip.mjs';
-import { WORKS, EXPLORATION, clockLabel, workHref, yearLabel } from '../content/works.mjs';
+import { WORKS, EXPLORATION, clockLabel, fullCover, workHref, yearLabel } from '../content/works.mjs';
 import { clockTextLayout } from '../clock/clock.mjs';
 import { paperTarget, advancePaper } from '../paper/paper-motion.mjs';
 import { transitionToProject } from './project-transition.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
-import { ditherPhoto } from './dither.mjs';
+import { DITHER_LOCKED, GLITCH, createGlitch, ditherPhoto } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
 
@@ -46,6 +46,11 @@ export class WorksGallery {
     this.items = collections.works.map((work, index) => this.createItem(work, index));
     // Each collection's cards are made once and kept.
     this.built = { works: this.items };
+    // Protected work's covers dither coarser until the visitor has the PIN;
+    // a project page tells the row when it is entered.
+    this.passed = false;
+    this.checkPass();
+    addEventListener('works-pass', () => this.checkPass(), { signal });
     // Along the top: the way back to the paper, and a toggle between the
     // selected works and exploration.
     this.nav = root.querySelector('.works-nav');
@@ -101,7 +106,7 @@ export class WorksGallery {
     if (href) link.href = href;
     else link.setAttribute('aria-disabled', 'true');
     link.tabIndex = 0;
-    link.setAttribute('aria-label', `${work.title}, ${work.tags.join(', ')}, ${yearLabel(work)}${work.passwordProtected ? ', password protected' : ''}`);
+    link.setAttribute('aria-label', `${work.title}, ${work.tags.join(', ')}, ${yearLabel(work)}${work.passwordProtected ? ', passcode protected' : ''}`);
     // The photograph fills the stamp, over its paper.
     const frame = document.createElement('span');
     frame.className = 'works-frame';
@@ -122,7 +127,11 @@ export class WorksGallery {
     photo.src = work.image;
     // The stamp's paper is drawn once the card's size is known.
     const stamp = createPostageStamp(`works-paper-${work.id}`, 'works-stamp');
-    frame.append(picture, stamp, cardText(work));
+    // Its place in the collection, blind-embossed into the photo's bottom
+    // left: on the frame itself, so it can blend with the photo.
+    const number = Object.assign(document.createElement('span'), { className: 'works-number', textContent: String(index + 1).padStart(2, '0') });
+    number.setAttribute('aria-hidden', 'true');
+    frame.append(picture, stamp, number, cardText(work));
     // Work with a page shows a wax "details" seal in the middle of its photo
     // on hover: the homepage's seal and its light, without its wax-flow entrance.
     let seal = null;
@@ -135,9 +144,9 @@ export class WorksGallery {
       seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false }) };
     }
     link.append(frame);
-    // Work behind a password says so on a small tag just below the frame.
+    // Work behind a passcode says so on a small tag just below the frame.
     if (work.passwordProtected) {
-      const tag = Object.assign(document.createElement('span'), { className: 'works-protected', textContent: 'password protected' });
+      const tag = Object.assign(document.createElement('span'), { className: 'works-protected', textContent: 'passcode protected' });
       tag.setAttribute('aria-hidden', 'true');
       link.append(tag);
     }
@@ -148,6 +157,7 @@ export class WorksGallery {
     photo.addEventListener('load', () => this.ditherCard(entry));
     link.addEventListener('pointermove', event => {
       entry.pointer = { x: event.clientX, y: event.clientY };
+      this.glitch(entry, event);
       this.paint();
     });
     // Pressing a card flattens it a little, like the paper on the homepage.
@@ -159,7 +169,7 @@ export class WorksGallery {
     link.addEventListener('pointerdown', press(true));
     for (const type of ['pointerup', 'pointercancel', 'pointerleave']) link.addEventListener(type, press(false));
     link.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') this.activate(entry); });
-    link.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') this.activate(null); });
+    link.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') { this.activate(null); this.unglitch(entry); } });
     link.addEventListener('focus', () => {
       if (!link.matches(':focus-visible')) return;
       this.goTo(index);
@@ -170,14 +180,15 @@ export class WorksGallery {
     return entry;
   }
 
-  async open({ history = true } = {}) {
+  // `instant` opens it already laid out, the paper away and the cards in place.
+  async open({ history = true, instant = false } = {}) {
     if (this.isOpen || this.busy) return;
     this.busy = true;
     if (history && location.hash !== '#works') window.history.pushState({ works: true }, '', '#works');
     this.scene.setPaperPresent(false);
     this.paper.inert = true;
     this.paper.dispatchEvent(new CustomEvent('paperflipstart'));
-    await this.turnPaper('away');
+    if (!instant) await this.turnPaper('away');
     this.paper.style.visibility = 'hidden';
     this.isOpen = true;
     this.root.hidden = false;
@@ -185,10 +196,33 @@ export class WorksGallery {
     this.scroller.scrollLeft = 0;
     this.paint();
     // Lay the cards out, then let them settle onto the cloth in turn.
-    requestAnimationFrame(() => this.root.classList.add('is-open'));
+    if (instant) {
+      this.root.classList.add('is-instant', 'is-open');
+      requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-instant')));
+    } else requestAnimationFrame(() => this.root.classList.add('is-open'));
     this.keepPainting(this.items.length * 80 + 700);
     this.busy = false;
     (this.items.find(entry => workHref(entry.work)) ?? this.items[0]).link.focus({ preventScroll: true, focusVisible: false });
+  }
+
+  // A project's own address, opened directly: the row opens at once on the
+  // work's card, and the project shows over it as though the card had just
+  // been chosen, so "back" flies home as ever. `shown` runs once it covers
+  // the page (at once if there is no such work); the project's entrance waits
+  // for the promise it returns.
+  async openProject(id, shown) {
+    await this.open({ history: false, instant: true });
+    const index = this.items.findIndex(entry => entry.work.id === id && workHref(entry.work));
+    if (index < 0) { shown(); return; }
+    const entry = this.items[index], card = this.cards[index];
+    this.scroller.scrollLeft = clamp(card.x + card.w / 2 - innerWidth / 2, 0, this.scroller.scrollWidth - innerWidth);
+    this.updateRow();
+    this.paint();
+    // The card's dithered photo flies home with the stamp; wait a moment for it.
+    for (let wait = 0; wait < 40 && !entry.image.src.startsWith('blob:'); wait++) await new Promise(resolve => setTimeout(resolve, 50));
+    let showing = false;
+    await transitionToProject(this, entry, { seal: false, arrived: () => { showing = true; return shown(); } });
+    if (!showing) shown();
   }
 
   async close({ history = true } = {}) {
@@ -312,25 +346,35 @@ export class WorksGallery {
       const { lift, shift } = placement(index);
       entry.item.dataset.shelf = shelf;
       // Opposite shelves tuck into each other; the same shelf keeps apart.
-      if (previous) x += previous.w * (shelf === previous.shelf ? 1.06 : .72) + (shift - .5) * w * .12;
+      if (previous) x += previous.w * (shelf === previous.shelf ? 1.06 : .84) + (shift - .5) * w * .12;
       // The first card holds its place; the rest settle a little lower,
       // into the room below, except the closing pair at the edges.
       const settle = index && !closing ? available * CARD_GUARD.settle : 0;
       const reach = closing ? 0 : room * lift * .3;
       let y = shelf === 'top' ? bandTop + reach + settle : bandTop + band - h - reach;
-      // A password label hangs below its stamp and counts as part of it.
+      // A passcode label hangs below its stamp and counts as part of it.
       const tail = entry.work.passwordProtected ? CARD_GUARD.label : 0;
       y = snapRow(clamp(y, top, bottom - h - tail), Math.floor);
       // On the cloth's grid, like every stitch.
       x = snapCol(x, Math.round);
-      // Overlap guard: a card never covers one placed before it; if it would,
-      // it moves right until there is a clear gap.
+      // Overlap guard: a card never covers one placed before it. If it would,
+      // it first slides along its shelf, down for the bottom shelf and up for
+      // the top, just far enough to clear, where the room allows; so it stays
+      // tucked under or over its neighbour. Only then does it move right
+      // until there is a clear gap.
+      const lowest = snapRow(bottom - h - tail, Math.floor), highest = top;
       for (let moved = true; moved;) {
         moved = false;
         for (const other of this.cards) {
           const overlaps = x < other.x + other.w + CARD_GUARD.gap && other.x < x + w + CARD_GUARD.gap
             && y < other.y + other.h + other.tail + CARD_GUARD.gap && other.y < y + h + tail + CARD_GUARD.gap;
-          if (overlaps) { x = snapCol(other.x + other.w + CARD_GUARD.gap, Math.ceil); moved = true; }
+          if (!overlaps) continue;
+          const below = snapRow(other.y + other.h + other.tail + CARD_GUARD.gap, Math.ceil);
+          const above = snapRow(other.y - CARD_GUARD.gap - tail - h, Math.floor);
+          if (shelf === 'bottom' && below <= lowest) y = below;
+          else if (shelf === 'top' && above >= highest) y = above;
+          else x = snapCol(other.x + other.w + CARD_GUARD.gap, Math.ceil);
+          moved = true;
         }
       }
       Object.assign(entry.item.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
@@ -345,24 +389,89 @@ export class WorksGallery {
     this.paint();
   }
 
+  // Whether this visitor holds the PIN's pass (server/works-pass.mjs). With
+  // it, protected cards load their full cover, private until then, and
+  // dither it finely as it arrives.
+  async checkPass() {
+    let passed = false;
+    try { passed = (await (await fetch('/api/pass', { credentials: 'same-origin' })).json()).passed === true; } catch { /* stays locked */ }
+    if (passed === this.passed) return;
+    this.passed = passed;
+    for (const entry of Object.values(this.built).flat()) {
+      if (!entry.work.passwordProtected) continue;
+      entry.photo.src = passed ? fullCover(entry.work) : entry.work.image;
+    }
+  }
+
+  // The dots a card's photo is dithered with: coarser for protected work,
+  // until the visitor has the PIN.
+  ditherOf(entry) {
+    return entry.work.passwordProtected && !this.passed ? DITHER_LOCKED : undefined;
+  }
+
   // Dithers a card's photo at the size its window shows it, again only when
-  // that size changes. Without WebGL, the photograph shows instead.
+  // that size or its dots change. Without WebGL, the photograph shows instead.
   ditherCard(entry) {
     const { image, photo } = entry;
     const width = image.clientWidth, height = image.clientHeight;
     if (!photo.complete || !photo.naturalWidth || !width || !height) return;
     const dpr = Math.min(devicePixelRatio || 1, 2);
-    const key = `${width}x${height}@${dpr}`;
+    const options = this.ditherOf(entry);
+    const key = `${width}x${height}@${dpr}${options ? ':locked' : ''}:${photo.currentSrc}`;
     if (entry.dithered === key) return;
     entry.dithered = key;
-    const result = ditherPhoto(photo, width, height, dpr);
+    const result = ditherPhoto(photo, width, height, dpr, options);
     if (!result) { image.src = photo.src; return; }
-    result.toBlob(blob => {
+    const show = (target, canvas) => canvas?.toBlob(blob => {
       if (entry.dithered !== key || !blob) return;
-      const previous = image.src.startsWith('blob:') ? image.src : null;
-      image.src = URL.createObjectURL(blob);
+      const previous = target.src.startsWith('blob:') ? target.src : null;
+      target.src = URL.createObjectURL(blob);
       if (previous) URL.revokeObjectURL(previous);
     });
+    show(image, result);
+    if (this.glitched === entry) this.glitched = null;
+  }
+
+  // A card glitches around the pointer as it moves: one shared canvas
+  // (dither.mjs), moved into whichever card is hovered, redraws its photo with
+  // some tiles near the pointer out of place, and hides once the pointer has
+  // been still a moment. Not at all for reduced motion.
+  glitch(entry, event) {
+    if (this.reduced || event.pointerType === 'touch' || !entry.image.src.startsWith('blob:')) return;
+    this.glitcher ??= createGlitch() ?? false;
+    if (!this.glitcher) return;
+    const { canvas } = this.glitcher;
+    const { image } = entry;
+    if (this.glitched !== entry) {
+      this.glitched = entry;
+      canvas.className = 'works-glitch';
+      canvas.setAttribute('aria-hidden', 'true');
+      canvas.style.translate = image.style.translate;
+      entry.picture.append(canvas);
+      this.glitcher.show(entry.photo, image.clientWidth, image.clientHeight, Math.min(devicePixelRatio || 1, 2), this.ditherOf(entry));
+    }
+    clearTimeout(this.glitchSettle);
+    this.glitchSettle = setTimeout(() => this.unglitch(entry), GLITCH.settle);
+    const now = performance.now();
+    if (now - (this.glitchedAt ?? -Infinity) < GLITCH.interval) return;
+    this.glitchedAt = now;
+    // The pointer and the window the tiles divide, in the photo's own pixels,
+    // through any tilt.
+    const photo = image.getBoundingClientRect(), view = entry.picture.getBoundingClientRect();
+    if (!photo.width || !photo.height) return;
+    const scale = image.offsetWidth / photo.width;
+    this.glitcher.draw(
+      { x: (view.left - photo.left) * scale, y: (view.top - photo.top) * scale, width: view.width * scale, height: view.height * scale },
+      { x: (event.clientX - photo.left) * scale, y: (event.clientY - photo.top) * scale },
+      Math.random() * 1000,
+    );
+    canvas.classList.add('is-glitching');
+  }
+
+  unglitch(entry) {
+    if (this.glitched !== entry) return;
+    clearTimeout(this.glitchSettle);
+    this.glitcher.canvas.classList.remove('is-glitching');
   }
 
   // Each photo's sideways parallax follows the scroll position, worked out
@@ -376,6 +485,7 @@ export class WorksGallery {
       entry.parallax = this.reduced ? 0 : -clamp((card.x + card.w / 2 - centre) / innerWidth, -1, 1) * card.w * PHOTO_PARALLAX;
       // Whole device pixels keep the dither dots sharp as the photo slides.
       entry.image.style.translate = `${Math.round(entry.parallax * dpr) / dpr}px 0`;
+      if (this.glitched === entry) this.glitcher.canvas.style.translate = entry.image.style.translate;
     });
     // The current stamp is the one nearest the middle, except at either end
     // of the row, where it is the first or the last.

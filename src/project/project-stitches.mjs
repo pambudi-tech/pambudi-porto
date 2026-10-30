@@ -4,10 +4,13 @@ import { StitchEntrance } from '../stitch/stitch-entrance.mjs';
 import { THREAD_COLORS } from '../stitch/thread-colors.mjs';
 import { StitchUnpick } from '../stitch/stitch-unpick.mjs';
 
+// How long, in ms, the project frame's stitches take to sweep in.
+export const FRAME_SWEEP = 780;
+
 // Project ornaments use the same partial-X sprites and entrance as the main
 // embroidery. Their model stays fixed; only thread length changes over time.
 export class ProjectStitches {
-  constructor(canvas, { sweep = 780 } = {}) {
+  constructor(canvas, { sweep = FRAME_SWEEP } = {}) {
     this.canvas = canvas;
     this.sprites = new Map();
     this.entrance = new StitchEntrance({ started: Infinity, sweep });

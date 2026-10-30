@@ -30,6 +30,8 @@
 }
 .works-item[data-shelf="bottom"] { --arrive: 8px; }
 .works-gallery.is-open .works-item { opacity: 1; translate: 0 0; }
+/* Opened at once (gallery.mjs `instant`): no entrance. */
+.works-gallery.is-instant :is(.works-item, .works-nav, .works-dots) { transition: none; }
 .works-gallery:not(.is-open) .works-item { transition-duration: 240ms; transition-delay: 0ms; }
 /* Switching collection: the old cards leave together, the new settle in turn. */
 .works-gallery.is-open.is-swapping .works-item { opacity: 0; translate: 0 var(--arrive, -8px); transition-duration: 240ms; transition-delay: 0ms; }
@@ -54,6 +56,8 @@
   display: block;
   /* The height is set to whole perforations; the width is the card's. */
   width: 100%;
+  /* Its width measures the printing on it (cqw). */
+  container-type: inline-size;
 }
 .works-window {
   position: absolute;
@@ -78,6 +82,20 @@
 }
 /* Blank until its dithered photo is ready. */
 .works-window img:not([src]) { visibility: hidden; }
+/* The hovered card's glitch (dither.mjs), lying exactly over the photo.
+   Outside its misplaced tiles it matches the photo's dither, so only those
+   show. */
+.works-window .works-glitch {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  width: calc(var(--photo-overscan) * 100%);
+  height: 100%;
+  margin-left: calc((1 - var(--photo-overscan)) * 50%);
+  pointer-events: none;
+}
+.works-window .works-glitch.is-glitching { display: block; }
 
 /* The homepage's wax seal, "details", settling onto the photo's centre while
    hovered. Its size and lettering are measured from the homepage seal; the
@@ -120,19 +138,48 @@
   /* A soft dark edge keeps the letters legible on any photo. */
   text-shadow: 0 0 2px rgb(20 10 8 / .55), 0 1px 3px rgb(20 10 8 / .35);
 }
-.works-title { grid-area: 1 / 1; min-width: 0; font-size: 14px; letter-spacing: .04em; overflow-wrap: anywhere; }
+/* A long title wraps within 70% of the stamp's width. */
+.works-title { grid-area: 1 / 1; min-width: 0; max-width: 70cqw; font-size: 14px; letter-spacing: .04em; overflow-wrap: anywhere; }
 /* The stamp's value: the work's years, in the top right. */
 .works-value { grid-area: 1 / 2; font-size: 12px; line-height: 1.4; white-space: nowrap; }
-.works-meta { grid-area: 3 / 1 / 4 / 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; min-width: 0; font-size: 12px; letter-spacing: .04em; }
+.works-meta { grid-area: 3 / 1 / 4 / 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; min-width: 0; padding-left: 64px; font-size: 12px; letter-spacing: .04em; }
+/* The card's number in its collection, in the photo's bottom left (gallery.mjs):
+   blind-embossed, no ink, only a crisp lit upper edge and a shaded lower one,
+   soft-lit into the photo so it takes the photo's own colours. */
+.works-number {
+  position: absolute;
+  left: calc(var(--inset) + 10px);
+  bottom: calc(var(--inset) + 8px);
+  z-index: 3;
+  font-size: 56px;
+  line-height: .78;
+  letter-spacing: .01em;
+  color: rgb(255 255 255 / .12);
+  text-shadow: -1px -1px .5px rgb(255 255 255 / .45), 1px 1px 1.5px rgb(0 0 0 / .25);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+  user-select: none;
+}
 /* Pills that wrap onto a second line when a stamp has many. */
 .works-tag {
-  padding: 3px 8px 4px;
-  border: 1px solid rgb(255 255 255 / .75);
+  position: relative;
+  padding: 4px 9px 5px;
   border-radius: 999px;
   background: rgb(20 10 8 / .16);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   line-height: 1;
   white-space: nowrap;
   box-shadow: 0 0 2px rgb(20 10 8 / .25);
+}
+/* The outline overlays the blurred photo rather than sitting on it. */
+.works-tag::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgb(255 255 255 / .5);
+  border-radius: inherit;
+  mix-blend-mode: overlay;
 }
 .works-link:focus-visible .works-title { text-decoration: underline; }
 
@@ -229,33 +276,6 @@
   background: var(--ink);
   color: #ffffff;
   cursor: default;
-}
-
-/* A woven label on password-protected work, tucked behind the lower edge of
-   the stamp. */
-.works-protected {
-  position: absolute;
-  top: calc(100% - 6px);
-  z-index: 0;
-  left: 50%;
-  translate: -50% 0;
-  padding: 14px 10px 6px;
-  border-radius: 2px;
-  color: #ffffff;
-  font-size: 12px;
-  line-height: 1.1;
-  letter-spacing: .05em;
-  white-space: nowrap;
-  /* Woven thread: a raised pick with a shadow below. */
-  text-shadow: 0 .6px 0 rgb(0 0 0 / .6);
-  /* Fine diagonal twill over horizontal ribs, in black. */
-  background:
-    repeating-linear-gradient(-58deg, rgb(255 255 255 / .05) 0 .8px, transparent .8px 2.4px),
-    repeating-linear-gradient(0deg, rgb(255 255 255 / .04) 0 .6px, transparent .6px 1.8px),
-    #161616;
-  box-shadow: 0 1px 1px rgb(0 0 0 / .3), 0 4px 8px rgb(0 0 0 / .2);
-  pointer-events: none;
-  transition: opacity 200ms ease;
 }
 
 .works-item.is-active { z-index: 3; }

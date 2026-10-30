@@ -105,11 +105,13 @@ export function siteHtml() {
   };
 }
 
-// /work/<id> is one template, work.html, filled in the browser.
+// /work/<id> opens the index, which shows the project over its works row as
+// if its card had been chosen (home.mjs). The project page itself is one
+// template, work.html?work=<id>, filled in the browser.
 export function projectRoutes() {
   const rewrite = (request, _response, next) => {
     const [path, query] = request.url.split('?');
-    if (/^\/work\/[^/.]+\/?$/.test(path)) request.url = `/work.html${query ? `?${query}` : ''}`;
+    if (/^\/work\/[^/.]+\/?$/.test(path)) request.url = `/index.html${query ? `?${query}` : ''}`;
     next();
   };
   return {

@@ -35,6 +35,10 @@ Text and links live in `content/`, separate from the code:
 
 **Adding a project:** add its card to `content/works.mjs` with `page: true`. It gets a page at `/work/<id>` right away, using its card details and a stand-in gallery. To write the case study, copy `content/projects/ocean.mjs` to `content/projects/<id>.mjs`, fill it in, and list it in `content/projects/index.mjs`. Put local images in `public/assets/works/`.
 
+**Password-protected work:** a card with `passwordProtected: true` gets a page that shows its cover, title and facts, with a PIN panel where the gallery seal would be. The PIN is checked on the server (`api/unlock.js`, `server/works-pass.mjs`), never in the page. A right PIN sets a signed, HttpOnly cookie that opens every protected project for a day. The gallery only comes from the server (`api/gallery.js`), so it is not in the page's code. A protected project's cover lives in `private/works/<id>/cover.webp`, and its card shows a coarse dithered preview made by `python3 tools/locked-preview.py <id>` until the PIN is in. Its own gallery lives in `private/works/<id>/gallery.json`, with its images beside it, served by `api/work-asset.js` to visitors with a pass. Until it has one, the stand-in gallery shows.
+
+The server needs `WORKS_PIN` (six digits) and `WORKS_SECRET` (a long random string). Set them on Vercel, and in `.env.local` for the dev server (see `.env.example`). Changing `WORKS_SECRET` signs everyone out. `WORKS_RESET_PASS=1` in `.env.local` makes the dev server forget the pass on every page load, for testing the panel.
+
 ## Images
 
 `public/assets/` is served as-is at `/assets/`. The large images are WebP files generated from full-size masters in `tools/source-images/`. To change one, replace its master and run `npm run images`. `tools/optimize-images.py` sets each image's size and quality.
@@ -42,7 +46,7 @@ Text and links live in `content/`, separate from the code:
 ## Code layout
 
 ```
-index.html, surface.html, work.html   pages; work.html is the template for /work/<id>
+index.html, surface.html, work.html   pages; /work/<id> opens index.html, which shows work.html?work=<id> over the works row
 content/          site text, works, and case studies
 public/assets/    images, icons, and fonts
 build/            Vite plugin that writes content and shared partials into the HTML
@@ -70,4 +74,4 @@ Tests sit beside the modules they cover (`*.test.mjs`).
 
 ## Deployment
 
-Vercel runs `npm run build` and publishes `dist/` (see `vercel.json`). Hashed scripts and styles under `/static/` are cached for a year. Files under `/assets/` are cached for a day, so give a changed image a new file name if it must update everywhere at once. `/work/<id>` is rewritten to `work.html`, and the old `/ocean.html` redirects to `/work/ocean`.
+Vercel runs `npm run build` and publishes `dist/` (see `vercel.json`). Hashed scripts and styles under `/static/` are cached for a year. Files under `/assets/` are cached for a day, so give a changed image a new file name if it must update everywhere at once. `/work/<id>` is rewritten to `index.html`, which shows the project over the works row as if its card had been chosen, so "back" plays the usual flight home. The project page itself is `work.html?work=<id>`. The old `/ocean.html` redirects to `/work/ocean`. The welcome loader plays once a browser session, on whichever page opens first.

@@ -24,7 +24,7 @@ export const DEPTH = Object.freeze({
 const LAYERS = [
   { selector: '.project-intro, .project-facts, .project-overview', z: 900, fade: .35 },
   { selector: '.cover-frame', z: 650, fade: .55 },
-  { selector: '.hero-postage-stamp, .cover-figure .project-image', z: 420, fade: .75 },
+  { selector: '.hero-postage-stamp, .cover-figure .project-image, .cover-protected', z: 420, fade: .75 },
 ];
 
 const ease = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;

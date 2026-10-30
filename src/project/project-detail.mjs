@@ -1,16 +1,22 @@
-import { cornerPitch } from '../stitch/corners.mjs';
-import { mountProjectFrame, projectFrameGap } from './project-frame.mjs';
-import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from '../works/postage-stamp.mjs';
+import { mountProjectFrame } from './project-frame.mjs';
+import { createPostageStamp, drawPostageStamp, stampOutline } from '../works/postage-stamp.mjs';
 import { mountProjectGallery } from './project-gallery.mjs';
-import { CARD_GUARD } from '../works/layout.mjs';
-import { isPhone } from '../shared/breakpoints.mjs';
+import { heroSize, snapToCloth } from './hero-layout.mjs';
+import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
+import { FRAME_SWEEP } from './project-stitches.mjs';
+
+// How long the hero takes to arrive once revealed, in ms: its stitched frame,
+// the slowest part.
+export const ARRIVAL = ENTRANCE.delay + FRAME_SWEEP + ENTRANCE.stitch;
 
 export function mountProjectDetail(project) {
   document.title = `${project.title} — Ivan Pambudi`;
-  document.querySelector('meta[name="description"]')?.setAttribute('content', project.subtitle);
+  document.querySelector('meta[name="description"]')?.setAttribute('content', project.subtitle || project.overview);
   for (const element of document.querySelectorAll('[data-project]')) {
     const key = element.dataset.project;
     element.textContent = project[key] ?? project.facts[key] ?? '';
+    // A case study may leave its subtitle out; its line goes with it.
+    if (!element.textContent && element.closest('.project-overview')) element.remove();
   }
   // A live project links out below its overview.
   if (project.site) {
@@ -32,23 +38,46 @@ export function mountProjectDetail(project) {
   image.src = item.src;
   image.alt = item.alt;
   image.decoding = 'async';
+  if (item.focus) image.style.objectPosition = item.focus;
   media.append(image);
   cover.append(media);
+  // Work behind a passcode says so, as its card does, on a tag hanging below
+  // the stamp toward its right.
+  if (project.passcode) {
+    const tag = Object.assign(document.createElement('span'), { className: 'works-protected cover-protected', textContent: 'passcode protected' });
+    tag.setAttribute('aria-hidden', 'true');
+    cover.prepend(tag);
+  }
   document.querySelector('.project-cover').replaceChildren(cover);
 
   const coverLayout = alignCoverToSurface(document.querySelector('.project-cover'), cover);
   mountScrollFades();
-  const gallery = mountProjectGallery({
-    images: project.images.slice(1), title: project.title,
-    seal: document.querySelector('.project-gallery-seal'),
-    motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
-  });
+  // A locked project's gallery waits for its PIN (mountGallery, below).
+  let gallery = null;
+  const mountGallery = images => {
+    gallery = mountProjectGallery({
+      images, title: project.title,
+      seal: document.querySelector('.project-gallery-seal'),
+      motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
+    });
+  };
+  if (!project.locked) mountGallery(project.images.slice(1));
+  // Opened directly, the cover eases from the centre to its focus; arriving
+  // from its card, the flight has already eased it there.
+  const slideCover = () => {
+    if (!item.focus) return;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    image.animate([{ objectPosition: '50% 50%' }, { objectPosition: item.focus }], {
+      duration: reduced ? 0 : 900, delay: reduced ? 0 : 120, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards',
+    });
+  };
   return {
-    ready: coverLayout.ready, cover,
-    closeGallery: gallery.reset,
-    reveal() {
+    ready: coverLayout.ready, cover, mountGallery,
+    closeGallery: () => gallery?.reset(),
+    reveal({ slide = true } = {}) {
       document.body.classList.remove('project-arriving');
       coverLayout.reveal();
+      if (slide) slideCover();
     },
     conceal() {
       document.body.classList.add('project-arriving', 'project-preview');
@@ -72,27 +101,9 @@ function alignCoverToSurface(container, figure) {
     frame = requestAnimationFrame(() => {
       frame = null;
       // This page's fixed, non-navigable surface camera is centered on cell 0,0.
-      // Reuse its actual pitch; 8 × 6 cells keep both 4:3 and a centered grid fit.
-      const pitch = cornerPitch(innerWidth);
-      const frameMargin = projectFrameGap(pitch) + pitch;
-      // The stitched corners keep to the figure; the stamp sits half a block
-      // smaller inside it, so the gap around it widens.
-      const shrinkX = 2 * pitch, shrinkY = 1.5 * pitch;
-      const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
-      let imageWidth, imageHeight = null;
-      if (innerWidth > 1000) {
-        // Include the entire stitched frame in the middle grid column. The grid
-        // gap therefore measures from its outer bounds to either text column.
-        const blocks = Math.max(1, Math.floor((opening.clientWidth - 80) * 1.9 / 3.9 / (8 * pitch)));
-        imageWidth = blocks * 8 * pitch;
-      } else {
-        // One column: the stamp is the works index's card to the pixel, so the
-        // flight between them only moves it.
-        const card = Math.round((isPhone(innerWidth) ? CARD_GUARD.phone : CARD_GUARD.tablet) / perf) * perf;
-        const cardHeight = Math.round(((card - inset * 2) / STAMP.window + inset * 2) / perf) * perf;
-        imageWidth = card - inset * 2 + shrinkX * 2;
-        imageHeight = cardHeight - inset * 2 + shrinkY * 2;
-      }
+      // Its sizes come from the shared calculation (hero-layout.mjs), which the
+      // works row uses too.
+      const { pitch, frameMargin, shrinkX, shrinkY, perf, inset, imageWidth, imageHeight } = heroSize(innerWidth, opening.clientWidth);
       opening.style.setProperty('--frame-margin', `${frameMargin}px`);
       opening.style.setProperty('--framed-cover-width', `${imageWidth + frameMargin * 2}px`);
       figure.style.setProperty('--cover-width', `${imageWidth}px`);
@@ -100,9 +111,8 @@ function alignCoverToSurface(container, figure) {
       const rect = figure.getBoundingClientRect();
       // Snap in page coordinates, so the opening stays put while it scrolls.
       const left = rect.left - offsetX, top = rect.top - offsetY + scrollY;
-      const snap = (value, origin) => origin + Math.round((value - origin) / pitch) * pitch;
-      offsetX = snap(left, innerWidth / 2) - left;
-      offsetY = snap(top, innerHeight / 2) - top;
+      offsetX = snapToCloth(left, innerWidth / 2, pitch) - left;
+      offsetY = snapToCloth(top, innerHeight / 2, pitch) - top;
       // Snap the whole composition together so its 40px content gaps stay exact.
       opening.style.setProperty('--opening-offset-x', `${offsetX}px`);
       opening.style.setProperty('--opening-offset-y', `${offsetY}px`);

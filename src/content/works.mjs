@@ -20,25 +20,44 @@ export const clockLabel = (work, short = false) => {
   return `${work.title}${short ? '' : ` ${years}`}`.toUpperCase().replace(/[^A-Z0-9 -]/g, '').replace(/\s+/g, ' ').trim();
 };
 
+// Where a project page's cover holds its photo in the stamp, as an
+// object-position: a little above the centre unless the work sets its own.
+export const coverFocus = work => work.coverFocus ?? '50% 84%';
+
 // The id in a project page's address, /work/<id>.
 export const projectId = pathname => pathname.match(/^\/work\/([^/]+)\/?$/)?.[1] ?? null;
 
+// A work's full cover. For protected work it is private, served only to a
+// visitor with the PIN's pass (server/works-pass.mjs); its card's `image` is
+// a coarse, dithered preview.
+export const fullCover = work => (work.passwordProtected
+  ? `/api/work-asset?path=${encodeURIComponent(`${work.id}/cover.webp`)}` : work.image);
+
+// The project page itself, the template a project's address is filled from.
+export const projectPageHref = id => `/work.html?work=${encodeURIComponent(id)}`;
+
 // Everything a project page shows. A work without its own case study takes
-// its card's details and the stand-in's gallery.
+// its card's details and the stand-in's gallery. A password-protected work is
+// `locked`: its page has the cover alone, and its gallery comes from the
+// server once a visitor has the PIN (server/works-pass.mjs).
 export function projectPage(id) {
   const work = WORKS.find(entry => entry.id === id && entry.page);
   if (!work) return null;
   const study = PROJECTS[id];
   const source = study ?? PROJECTS[STAND_IN];
-  const cover = { id: 'cover', ...source.cover, src: work.image, ...(study ? {} : { alt: work.alt }) };
+  const cover = { id: 'cover', ...source.cover, src: work.image, focus: coverFocus(work), ...(study ? {} : { alt: work.alt }) };
   const tags = work.tags.join(' · ');
   return {
     title: study?.title ?? work.title,
+    // The top bar's pill: the work's name as its card has it.
+    name: work.title,
     category: study?.category ?? tags,
     subtitle: study?.subtitle ?? work.summary,
     overview: study?.overview ?? '',
     site: work.site,
     facts: study?.facts ?? { client: work.client, role: work.role, period: yearLabel(work), scope: tags },
-    images: [cover, ...source.gallery],
+    images: work.passwordProtected ? [cover] : [cover, ...(source.gallery ?? PROJECTS[STAND_IN].gallery)],
+    locked: Boolean(work.passwordProtected),
+    passcode: Boolean(work.passwordProtected),
   };
 }

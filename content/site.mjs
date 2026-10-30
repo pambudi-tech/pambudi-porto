@@ -12,7 +12,7 @@ export const SITE = {
   // (master: tools/source-images/opengraph.webp).
   url: 'https://pambudi.xyz',
   image: { src: '/assets/opengraph.jpg', width: 1200, height: 630, alt: 'ui & brand designer, on embossed paper below the PAMBUDI wordmark' },
-  email: 'pambu.design@gmail.com',
+  email: 'ivan@pambudi.xyz',
 
   // The introduction on the front of the paper. `{about}` is the red "ivan"
   // link that turns the paper over to About Me.

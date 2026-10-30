@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/work/:id",
-      "destination": "/work.html"
+      "destination": "/index.html"
     }
   ],
   "redirects": [
@@ -35,5 +35,13 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/gallery.js": {
+      "includeFiles": "private/**"
+    },
+    "api/work-asset.js": {
+      "includeFiles": "private/**"
+    }
+  }
 }

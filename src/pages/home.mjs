@@ -1,162 +1,74 @@
 import { DotClock } from '../clock/clock.mjs';
-import { GRID } from '../stitch/model.mjs';
-import { cornerPitch, surfaceOrigin } from '../stitch/corners.mjs';
-import { PRELOADER, LoadingCounter, loadingProgress, minimumElapsed, settleWithin } from '../preloader/loading-progress.mjs';
-import { paperInkEntrance } from '../paper/paper-ink.mjs';
-import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
-import { applyPaperPose } from '../paper/paper-pose.mjs';
-import { createImageInkLayer } from '../ink/ink-growth.mjs';
-import { registerPreloaderFrame } from '../paper/frame-registration.mjs';
+import { settleWithin } from '../preloader/loading-progress.mjs';
+import { fitClock, startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
+import { projectId } from '../content/works.mjs';
 
-const loader = document.getElementById('preloader');
+// The index, and every project's own address, /work/<id>: there the project
+// shows over the works row as though its card had just been chosen, so
+// "back" flies its stamp home as ever. The first page of a session plays the
+// welcome (welcome.mjs); any later one shows as soon as it is ready.
 const surface = document.getElementById('surface');
 surface.inert = true;
-const title = loader.querySelector('.preloader-title');
-loader.style.setProperty('--preloader-exit', `${PRELOADER.exit}ms`);
 const preference = matchMedia('(prefers-reduced-motion: reduce)');
-const paperPreview = loader.querySelector('.preloader-paper');
-const framePreview = paperPreview.querySelector('img');
-registerPreloaderFrame(framePreview);
-applyPaperPose(paperPreview, paperTarget(), paperPlacementAt(0, preference.matches));
-const clock = new DotClock(document.getElementById('portfolio-clock'));
-const started = performance.now();
-const counter = new LoadingCounter(started);
-let finishCounter;
-const counterFinished = new Promise(resolve => { finishCounter = resolve; });
-let completed = 0, sceneReady = false, failed = false, frame;
-// Includes the SVG as its own resource, alongside the three portfolio images.
-const total = surface.querySelectorAll('img').length + paperPreview.querySelectorAll('img').length + 1 + 4;
-
-function resizeClock() {
-  const width = innerWidth, height = innerHeight;
-  clock.resize(width, height, { ...surfaceOrigin(width, height), scale: cornerPitch(width) / GRID });
-}
-clock.setLoading(0);
-resizeClock();
-window.addEventListener('resize', resizeClock);
-
-function track(task) {
-  return settleWithin(task).then(value => { completed++; return value; });
-}
-function progress(now) {
-  const loaded = Math.min(sceneReady ? 100 : 99, loadingProgress(completed, total));
-  const percent = counter.update(loaded, now);
-  clock.setLoading(percent);
-  loader.dataset.progress = String(percent);
-  if (percent === 100) finishCounter();
-  if (!failed && percent < 100) frame = requestAnimationFrame(progress);
-}
-frame = requestAnimationFrame(progress);
-
-function fadeOut() {
-  return new Promise(resolve => {
-    if (preference.matches) { loader.classList.add('is-leaving'); resolve(); return; }
-    const finish = event => {
-      if (event && event.target !== loader) return;
-      loader.removeEventListener('transitionend', finish);
-      clearTimeout(timer);
-      resolve();
-    };
-    const timer = setTimeout(finish, PRELOADER.exit + 100);
-    loader.addEventListener('transitionend', finish);
-    loader.classList.add('is-leaving');
-  });
-}
+const opened = projectId(location.pathname);
+const welcome = welcomeSeen() ? null : startWelcome({
+  // The portfolio's images, the traced artwork, Syne Mono and the scene's code.
+  count: surface.querySelectorAll('img').length + 3, preference,
+});
+const clock = welcome?.clock ?? new DotClock(document.getElementById('portfolio-clock'));
+if (!welcome) fitClock(clock);
+const track = task => (welcome ? welcome.track(task) : settleWithin(task));
 
 async function boot() {
   // Fetch the traced artwork too; it is not an <img> in the page itself.
   const artwork = new Image();
   artwork.src = '/assets/wordmark-source.webp';
-  // Fetch Adobe's stylesheet without delaying the initial black screen.
-  const adobeStyles = document.getElementById('adobe-fonts');
-  const stylesheetReady = new Promise((resolve, reject) => {
-    const loaded = () => { adobeStyles.media = 'all'; resolve(); };
-    if (adobeStyles.sheet) loaded();
-    else {
-      adobeStyles.addEventListener('load', loaded, { once: true });
-      adobeStyles.addEventListener('error', () => reject(new Error('Adobe font stylesheet unavailable')), { once: true });
-    }
-  });
-  let finishWelcome;
-  const welcomeFinished = new Promise(resolve => { finishWelcome = resolve; });
-  let finishPaper;
-  const paperFinished = new Promise(resolve => { finishPaper = resolve; });
-  const fontReady = stylesheetReady.then(async () => {
-    // Changing a cached stylesheet's media does not register its font faces
-    // until style recalculation. Flush that change before asking for the face.
-    getComputedStyle(title).fontFamily;
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    return document.fonts.load('48px "military-scribe"');
-  }).then(fonts => {
-    if (!fonts.length) throw new Error('Military Scribe unavailable');
-    title.classList.add('is-ready');
-    return paperInkEntrance(title, {
-      motionPreference: preference, duration: PRELOADER.welcomeDuration, delay: 0,
-      shapeText: true, onComplete: finishWelcome,
-    });
-  });
   const application = track(import('../surface/scene.mjs'));
   // The works gallery is only needed after the reveal; fetch it alongside.
   const gallery = import('../works/gallery.mjs');
   await Promise.all([
-    ...[...surface.querySelectorAll('img'), artwork, framePreview].map(image => track(
-      image === framePreview
-        ? image.decode().then(async () => {
-          await paperInkEntrance(paperPreview, {
-            motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
-            waitForFonts: false, createLayers: () => [createImageInkLayer(framePreview)],
-            onComplete: finishPaper,
-          });
-          paperPreview.classList.add('is-ready');
-        })
-        : image.decode(),
-    )),
+    ...[...surface.querySelectorAll('img'), artwork].map(image => track(image.decode())),
     track(document.fonts.load('16px "Syne Mono"')),
-    track(fontReady),
     application,
   ]);
   const app = await application;
   if (!app) throw new Error('The portfolio could not start.');
   const scene = await app.preparePortfolio({ clock });
-  completed++;
-  sceneReady = true;
-  await Promise.all([welcomeFinished, paperFinished, counterFinished, new Promise(resolve => {
-    const check = now => {
-      if (minimumElapsed(now - started)) resolve();
-      else requestAnimationFrame(check);
-    };
-    requestAnimationFrame(check);
-  })]);
-  cancelAnimationFrame(frame);
-  clock.setLoading(100);
-  loader.dataset.progress = '100';
-  // Hold the completed value briefly before clearing the backdrop.
-  if (!preference.matches) await new Promise(resolve => setTimeout(resolve, PRELOADER.completeHold));
-  window.removeEventListener('resize', resizeClock);
   scene.start();
-  document.body.classList.remove('is-loading');
-  document.body.classList.add('is-revealing');
-  await fadeOut();
+  const makeWorks = async () => {
+    const { WorksGallery } = await gallery;
+    return new WorksGallery(document.getElementById('works'), {
+      scene, motionPreference: preference,
+      paper: surface.querySelector('.portfolio-paper'),
+      frontSeal: surface.querySelector('.paper-front .works-seal'),
+    });
+  };
+  // A project's address: the project is up, over the works row, before the
+  // page shows; its entrance plays once the page does.
+  const works = opened ? await makeWorks() : null;
+  let pageShown;
+  const showing = new Promise(resolve => { pageShown = resolve; });
+  if (works) await new Promise(resolve => works.openProject(opened, () => { resolve(); return showing; }));
+  const show = () => document.body.classList.remove('is-loading');
+  if (welcome) {
+    welcome.ready();
+    await welcome.finish(show);
+  } else show();
+  pageShown();
   clock.finishLoading();
   surface.inert = false;
   surface.removeAttribute('aria-busy');
-  document.body.classList.remove('is-revealing');
   document.body.dataset.ready = 'true';
-  loader.remove();
-  const { WorksGallery } = await gallery;
-  const works = new WorksGallery(document.getElementById('works'), {
-    scene, motionPreference: preference,
-    paper: surface.querySelector('.portfolio-paper'),
-    frontSeal: surface.querySelector('.paper-front .works-seal'),
-  });
-  if (location.hash === '#works') works.open({ history: false });
+  document.getElementById('preloader')?.remove();
+  if (works) return;
+  const row = await makeWorks();
+  if (location.hash === '#works') row.open({ history: false });
 }
 
 boot().catch(error => {
-  failed = true;
-  cancelAnimationFrame(frame);
-  console.error('Portfolio startup:', error);
-  title.textContent = 'Unable to load. Please try again.';
-  title.classList.add('is-ready');
-  loader.querySelector('.preloader-retry').hidden = false;
+  if (welcome) welcome.fail(error);
+  else {
+    console.error('Portfolio startup:', error);
+    document.body.classList.remove('is-loading');
+  }
 });

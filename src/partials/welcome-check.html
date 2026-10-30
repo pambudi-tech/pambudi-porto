@@ -1,0 +1,3 @@
+<!-- The welcome plays once a session (src/preloader/welcome.mjs). Decided
+     before the first paint: any later page hides it. -->
+<script>try { if (sessionStorage.getItem('pambudi:welcomed')) document.documentElement.classList.add('is-welcomed'); } catch {}</script>

@@ -28,7 +28,8 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .preloader {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  /* Above a project shown at its own address (project-transition.css). */
+  z-index: 60;
   display: grid;
   place-content: center;
   background: #080808;
@@ -53,10 +54,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .preloader-title p:first-child { font-size: .62em; margin-bottom: .25em; }
 .preloader-title.is-ready { opacity: 1; }
 .preloader.is-leaving { opacity: 0; pointer-events: none; }
+/* The welcome plays once a session (welcome.mjs); later pages skip it. */
+.is-welcomed .preloader { display: none; }
 .preloader-retry { justify-self: center; margin-top: 24px; color: inherit; font: 14px "Syne Mono", monospace; }
 body.is-loading #surface { visibility: hidden; }
 body.is-loading .portfolio-clock,
-body.is-revealing .portfolio-clock { z-index: 21; }
+body.is-revealing .portfolio-clock { z-index: 61; }
 .portfolio-clock canvas { transition: filter 320ms ease; }
 body.is-loading .portfolio-clock canvas { filter: brightness(0) invert(1); }
 @media (prefers-reduced-motion: reduce) {

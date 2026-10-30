@@ -1,6 +1,7 @@
 import { BRAND_UNPICK_SWEEP, UNPICK_STITCH } from '../stitch/stitch-unpick.mjs';
 import { cornerPitch } from '../stitch/corners.mjs';
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from './postage-stamp.mjs';
+import { coverFocus, projectPageHref } from '../content/works.mjs';
 
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
@@ -37,7 +38,8 @@ function createProjectNavMorph(gallery, title) {
   const nameWidth = name.getBoundingClientRect().width;
   const animations = [];
   return {
-    enter(destinationNav) {
+    // `instant` sets it straight in its arrived state, ready to leave.
+    enter(destinationNav, { instant = false } = {}) {
       const options = { duration: gallery.reduced ? 0 : PROJECT_NAV_MORPH.duration, easing: PROJECT_NAV_MORPH.easing, fill: 'both' };
       const animate = (element, frames) => animations.push(element.animate(frames, options));
       const nav = gallery.nav.getBoundingClientRect();
@@ -65,6 +67,7 @@ function createProjectNavMorph(gallery, title) {
         { opacity: 1, transform: 'translateY(0)', offset: .85 },
         { opacity: 1, transform: 'translateY(0)' },
       ]);
+      if (instant) animations.forEach(animation => animation.finish());
       return Promise.all(animations.map(animation => animation.finished));
     },
     leave() {
@@ -89,13 +92,22 @@ export const flightBox = rect => ({
 });
 
 // Where a card's photo sits in its window: slid by the row's parallax. The
-// cover holds the same photo centred, so the flight eases between the two
-// instead of swapping one crop for another.
+// cover holds the same photo a little above the centre (its `coverFocus`), so the
+// flight eases between the two instead of swapping one crop for another.
 const photoPose = entry => {
   const width = entry.image.clientWidth;
-  return { translate: `${width ? (entry.parallax / width * 100).toFixed(3) : 0}% 0` };
+  return { translate: `${width ? (entry.parallax / width * 100).toFixed(3) : 0}% 0`, objectPosition: '50% 50%' };
 };
-const COVER_POSE = { translate: '0% 0' };
+// The cover's pose for the full photograph, and for the card's dithered one,
+// which is already cropped to the centre: it slides up by as much as the
+// focus moves the photograph instead.
+function coverPoses(work, image) {
+  const focus = coverFocus(work);
+  const y = parseFloat(focus.split(' ')[1] ?? '50') / 100;
+  const box = image.clientWidth / image.clientHeight, photo = image.naturalWidth / image.naturalHeight;
+  const shift = box > photo ? (y - .5) * (box / photo - 1) * 100 : 0;
+  return [{ translate: `0% ${(-shift).toFixed(3)}%`, objectPosition: '50% 50%' }, { translate: '0% 0', objectPosition: focus }];
+}
 
 // The flight's stamp at a size: its paper whole, under the photo, which fills
 // it to its perforations, as on a card and on the cover.
@@ -148,7 +160,12 @@ async function prepareProject(href) {
   } finally { clearTimeout(timer); }
 }
 
-export async function transitionToProject(gallery, entry, { history = true, seal = true } = {}) {
+// `arrived`, a callback, sets the project straight up as though its card had
+// already flown there, and calls it once the project covers the page: the
+// project's own address, opened directly (home.mjs). The project's own
+// entrance waits for the promise it returns (the welcome's end). From there,
+// "back" is the same flight home as ever.
+export async function transitionToProject(gallery, entry, { history = true, seal = true, arrived = null } = {}) {
   if (gallery.departing) return;
   const href = entry.link.href;
   if (new URL(href).origin !== location.origin) {
@@ -159,10 +176,12 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   // The clicked card's seal stays pressed from here until it fades out. A tap
   // never showed the seal, so its stamp simply flies.
   if (seal) entry.item.classList.add('is-departing');
+  // The pill names the work as its card does, as the page's pill will.
   const navMorph = createProjectNavMorph(gallery, entry.work.title);
   let preview, flight, sealOut, inDetail = false, returning = false;
   const galleryTitle = document.title;
   const duration = gallery.reduced ? 0 : PROJECT_FLIGHT.duration;
+  const flyIn = arrived ? 0 : duration;
   const requestBack = () => window.history.back();
   const restore = () => {
     preview?.remove();
@@ -181,7 +200,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     gallery.paint();
   };
   try {
-    preview = await prepareProject(href);
+    preview = await prepareProject(new URL(projectPageHref(entry.work.id), location.origin).href);
     const targetImage = preview.contentDocument.querySelector('.project-cover .project-image img');
     const targetPostage = preview.contentDocument.querySelector('.hero-postage-stamp');
     const destination = targetPostage.getBoundingClientRect();
@@ -196,12 +215,12 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     const fromImage = new Image(), toImage = new Image();
     fromImage.src = entry.image.currentSrc || entry.image.src;
     toImage.src = targetImage.currentSrc || targetImage.src;
-    toImage.className = 'project-flight-target';
     const media = Object.assign(document.createElement('div'), { className: 'project-flight-media' });
     const postage = createPostageStamp(`flight-paper-${entry.work.id}`);
     // Held where the card shows it until the flight starts.
     for (const image of [fromImage, toImage]) Object.assign(image.style, photoPose(entry));
-    media.append(fromImage, toImage);
+    // The full photograph lies under the card's dithered one, which fades.
+    media.append(toImage, fromImage);
     flight.append(postage, media);
     Object.assign(flight.style, flightBox(source));
     shapeFlight(postage, media, source.width, source.height, sourcePerf);
@@ -223,20 +242,23 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     // The card's photograph travels first; the destination's full-size
     // photograph resolves as it reaches the hero's final bounds.
     const movement = flight.animate([flightBox(source), flightBox(destination)], {
-      duration, easing: PROJECT_FLIGHT.easing, fill: 'forwards',
+      duration: flyIn, easing: PROJECT_FLIGHT.easing, fill: 'forwards',
     });
-    const posePhotos = (from, to) => [fromImage, toImage].map(image => {
+    // `from` and `to` each hold the dithered photo's pose, then the full one's.
+    const posePhotos = (from, to, time = duration) => [fromImage, toImage].map((image, index) => {
       image.getAnimations().filter(animation => animation.id === 'pose').forEach(animation => animation.cancel());
-      const animation = image.animate([from, to], { duration, easing: PROJECT_FLIGHT.easing, fill: 'forwards' });
+      const animation = image.animate([from[index], to[index]], { duration: time, easing: PROJECT_FLIGHT.easing, fill: 'forwards' });
       animation.id = 'pose';
       return animation;
     });
-    posePhotos(photoPose(entry), COVER_POSE);
+    const cardPoses = [photoPose(entry), photoPose(entry)];
+    const heroPoses = coverPoses(entry.work, toImage);
+    posePhotos(cardPoses, heroPoses, flyIn);
     const finishPostage = followPostage(flight, postage, media, movement, sourcePerf, targetPerf);
-    toImage.animate([{ opacity: 0, offset: 0 }, { opacity: 0, offset: .3 }, { opacity: 1, offset: .88 }, { opacity: 1 }], {
-      duration, fill: 'forwards',
+    fromImage.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: .3 }, { opacity: 0, offset: .88 }, { opacity: 0 }], {
+      duration: flyIn, fill: 'forwards',
     });
-    await Promise.all([movement.finished, navMorph.enter(preview.contentDocument.querySelector('.project-nav').getBoundingClientRect())]);
+    await Promise.all([movement.finished, navMorph.enter(preview.contentDocument.querySelector('.project-nav').getBoundingClientRect(), { instant: Boolean(arrived) })]);
     finishPostage();
     // Promote the already rendered destination instead of reloading it.
     // The flight remains over its hidden hero until both are in place.
@@ -244,7 +266,8 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     preview.inert = false;
     preview.removeAttribute('aria-hidden');
     preview.title = `${entry.work.title} project detail`;
-    await preview.animate([{ opacity: 0 }, { opacity: 1 }], { duration: gallery.reduced ? 0 : 140, fill: 'forwards' }).finished;
+    await preview.animate([{ opacity: 0 }, { opacity: 1 }], { duration: gallery.reduced || arrived ? 0 : 140, fill: 'forwards' }).finished;
+    if (arrived) await arrived();
     preview.contentWindow.dispatchEvent(new Event('project-route-enter'));
     flight.remove();
     gallery.scene.pause();
@@ -252,7 +275,12 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     // The detail's own nav has taken over; hide this one beneath it.
     gallery.nav.style.visibility = 'hidden';
     document.title = preview.contentDocument.title;
-    if (history) window.history.pushState({ projectWork: entry.work.id }, '', href);
+    // Opened directly, the works row becomes the entry behind the project, so
+    // "back" returns to it.
+    if (arrived) {
+      window.history.replaceState({ works: true }, '', '/#works');
+      window.history.pushState({ projectWork: entry.work.id }, '', href);
+    } else if (history) window.history.pushState({ projectWork: entry.work.id }, '', href);
     window.addEventListener('project-route-back', requestBack);
 
     const reverse = async () => {
@@ -294,13 +322,13 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       // The iframe becomes transparent while its red stitches retract, so
       // the portfolio's stitches can sew back underneath it at the same time.
       const returningImage = flight.animate([flightBox(hero), flightBox(card)], { duration, easing: PROJECT_FLIGHT.easing, fill: 'forwards' });
-      posePhotos(COVER_POSE, photoPose(entry));
+      posePhotos(heroPoses, [photoPose(entry), photoPose(entry)]);
       const finishReturningPostage = followPostage(flight, postage, media, returningImage,
         Number(targetPostage.dataset.perforation), STAMP.perf * cornerPitch(innerWidth));
       await Promise.all([
         navMorph.leave(),
         returningImage.finished,
-        toImage.animate([{ opacity: 1 }, { opacity: 0 }], { duration, fill: 'forwards' }).finished,
+        fromImage.animate([{ opacity: 0 }, { opacity: 1 }], { duration, fill: 'forwards' }).finished,
       ]);
       finishReturningPostage();
       inDetail = false;
@@ -318,6 +346,6 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     console.warn('Project transition unavailable; opening the project directly.', error);
     restore();
     gallery.scene.restoreBranding();
-    location.assign(href);
+    location.assign(projectPageHref(entry.work.id));
   }
 }

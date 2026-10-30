@@ -18,3 +18,30 @@
   filter: var(--works-paper-shadow);
   stroke: none;
 }
+
+/* The "passcode protected" tag: a woven label tucked behind the lower edge
+   of a protected work's stamp, on the works row and on its project's cover. */
+.works-protected {
+  position: absolute;
+  top: calc(100% - 6px);
+  z-index: 0;
+  left: 50%;
+  translate: -50% 0;
+  padding: 14px 10px 6px;
+  border-radius: 2px;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.1;
+  letter-spacing: .05em;
+  white-space: nowrap;
+  /* Woven thread: a raised pick with a shadow below. */
+  text-shadow: 0 .6px 0 rgb(0 0 0 / .6);
+  /* Fine diagonal twill over horizontal ribs, in black. */
+  background:
+    repeating-linear-gradient(-58deg, rgb(255 255 255 / .05) 0 .8px, transparent .8px 2.4px),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / .04) 0 .6px, transparent .6px 1.8px),
+    #161616;
+  box-shadow: 0 1px 1px rgb(0 0 0 / .3), 0 4px 8px rgb(0 0 0 / .2);
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}

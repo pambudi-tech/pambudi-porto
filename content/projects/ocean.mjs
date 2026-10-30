@@ -8,15 +8,15 @@ export default {
   id: 'ocean',
   title: 'Ocean by BCA',
   category: 'Product design · Design systems',
-  subtitle: 'Embedded as a product design retainer for a new digital banking platform for business customers.',
-  overview: 'My work spanned design systems, product design, and visual direction—from establishing a deep-blue, dark glassmorphism aesthetic to redesigning the homepage and defining onboarding forms.',
+  subtitle: 'Embedded as a product design retainer for Ocean by BCA, a new digital banking platform for business customers.',
+  overview: 'Worked across design systems, product design, and visual direction—from establishing a deep-blue, dark glassmorphism aesthetic to redesigning the homepage and defining onboarding forms.',
   facts: {
     client: 'Bank Central Asia',
     role: 'Designer · Embedded retainer',
     period: 'Jul 2024 — May 2026',
     scope: 'Design systems, product design & visual direction',
   },
-  cover: { width: 1200, height: 900, title: 'The homepage revamp', caption: 'Visual design & interactive prototype', alt: 'Temporary Unsplash photo of aerial ocean waves and white foam' },
+  cover: { width: 1200, height: 900, title: 'The homepage revamp', caption: 'Visual design & interactive prototype', alt: 'Ocean by BCA website: the homepage hero, “Kolaborasi. Inovasi. Ekspansi.”, above a photo of fishermen casting a net at sunset' },
   gallery: [
     { id: 'gallery-ocean', src: 'https://images.unsplash.com/photo-1735300022510-9ed02ca92f39?auto=format&fit=crop&w=1600&h=1000&q=85', width: 1600, height: 1000, layout: 'wide', accent: 'curl', corner: 'top-right', alt: 'Temporary Unsplash photo of a breaking blue ocean wave' },
     { id: 'gallery-surf', src: 'https://images.unsplash.com/photo-1651742740055-a4b4ff765225?auto=format&fit=crop&w=1200&h=900&q=85', width: 1200, height: 900, accent: 'flower', corner: 'top-left', alt: 'Temporary Unsplash photo of teal water and foamy surf' },

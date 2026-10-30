@@ -4,7 +4,7 @@
    image flight while they unpick. */
 .project-route.is-returning { z-index: 50; }
 .project-preview .project-cover .project-image { visibility: hidden; }
-.project-preview .hero-postage-stamp { visibility: hidden; }
+.project-preview :is(.hero-postage-stamp, .cover-protected) { visibility: hidden; }
 html.project-route-leaving { background: transparent; }
 .project-route-leaving #cloth { visibility: hidden; }
 .project-route-leaving .project-nav { opacity: 0; transition: opacity 180ms ease; }
@@ -15,7 +15,6 @@ html.project-route-leaving { background: transparent; }
 .project-flight-media { position: absolute; inset: 0; z-index: 1; overflow: hidden; background: #eeefeb; }
 /* Sized as on the stamp and the cover, so the photo keeps one crop in flight. */
 .project-flight img { position: absolute; top: 0; left: calc((1 - var(--photo-overscan)) * 50%); width: calc(var(--photo-overscan) * 100%); height: 100%; display: block; object-fit: cover; }
-.project-flight-target { opacity: 0; }
 .works-gallery.is-navigating .works-item { opacity: 0; transition: opacity 220ms ease; }
 .works-gallery.is-returning .works-item { opacity: 1; transition: opacity 320ms ease 140ms; }
 .works-gallery.is-returning .is-flight-source { visibility: hidden; }

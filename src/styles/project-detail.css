@@ -8,6 +8,8 @@ body { margin: 0; background: transparent; }
 #surface { z-index: 0; touch-action: pan-y pinch-zoom; }
 #surface:focus-visible { box-shadow: none; }
 .project-layout { position: relative; pointer-events: none; }
+/* Unseen until the page has laid itself out (project.mjs). */
+html:not([data-project-ready]) :is(.project-nav, .project-layout, .project-gallery-seal) { visibility: hidden; }
 .project-layout { z-index: 2; }
 .project-intro, .project-overview, .project-facts, .gallery-item { pointer-events: auto; }
 a { color: inherit; text-underline-offset: 4px; }
@@ -21,7 +23,8 @@ h1, h2 { text-wrap: balance; }
 .skip-link { position: fixed; top: 12px; left: 16px; z-index: 30; padding: 14px; background: var(--paper); opacity: 0; pointer-events: none; transform: translateY(-160%); }
 .skip-link:focus { opacity: 1; pointer-events: auto; transform: none; }
 .project-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; min-height: 100dvh; max-width: 1680px; margin: 0 auto; padding: 0 clamp(28px, 4.5vw, 76px); }
-.project-opening { display: grid; min-width: 0; min-height: 100dvh; align-content: center; grid-template-columns: minmax(0, 1fr) var(--framed-cover-width, 45%) minmax(0, 1fr); align-items: center; gap: 40px; padding: 32px 0; translate: var(--opening-offset-x, 0px) var(--opening-offset-y, 0px); }
+/* The hero sits a little above the screen's middle: more room below than above. */
+.project-opening { display: grid; min-width: 0; min-height: 100dvh; align-content: center; grid-template-columns: minmax(0, 1fr) var(--framed-cover-width, 45%) minmax(0, 1fr); align-items: center; gap: 40px; padding: 32px 0 64px; translate: var(--opening-offset-x, 0px) var(--opening-offset-y, 0px); }
 .project-intro { margin-bottom: 30px; }
 .project-intro, .project-facts, .project-overview { transition: opacity 520ms ease, translate 620ms cubic-bezier(.22, 1, .36, 1); }
 .project-intro { transition-delay: 60ms; }
@@ -89,6 +92,17 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
    paper; sized as on the works stamps, held still. */
 .cover-figure .project-image { position: absolute; inset: var(--stamp-y, 0px) var(--stamp-x, 0px); z-index: 1; width: auto; overflow: hidden; }
 .hero-postage-stamp { z-index: 0; }
+/* The works card's passcode tag (works.css), hanging from the stamp's bottom
+   edge, its right end 5% of the photo's width in from the stamp's. */
+.cover-protected {
+  top: calc(100% - var(--stamp-y, 0px) - 6px);
+  left: auto;
+  right: calc(var(--stamp-x, 0px) + (100% - 2 * var(--stamp-x, 0px)) * .05);
+  translate: none;
+}
+.project-route-leaving .cover-protected { opacity: 0; }
+/* The full cover's glitching arrival (cover-reveal.mjs), over its photo. */
+.cover-reveal { position: absolute; display: block; pointer-events: none; }
 .cover-figure .project-image img { width: calc(var(--photo-overscan) * 100%); max-width: none; height: 100%; margin-left: calc((1 - var(--photo-overscan)) * 50%); object-fit: cover; }
 @media (max-width: 1000px) {
   /* One column: room below the text for the seal. */
@@ -125,4 +139,115 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
   .project-opening .ink-source { color: inherit; }
+}
+
+/* A password-protected project before its PIN (project-pin.mjs): the seal
+   waits hidden, and the PIN panel sits where it would be, in the back
+   button's pill style, with where to ask for the PIN on one line below. */
+.project-locked .project-gallery-seal { visibility: hidden; }
+.project-pin {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0 auto;
+  color: var(--ink);
+  font: 12px/1.4 "Syne Mono", monospace;
+  text-align: center;
+  transition: opacity 360ms ease, translate 420ms cubic-bezier(.22, 1, .36, 1);
+}
+.project-pin-panel {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 20px;
+  background: rgb(255 255 255 / .92);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+/* Five red stitches across the panel's top edge (project-pin.mjs). */
+.project-pin-stitches { position: absolute; left: 50%; z-index: 1; pointer-events: none; }
+.project-pin.is-waiting { opacity: 0; translate: 0 10px; pointer-events: none; }
+.project-pin.is-leaving { opacity: 0; translate: 0 16px; pointer-events: none; }
+.project-route-leaving .project-pin { opacity: 0; }
+/* The PIN field (otp-field.mjs): two threes of slots, and over them all one
+   real input, unseen, that takes the typing; its letters are squeezed so a
+   click lands on the slot beneath. */
+.otp { position: relative; display: flex; align-items: center; gap: 8px; cursor: text; }
+.otp-group { display: flex; gap: 6px; }
+.otp-separator { color: var(--muted); font-size: 18px; }
+.otp-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font: 44px/1 monospace;
+  letter-spacing: -.5em;
+  font-variant-numeric: tabular-nums;
+}
+.otp-input::selection { background: transparent; color: transparent; }
+.otp-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 44px;
+  border: 1px solid rgb(73 72 63 / .2);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 18px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.otp-slot.is-active { z-index: 1; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.otp-caret { display: none; width: 1px; height: 18px; background: var(--ink); animation: otp-caret-blink 1.2s ease-out infinite; }
+.otp-slot.has-caret .otp-char { display: none; }
+.otp-slot.has-caret .otp-caret { display: block; }
+.otp.is-busy .otp-slot { opacity: .5; }
+@keyframes otp-caret-blink { 0%, 70%, 100% { opacity: 1; } 20%, 50% { opacity: 0; } }
+.project-pin-message { min-height: 1.4em; color: var(--muted); }
+.project-pin-message[data-tone="error"] { color: #b4342b; }
+/* A right PIN: its digits settle in ink while it stays a moment. */
+.project-pin-message[data-tone="ok"] { color: var(--ink); }
+.is-unlocked .otp-slot { border-color: var(--ink); transition: border-color 240ms ease; }
+.is-unlocked .otp-slot:nth-child(2) { transition-delay: 40ms; }
+.is-unlocked .otp-slot:nth-child(3) { transition-delay: 80ms; }
+.is-unlocked .otp-group + .otp-separator + .otp-group .otp-slot:nth-child(1) { transition-delay: 120ms; }
+.is-unlocked .otp-group + .otp-separator + .otp-group .otp-slot:nth-child(2) { transition-delay: 160ms; }
+.is-unlocked .otp-group + .otp-separator + .otp-group .otp-slot:nth-child(3) { transition-delay: 200ms; }
+.project-pin-ask { display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+.project-pin-ask a { color: var(--ink); }
+.project-pin-copy {
+  margin-left: 2px;
+  padding: 2px 8px;
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.project-pin-copy:hover { background: rgb(73 72 63 / .06); }
+:is(.project-pin-copy, .project-pin-ask a):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (max-width: 760px) {
+  /* Room at the bottom of the page for the panel instead of the seal. */
+  .project-locked .project-opening { padding-bottom: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .project-pin { transition: none; }
+  .otp-caret { animation: none; }
 }
