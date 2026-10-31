@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PASS, checkPin, hasPass, isProtected, passCookie, privateAsset } from './works-pass.mjs';
+import { PASS, checkPin, hasPass, isProtected, passCookie, privateAsset, siteOf } from './works-pass.mjs';
 
 process.env.WORKS_PIN = '123456';
 process.env.WORKS_SECRET = 'a-test-secret-of-some-length';
@@ -40,4 +40,11 @@ test('only protected work is protected, and private files stay inside', async ()
   const cover = await privateAsset('bca-prioritas/cover.webp');
   assert.equal(cover.type, 'image/webp');
   assert.ok(cover.body.length > 10000);
+});
+
+test("a protected project's live site stays private", async () => {
+  assert.match(await siteOf('bca-prioritas'), /^https:\/\//);
+  assert.match(await siteOf('bca-co-id'), /^https:\/\//);
+  assert.equal(await siteOf('ocean'), null);
+  assert.equal(await privateAsset('bca-prioritas/site.txt'), null);
 });

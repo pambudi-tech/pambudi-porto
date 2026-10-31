@@ -55,6 +55,9 @@ export function projectPage(id) {
     subtitle: study?.subtitle ?? work.summary,
     overview: study?.overview ?? '',
     site: work.site,
+    // A protected work's live site: its "visit site" shows from the start,
+    // but its address comes with the PIN (server/works-pass.mjs).
+    privateSite: Boolean(work.passwordProtected && work.privateSite),
     facts: study?.facts ?? { client: work.client, role: work.role, period: yearLabel(work), scope: tags },
     images: work.passwordProtected ? [cover] : [cover, ...(source.gallery ?? PROJECTS[STAND_IN].gallery)],
     locked: Boolean(work.passwordProtected),

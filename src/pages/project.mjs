@@ -2,7 +2,7 @@ import { preparePortfolio } from '../surface/scene.mjs';
 import { ARRIVAL, mountProjectDetail } from '../project/project-detail.mjs';
 import { WORKS, fullCover, projectId, projectPage } from '../content/works.mjs';
 import { IntroInkHover } from '../ink/intro-ink-hover.mjs';
-import { fetchGallery } from '../project/project-pass.mjs';
+import { fetchPrivate } from '../project/project-pass.mjs';
 import { mountPinPanel } from '../project/project-pin.mjs';
 import { revealCover } from '../project/cover-reveal.mjs';
 import { mountSwipeBack } from '../project/swipe-back.mjs';
@@ -37,9 +37,11 @@ const track = task => welcome?.track(task) ?? task;
 // seal waits, out of the scene's reach, behind the PIN panel.
 const seal = document.querySelector('.project-gallery-seal');
 if (project.locked) {
-  const images = await fetchGallery(id);
-  if (images) project.images.push(...images);
-  else {
+  const opened = await fetchPrivate(id);
+  if (opened) {
+    project.images.push(...opened.images);
+    project.site = opened.site;
+  } else {
     seal.classList.remove('works-seal');
     document.body.classList.add('project-locked');
   }
@@ -52,7 +54,7 @@ if (project.passcode && !locked) project.images[0].src = fullCover(work);
 
 await track(document.fonts.load('16px "Syne Mono"'));
 const detail = mountProjectDetail({ ...project, locked });
-// The right PIN brings the gallery, and the seal settles in with its wax-flow
+// The right PIN brings the gallery and the live site, and the seal settles in with its wax-flow
 // entrance where the panel was.
 const pin = !locked ? null : mountPinPanel({
   title: project.title,
@@ -63,8 +65,11 @@ const pin = !locked ? null : mountPinPanel({
     // The full cover arrives over the preview as a dither that sharpens into
     // the photograph.
     full.decode().then(() => revealCover(cover, full, { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches }), () => {});
-    const images = await fetchGallery(id);
-    if (images) detail.mountGallery(images);
+    const opened = await fetchPrivate(id);
+    if (opened) {
+      detail.mountGallery(opened.images);
+      detail.showSite(opened.site);
+    }
     document.body.classList.remove('project-locked');
     seal.classList.add('works-seal');
     new WaxInteraction(seal, matchMedia('(prefers-reduced-motion: reduce)'));

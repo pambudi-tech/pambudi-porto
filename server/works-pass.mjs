@@ -56,6 +56,17 @@ export async function galleryOf(id) {
   }
 }
 
+// A protected project's live site, private/works/<id>/site.txt, or null:
+// its address is only ever given to a visitor holding a pass.
+export async function siteOf(id) {
+  try {
+    return (await readFile(join(PRIVATE, id, 'site.txt'), 'utf8')).trim() || null;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  }
+}
+
 // A private image by its path under private/works/, or null.
 export async function privateAsset(path) {
   const file = normalize(join(PRIVATE, String(path)));

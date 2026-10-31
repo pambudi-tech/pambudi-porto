@@ -37,10 +37,21 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-overview p + p { margin-top: 20px; }
 /* Visit site: the back button's pill, icon first, below the overview. The
    outbound box is drawn a little smaller to sit as lightly as the arrow. */
-.project-visit { display: inline-flex; align-items: center; gap: 4px; height: 36px; margin-top: 24px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: var(--ink); font: 12px/1 "Syne Mono", monospace; text-decoration: none; transition: background-color 160ms ease; }
+.project-visit { display: inline-flex; align-items: center; gap: 4px; position: relative; height: 36px; margin-top: 40px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: var(--ink); font: 12px/1 "Syne Mono", monospace; text-decoration: none; transition: background-color 160ms ease, color 320ms ease, border-color 320ms ease; }
 .project-visit::before { content: ''; display: block; flex: none; width: 20px; height: 20px; background: currentColor; mask: url('/assets/contact/external-link.svg') center / 16px no-repeat; }
 .project-visit:hover { background: #f4f3f0; }
 .project-visit:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* Until its PIN, a protected project's pill is faded and says why: on hover
+   where there is one, on focus, and for a moment after a tap. */
+.project-visit[aria-disabled="true"] { color: rgb(73 72 63 / .4); border-color: rgb(73 72 63 / .08); cursor: not-allowed; }
+.project-visit[aria-disabled="true"]:hover { background: rgb(255 255 255 / .92); }
+/* Its tooltip sits to its right, clear of the overview above. */
+.project-visit[aria-disabled="true"]::after { bottom: auto; top: 50%; left: calc(100% + 8px); color: var(--ink); transform: translate(-3px, -50%); }
+.project-visit[data-tooltip]:focus-visible::after,
+.project-visit[data-feedback="true"]::after { opacity: 1; transform: translate(0, -50%); }
+@media (hover: hover) {
+  .project-visit[data-tooltip]:hover::after { opacity: 1; transform: translate(0, -50%); }
+}
 .project-facts { font-size: 14px; line-height: 1.65; }
 .project-facts > div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; padding: 17px 0; border-bottom: 0; }
 .project-facts > div:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -133,6 +144,7 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
   .project-facts dt { font-size: 12px; }
   .project-overview { margin-top: 14px; font-size: 14px; line-height: 1.5; }
   .project-overview p + p { margin-top: 8px; }
+  .project-visit { margin-top: 24px; }
   .project-gallery-seal { top: calc(100dvh - 44px); width: 128px; }
   .project-gallery-seal .works-seal-label { font-size: 15px; }
 }

@@ -2,11 +2,12 @@
 // checks the PIN and keeps the pass in a cookie this page cannot read, so the
 // page only ever asks.
 
-// A protected project's gallery if this visitor has a pass, else null.
-export async function fetchGallery(id) {
+// A protected project's gallery and live site, { images, site }, if this
+// visitor has a pass, else null.
+export async function fetchPrivate(id) {
   try {
     const response = await fetch(`/api/gallery?id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
-    return response.ok ? (await response.json()).images : null;
+    return response.ok ? await response.json() : null;
   } catch {
     return null;
   }

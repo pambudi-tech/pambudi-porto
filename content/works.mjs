@@ -12,6 +12,8 @@
 //   Its `image` is then a coarse, dithered preview (`<id>-locked.webp`, made
 //   by tools/locked-preview.py); the full cover is
 //   private/works/<id>/cover.webp, sent only with the PIN's pass.
+// - `privateSite: true` gives protected work a "visit site" that waits,
+//   disabled, for the PIN; its address is private/works/<id>/site.txt.
 // - `coverFocus` is where the project page's cover holds the photo in its
 //   stamp, as an object-position; a little above the centre when left out.
 // - Covers from Unsplash are temporary samples.
@@ -19,25 +21,25 @@ const unsplash = id => `https://images.unsplash.com/photo-${id}?auto=format&fit=
 
 export const WORKS = [
   { id: 'bca-prioritas', title: 'bca prioritas', client: 'bank central asia', tags: ['website', 'art direction', 'prototype'],
-    role: 'designer', passwordProtected: true,
+    role: 'designer', passwordProtected: true, privateSite: true,
     summary: "a revamp of bca's private banking website, with a live prototype and design documentation.",
     from: '2026-05', to: '2026-09', page: true,
     image: '/assets/works/bca-prioritas-locked.webp',
     alt: 'BCA Prioritas website on a desktop monitor: the homepage hero, “Perjalanan Hidup Anda adalah Prioritas Kami.”, beside a family on a green sofa' },
   { id: 'ocean', title: 'ocean by bca', client: 'bank central asia', tags: ['product design', 'design system'],
-    role: 'product designer · embedded retainer',
+    role: 'product designer · embedded retainer', site: 'https://ocean.bca.co.id',
     summary: "a new digital banking platform for bca's business customers.",
     from: '2024-07', to: '2026-05', page: true,
     image: '/assets/works/ocean-v4.webp',
     alt: 'Ocean by BCA website: the homepage hero, “Kolaborasi. Inovasi. Ekspansi.”, above a photo of fishermen casting a net at sunset' },
   { id: 'bca-co-id', title: 'bca.co.id', client: 'bank central asia', tags: ['ui design', 'prototype'],
-    role: 'designer', passwordProtected: true,
+    role: 'designer', passwordProtected: true, privateSite: true,
     summary: 'a live, testable prototype of a proposed bca.co.id, built for usability research.',
     from: '2026-05', to: '2026-09', page: true,
     image: '/assets/works/bca-co-id-locked.webp',
     alt: 'Proposed bca.co.id on a tablet held in one hand: the homepage hero, “Capai Kebebasan Finansial Lebih Dini bersama BCA”, a father and daughter on a bicycle above quick logins and exchange rates' },
   { id: 'runrise', title: 'runrise running club', client: 'runrise running club', tags: ['brand identity'],
-    role: 'brand designer',
+    role: 'brand designer', site: 'https://www.instagram.com/runrise.runningclub',
     summary: 'the identity of a running club born on the village roads of sukoharjo.',
     from: '2026-05', to: '2026-05', page: true,
     image: '/assets/works/runrise.webp',

@@ -18,13 +18,16 @@ export function mountProjectDetail(project) {
     // A case study may leave its subtitle out; its line goes with it.
     if (!element.textContent && element.closest('.project-overview')) element.remove();
   }
-  // A live project links out below its overview.
-  if (project.site) {
-    const visit = Object.assign(document.createElement('a'), {
-      className: 'project-visit', href: project.site, target: '_blank', rel: 'noopener noreferrer', textContent: 'visit site',
-    });
-    document.querySelector('.project-overview').append(visit);
-  }
+  // A live project links out below its overview. A protected one's shows
+  // from the start, disabled, saying why on hover or tap, until its PIN
+  // brings the address (showSite, below).
+  const visit = mountVisit(project);
+  const showSite = site => {
+    if (!site || !visit) return;
+    Object.assign(visit, { href: site, target: '_blank', rel: 'noopener noreferrer' });
+    for (const name of ['aria-disabled', 'aria-label', 'role', 'tabindex', 'data-tooltip', 'data-feedback']) visit.removeAttribute(name);
+  };
+  showSite(project.site);
 
   // The cover leads; the project's other images wait in the depth gallery
   // the "gallery" seal opens.
@@ -72,7 +75,7 @@ export function mountProjectDetail(project) {
     });
   };
   return {
-    ready: coverLayout.ready, cover, mountGallery,
+    ready: coverLayout.ready, cover, mountGallery, showSite,
     closeGallery: () => gallery?.reset(),
     reveal({ slide = true } = {}) {
       document.body.classList.remove('project-arriving');
@@ -85,6 +88,28 @@ export function mountProjectDetail(project) {
       coverLayout.unpick();
     },
   };
+}
+
+// The "visit site" pill, or null for a project with no live site. Until it
+// has an address it is disabled; a tap shows its tooltip for a moment, as
+// a hover does.
+function mountVisit(project) {
+  if (!project.site && !project.privateSite) return null;
+  const visit = Object.assign(document.createElement('a'), { className: 'project-visit', textContent: 'visit site' });
+  if (!project.site) {
+    for (const [name, value] of Object.entries({
+      role: 'link', tabindex: '0', 'aria-disabled': 'true', 'aria-label': 'visit site, passcode required', 'data-tooltip': 'passcode required',
+    })) visit.setAttribute(name, value);
+    let hide;
+    visit.addEventListener('click', () => {
+      if (!visit.dataset.tooltip) return;
+      clearTimeout(hide);
+      visit.dataset.feedback = 'true';
+      hide = setTimeout(() => delete visit.dataset.feedback, 1600);
+    });
+  }
+  document.querySelector('.project-overview').append(visit);
+  return visit;
 }
 
 function alignCoverToSurface(container, figure) {
