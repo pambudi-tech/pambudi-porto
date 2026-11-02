@@ -89,7 +89,12 @@ export function startWelcome({ count, preference, clock: clockElement = document
       motionPreference: preference, duration: PRELOADER.welcomeDuration, delay: 0,
       shapeText: true, onComplete: finishTitle,
     });
-  }).catch(error => { finishTitle(); throw error; }));
+  }).catch(error => {
+    // Without Adobe's face the title stays unshown, but the welcome must
+    // still count it done and open the page, as it does for the frame.
+    console.warn('Welcome title:', error);
+    finishTitle();
+  }));
   track(framePreview.decode().then(async () => {
     await paperInkEntrance(paperPreview, {
       motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
