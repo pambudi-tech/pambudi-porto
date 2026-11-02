@@ -1,0 +1,5 @@
+[
+  { "id": "gallery-homepage", "src": "01.webp", "width": 2000, "height": 1500, "alt": "BCA Prioritas homepage hero, “Perjalanan Hidup Anda adalah Prioritas Kami.”, over a family laughing together on a green velvet sofa" },
+  { "id": "gallery-components", "src": "02.webp", "width": 2000, "height": 1500, "alt": "BCA Prioritas components on a cream backdrop: the e-magazine cover, a Louis Vuitton event card, a house view report, a voucher code, a vehicle loan card and an airport lounge card" },
+  { "id": "gallery-mobile", "src": "03.webp", "width": 2000, "height": 1500, "alt": "BCA Prioritas privilege page on a phone held in one hand: “Beragam Akses Istimewa yang Hadir di Setiap Langkah Perjalanan Anda” above Signature Privilege cards" }
+]
