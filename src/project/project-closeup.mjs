@@ -87,7 +87,9 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
 
   function picture(index) {
     const item = images[index];
-    const img = Object.assign(new Image(item.width, item.height), { src: item.src, alt: item.alt, draggable: false, decoding: 'async' });
+    // Asked for as its stamp asked (project-gallery.mjs), so the photo
+    // already fetched and decoded there is the one shown.
+    const img = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', src: item.src, alt: item.alt, draggable: false, decoding: 'async' });
     frame.append(img);
     return img;
   }

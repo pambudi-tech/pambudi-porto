@@ -263,26 +263,33 @@ export function softCopy(canvas, image, { w, h, cell }) {
   canvas.classList.add('is-soft');
 }
 
-export function mountProjectGallery({ images, title, seal, motionPreference }) {
+// `after`: what the page waits on, its cover; the photos are fetched once it
+// is in, so the two never share the line.
+export function mountProjectGallery({ images, title, seal, motionPreference, after }) {
   const root = Object.assign(document.createElement('div'), { className: 'project-depth', id: 'project-depth' });
   root.setAttribute('role', 'region');
   root.setAttribute('aria-label', `${title} gallery`);
   root.inert = true;
+  // Fetched after the cover, or at once should the gallery open first.
+  let fetchPhotos;
+  const fetching = new Promise(resolve => { fetchPhotos = resolve; });
+  Promise.resolve(after).catch(() => {}).then(fetchPhotos);
   const stamps = images.map((item, index) => {
     const element = Object.assign(document.createElement('figure'), { className: 'project-depth-stamp' });
     const paper = createPostageStamp(`project-depth-paper-${index}`, 'project-depth-paper');
     const media = Object.assign(document.createElement('div'), { className: 'project-depth-photo' });
     // Asked for so its pixels may be read for its dots: Unsplash allows it,
     // and the site's own private photos are its own.
-    const photo = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', src: item.src, alt: item.alt, decoding: 'async' });
+    const photo = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', alt: item.alt, decoding: 'async' });
     // Its soft copy, faded in the further back it is; and the photo decoded
-    // now, while the page is read, so it is ready before the gallery opens.
+    // as it arrives, while the page is read, so it is ready before the
+    // gallery opens.
     const soft = DEPTH_DITHER.map(() => {
       const copy = Object.assign(document.createElement('canvas'), { className: 'project-depth-dither' });
       copy.setAttribute('aria-hidden', 'true');
       return copy;
     });
-    const decoded = photo.decode().catch(() => {});
+    const decoded = fetching.then(() => { photo.src = item.src; return photo.decode(); }).catch(() => {});
     // And dimmed, as it is dotted, the further back it is.
     const dim = Object.assign(document.createElement('div'), { className: 'project-depth-dim' });
     media.append(photo, ...soft, dim);
@@ -584,6 +591,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     busy = true;
     try {
       if (!open) {
+        fetchPhotos();
         // The page holds still from here until the gallery has closed: the
         // flying layers grow far past it, and the wheel belongs to the depth.
         document.documentElement.classList.add('gallery-active');

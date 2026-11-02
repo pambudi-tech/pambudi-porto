@@ -100,10 +100,12 @@ const pin = !locked ? null : mountPinPanel({
     const cover = detail.cover.querySelector('img'), full = Object.assign(new Image(), { src: fullCover(work) });
     // The full cover arrives over the preview as a dither that sharpens into
     // the photograph.
-    full.decode().then(() => revealCover(cover, full, { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches }), () => {});
+    const arrived = full.decode();
+    arrived.then(() => revealCover(cover, full, { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches }), () => {});
     const opened = await fetchPrivate(id);
     if (opened) {
-      detail.mountGallery(opened.images);
+      // Its photos come after the full cover, which is what is watched.
+      detail.mountGallery(opened.images, arrived);
       detail.showSite(opened.site);
     }
     document.body.classList.remove('project-locked');

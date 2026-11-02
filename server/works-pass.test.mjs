@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PASS, checkPin, hasPass, isProtected, passCookie, privateAsset, siteOf } from './works-pass.mjs';
+import { PASS, checkPin, hasPass, isProtected, passCookie, passLeft, privateAsset, privateCaching, siteOf } from './works-pass.mjs';
 
 process.env.WORKS_PIN = '123456';
 process.env.WORKS_SECRET = 'a-test-secret-of-some-length';
@@ -30,6 +30,13 @@ test('a forged, altered or expired pass is refused', () => {
   assert.equal(hasPass(request(`${name}=${Number(expires) + 60}.${signature}`)), false);
   assert.equal(hasPass(request(`${name}=${expires}.${signature.slice(1)}x`)), false);
   assert.equal(hasPass(request(`${name}=1.${signature}`)), false);
+});
+
+test('a private image is kept only by the browser, and only until its pass ends', () => {
+  const left = passLeft(request(cookieOf(passCookie(request()))));
+  assert.ok(left > PASS.seconds - 5 && left <= PASS.seconds);
+  assert.equal(passLeft(request()), 0);
+  assert.equal(privateCaching(left), `private, max-age=${left}, must-revalidate`);
 });
 
 test('only protected work is protected, and private files stay inside', async () => {

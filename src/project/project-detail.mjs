@@ -38,6 +38,8 @@ export function mountProjectDetail(project) {
   const media = document.createElement('div');
   media.className = 'project-image';
   const image = new Image(item.width, item.height);
+  // What the page waits on, so it is asked for first.
+  image.fetchPriority = 'high';
   image.src = item.src;
   image.alt = item.alt;
   image.decoding = 'async';
@@ -57,9 +59,10 @@ export function mountProjectDetail(project) {
   mountScrollFades();
   // A locked project's gallery waits for its PIN (mountGallery, below).
   let gallery = null;
-  const mountGallery = images => {
+  // Its photos wait for `after`, the cover the page is waiting on.
+  const mountGallery = (images, after = image.decode()) => {
     gallery = mountProjectGallery({
-      images, title: project.title,
+      images, title: project.title, after,
       seal: document.querySelector('.project-gallery-seal'),
       motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
     });

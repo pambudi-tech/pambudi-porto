@@ -37,12 +37,21 @@ export function passCookie(request) {
   return `${PASS.cookie}=${expires}.${sign(expires)}; Max-Age=${PASS.seconds}; Path=/; HttpOnly; SameSite=Lax${local ? '' : '; Secure'}`;
 }
 
-export function hasPass(request) {
-  if (!configured()) return false;
+// The whole seconds this visitor's pass has left, 0 without a valid one.
+export function passLeft(request) {
+  if (!configured()) return 0;
   const value = (request.headers.cookie ?? '').split(/;\s*/).find(part => part.startsWith(`${PASS.cookie}=`))?.slice(PASS.cookie.length + 1);
   const [expires, signature] = value?.split('.') ?? [];
-  return Boolean(signature) && Number(expires) > Date.now() / 1000 && same(signature, sign(expires));
+  const left = Math.floor(Number(expires) - Date.now() / 1000);
+  return signature && left > 0 && same(signature, sign(expires)) ? left : 0;
 }
+
+export const hasPass = request => passLeft(request) > 0;
+
+// A private image may stay in the visitor's own browser (never a shared
+// cache) only as long as the pass it was shown with; after that the browser
+// must ask again, and is refused.
+export const privateCaching = left => `private, max-age=${left}, must-revalidate`;
 
 // The gallery a pass opens: the project's private one, or until it has one,
 // the stand-in case study's.

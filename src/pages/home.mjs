@@ -65,6 +65,7 @@ async function boot() {
   if (works) return;
   const row = await makeWorks();
   if (location.hash === '#works') row.open({ history: false });
+  else row.warm();
 }
 
 boot().catch(error => {

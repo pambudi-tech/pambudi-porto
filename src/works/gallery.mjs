@@ -290,7 +290,9 @@ export class WorksGallery {
     await animation.finished;
   }
 
-  layout() {
+  // `quiet` only measures and places, for warm() below: no dithering yet,
+  // and no frame painted while the row is out of sight.
+  layout({ quiet = false } = {}) {
     const view = this.scene.view;
     const pitch = GRID * view.scale;
     const width = innerWidth, height = innerHeight, stacked = this.stacked;
@@ -393,8 +395,32 @@ export class WorksGallery {
     // The row ends with the same margin it starts with.
     this.wall.style.width = `${end + left}px`;
     this.wall.style.height = `${height}px`;
+    if (quiet) return;
     for (const entry of this.items) this.ditherCard(entry);
     this.paint();
+  }
+
+  // Readies the row while the paper is read: laid out once out of sight for
+  // its cards' size, then each card's photo decoded and dithered at that
+  // size in a quiet moment of its own, so the paper's first turn has nothing
+  // left to draw. Opened first, the row dithers what is left as ever.
+  async warm() {
+    if (this.isOpen) return;
+    this.root.style.visibility = 'hidden';
+    this.root.hidden = false;
+    this.layout({ quiet: true });
+    const { clientWidth: width, clientHeight: height } = this.items[0].image;
+    this.root.hidden = true;
+    this.root.style.removeProperty('visibility');
+    const idle = () => new Promise(resolve => (window.requestIdleCallback ?? setTimeout)(resolve));
+    // A pass changes which photo protected cards show.
+    await this.passChecked;
+    for (const entry of this.items) {
+      await entry.photo.decode().catch(() => {});
+      await idle();
+      if (this.isOpen) return;
+      this.ditherCard(entry, { width, height });
+    }
   }
 
   // Whether this visitor holds the PIN's pass (server/works-pass.mjs). With
@@ -419,9 +445,10 @@ export class WorksGallery {
 
   // Dithers a card's photo at the size its window shows it, again only when
   // that size or its dots change. Without WebGL, the photograph shows instead.
-  ditherCard(entry) {
+  // `size`, the card's photo in CSS pixels, when the row is out of sight.
+  ditherCard(entry, size = null) {
     const { image, photo } = entry;
-    const width = image.clientWidth, height = image.clientHeight;
+    const { width, height } = size ?? { width: image.clientWidth, height: image.clientHeight };
     if (!photo.complete || !photo.naturalWidth || !width || !height) return;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const options = this.ditherOf(entry);
@@ -436,6 +463,8 @@ export class WorksGallery {
       if (entry.dithered === key && blob) {
         const previous = image.src.startsWith('blob:') ? image.src : null;
         image.src = URL.createObjectURL(blob);
+        // Decoded now, so a card first shown has only to be drawn.
+        image.decode().catch(() => {});
         if (previous) URL.revokeObjectURL(previous);
       }
       resolve();
