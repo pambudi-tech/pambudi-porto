@@ -316,6 +316,8 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       return;
     }
     ready = null;
+    // This page's cue that the next was slow to come stops as it arrives.
+    preview.contentWindow.projectLeaving?.();
     const nextPage = frame.contentDocument;
     // What only one of the two has fades; what both have stays put.
     const fade = (element, out) => element?.animate([{ opacity: out ? 1 : 0 }, { opacity: out ? 0 : 1 }],

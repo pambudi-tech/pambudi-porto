@@ -3,6 +3,7 @@ import { cornerPitch } from '../stitch/corners.mjs';
 import { placement } from '../works/layout.mjs';
 import { clamp } from '../shared/math.mjs';
 import { mountCloseup } from './project-closeup.mjs';
+import { ditherColor } from '../works/dither.mjs';
 
 // The project's gallery, entered in depth. The "gallery" seal pushes in
 // through the hero, whose layers part at their own speeds: the words rush
@@ -17,6 +18,8 @@ export const DEPTH = Object.freeze({
   fog: 4,        // stamps fade out over the last spacing before this many ahead
   blur: 4,       // px of blur for each spacing a stamp is behind the camera
   blurMost: 10,  // px, the most blur any stamp gets
+  softest: 2.5,  // spacings behind by which a stamp is at its softest
+  dim: .35,      // how dark a stamp is at its softest, as a share of black
   tilt: 12,      // degrees a stamp tips, edge to edge, under the pointer
   scatter: .07,  // turns either way each stamp may stray from its third
   pass: 360,     // and are gone this far past the camera
@@ -82,8 +85,11 @@ export function galleryOffset(index, z, room) {
 export const depthOpacity = (z, spacing = DEPTH.spacing) =>
   clamp(z > 0 ? 1 - z / DEPTH.pass : DEPTH.fog + z / spacing, 0, 1);
 
-// How out of focus a stamp is, in px: sharp at the camera, softer the
-// further behind, as a lens's depth of field.
+// How far a stamp has gone from sharp, in px of the blur it once was:
+// sharp at the camera, more the further behind. It is drawn as the site's
+// dither (dotsCopy), dotted copies of the photo made once and faded in: fine
+// dots by one spacing back, coarser by `softest`. Not a filter, whose cost on
+// a large photo, redrawn every frame, would stall the flight.
 export const depthBlur = (z, spacing = DEPTH.spacing) =>
   z < 0 ? Math.min(DEPTH.blurMost, -z / spacing * DEPTH.blur) : 0;
 
@@ -195,6 +201,68 @@ export function wheelScrolls() {
   return scrolls;
 }
 
+// A stamp's photo in the site's dither, as a protected project's cover shows
+// before its PIN (tools/locked-preview.py): kept only as fine as a small copy
+// (`sample` px wide), then dots `cell` px wide in its own colours, each at one
+// of `levels` brightness steps (ditherColor). Made once for the stamp's size,
+// it lies in the photo's window; the paper and its edge stay sharp. The
+// photo fills the stamp as on the page, cropped to it from its middle.
+export const DEPTH_DITHER = Object.freeze([
+  { cell: 3, levels: 5, sample: 280 },
+  { cell: 5, levels: 4, sample: 140 },
+]);
+
+export function dotsCopy(canvas, image, { w, h, cell, levels, sample }) {
+  const columns = Math.max(1, Math.round(w / cell)), rows = Math.max(1, Math.round(h / cell));
+  const draw = (width, height, source, crop) => {
+    const target = Object.assign(document.createElement('canvas'), { width, height });
+    const context = target.getContext('2d', { willReadFrequently: true });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, ...crop, 0, 0, width, height);
+    return { target, context };
+  };
+  const cover = Math.min(image.naturalWidth / w, image.naturalHeight / h);
+  const sw = w * cover, sh = h * cover;
+  const { target: tiny } = draw(sample, Math.round(sample * h / w), image, [(image.naturalWidth - sw) / 2, (image.naturalHeight - sh) / 2, sw, sh]);
+  const { context } = draw(columns, rows, tiny, [0, 0, tiny.width, tiny.height]);
+  // Throws for a photo another site has not let us read; the caller then
+  // softens it instead.
+  const pixels = context.getImageData(0, 0, columns, rows);
+  const data = pixels.data;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < columns; x++) {
+      const i = (y * columns + x) * 4;
+      const [r, g, b] = ditherColor([data[i] / 255, data[i + 1] / 255, data[i + 2] / 255], x, y, levels);
+      data[i] = r * 255; data[i + 1] = g * 255; data[i + 2] = b * 255; data[i + 3] = 255;
+    }
+  }
+  Object.assign(canvas, { width: columns, height: rows });
+  canvas.getContext('2d').putImageData(pixels, 0, 0);
+  canvas.classList.remove('is-soft');
+}
+
+// Where a photo cannot be read for its dots, it is only softened: drawn
+// small and enlarged again, smoothly.
+export function softCopy(canvas, image, { w, h, cell }) {
+  const width = Math.max(8, Math.round(w / cell / 3)), height = Math.round(width * h / w);
+  const make = (cw, ch, source, ...crop) => {
+    const target = Object.assign(document.createElement('canvas'), { width: cw, height: ch });
+    const context = target.getContext('2d');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, ...crop, 0, 0, cw, ch);
+    return target;
+  };
+  const cover = Math.min(image.naturalWidth / w, image.naturalHeight / h);
+  const sw = w * cover, sh = h * cover;
+  const small = make(width, height, image, (image.naturalWidth - sw) / 2, (image.naturalHeight - sh) / 2, sw, sh);
+  const soft = make(width * 4, height * 4, small, 0, 0, width, height);
+  Object.assign(canvas, { width: soft.width, height: soft.height });
+  canvas.getContext('2d').drawImage(soft, 0, 0);
+  canvas.classList.add('is-soft');
+}
+
 export function mountProjectGallery({ images, title, seal, motionPreference }) {
   const root = Object.assign(document.createElement('div'), { className: 'project-depth', id: 'project-depth' });
   root.setAttribute('role', 'region');
@@ -204,7 +272,20 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     const element = Object.assign(document.createElement('figure'), { className: 'project-depth-stamp' });
     const paper = createPostageStamp(`project-depth-paper-${index}`, 'project-depth-paper');
     const media = Object.assign(document.createElement('div'), { className: 'project-depth-photo' });
-    media.append(Object.assign(new Image(item.width, item.height), { src: item.src, alt: item.alt, decoding: 'async' }));
+    // Asked for so its pixels may be read for its dots: Unsplash allows it,
+    // and the site's own private photos are its own.
+    const photo = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', src: item.src, alt: item.alt, decoding: 'async' });
+    // Its soft copy, faded in the further back it is; and the photo decoded
+    // now, while the page is read, so it is ready before the gallery opens.
+    const soft = DEPTH_DITHER.map(() => {
+      const copy = Object.assign(document.createElement('canvas'), { className: 'project-depth-dither' });
+      copy.setAttribute('aria-hidden', 'true');
+      return copy;
+    });
+    const decoded = photo.decode().catch(() => {});
+    // And dimmed, as it is dotted, the further back it is.
+    const dim = Object.assign(document.createElement('div'), { className: 'project-depth-dim' });
+    media.append(photo, ...soft, dim);
     // A sheen over the photo, lit where the pointer tips the stamp.
     const sheen = Object.assign(document.createElement('div'), { className: 'project-depth-sheen' });
     media.append(sheen);
@@ -250,7 +331,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
       choose();
     });
     root.append(element);
-    return { element, paper, media, spot: index, sheetX: 0, sheetY: 0, sheetScale: 1 };
+    return { element, paper, media, photo, soft, dim, decoded, spot: index, sheetX: 0, sheetY: 0, sheetScale: 1 };
   });
   const dots = Object.assign(document.createElement('nav'), { className: 'project-depth-dots' });
   dots.setAttribute('aria-label', 'Gallery');
@@ -273,9 +354,11 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   (document.querySelector('.project-nav') ?? document.body).append(views);
   const viewButtons = [...views.querySelectorAll('button')];
   viewButtons.forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
+  // Measured from the first button, not the switch's edge, so its padding,
+  // none while it is folded shut, never shifts the pill.
   const placePill = () => {
     const chosen = viewButtons.find(button => button.dataset.view === view);
-    views.style.setProperty('--pill-left', `${chosen.offsetLeft}px`);
+    views.style.setProperty('--pill-left', `${chosen.offsetLeft - viewButtons[0].offsetLeft}px`);
     views.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
   };
 
@@ -302,17 +385,40 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   // The screen and the stamps' size, for their places in the depth.
   let stage = null;
 
-  function layout() {
+  // The stamps' size for this screen.
+  function measure() {
     const width = innerWidth, height = innerHeight, narrow = width <= 760;
     const room = height - DEPTH.top - DEPTH.bottom;
     const w = Math.round(Math.max(160, Math.min(width * (narrow ? .78 : .46), room * .92 * 4 / 3)));
-    const h = Math.round(w * 3 / 4);
-    const perf = STAMP.perf * cornerPitch(width);
+    return { width, height, narrow, w, h: Math.round(w * 3 / 4), perf: STAMP.perf * cornerPitch(width) };
+  }
+
+  // A stamp's dotted copies, made for its size once its photo is ready, and
+  // again only if the size changes: the drawing is kept out of the flight.
+  function prepareSoft(stamp, { w, h, perf }) {
+    const key = `${w}x${h}@${perf}`;
+    if (stamp.softKey === key) return;
+    stamp.softKey = key;
+    stamp.decoded.then(() => {
+      if (stamp.softKey !== key || !stamp.photo.naturalWidth) return;
+      stamp.soft.forEach((copy, k) => {
+        try {
+          dotsCopy(copy, stamp.photo, { w, h, ...DEPTH_DITHER[k] });
+        } catch {
+          softCopy(copy, stamp.photo, { w, h, ...DEPTH_DITHER[k] });
+        }
+      });
+    });
+  }
+
+  function layout() {
+    const { width, height, narrow, w, h, perf } = measure();
     const outline = stampOutline(w, h, perf);
     stamps.forEach(stamp => {
       Object.assign(stamp.element.style, { width: `${w}px`, height: `${h}px`, marginLeft: `${-w / 2}px`, marginTop: `${-h / 2}px` });
       drawPostageStamp(stamp.paper, w, h, perf, { whole: true });
       stamp.media.style.clipPath = `path('${outline}')`;
+      prepareSoft(stamp, { w, h, perf });
     });
     stage = { width, height, w, h };
     const grid = sheetLayout(stamps.length, narrow ? { width, height, side: 16, gap: 16 } : { width, height });
@@ -339,8 +445,13 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
       const back = leavingFrom === null ? 0 : camera - leavingFrom;
       const depth = lerp(from, 0, t) + t * back, scale = lerp(1, stamp.sheetScale, t);
       const opacity = lerp(depthOpacity(z), 1, t) * appear;
-      const blur = lerp(depthBlur(z), 0, t) + t * depthBlur(back);
-      stamp.element.style.filter = blur > .05 ? `blur(${blur.toFixed(2)}px)` : '';
+      // Out of focus by depth, in spacings behind: a little by one, much by `softest`.
+      const behind = (lerp(depthBlur(z), 0, t) + t * depthBlur(back)) / DEPTH.blur;
+      // The dotted photo comes over the sharp one, which stays whole beneath
+      // it, so the stamp never thins as the dots come and go.
+      stamp.soft[0].style.opacity = clamp(behind).toFixed(3);
+      stamp.soft[1].style.opacity = clamp((behind - 1) / (DEPTH.softest - 1)).toFixed(3);
+      stamp.dim.style.opacity = (clamp(behind / DEPTH.softest) * DEPTH.dim).toFixed(3);
       stamp.element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${depth.toFixed(1)}px) scale(${scale.toFixed(4)})`;
       stamp.element.style.opacity = opacity.toFixed(3);
       stamp.element.style.visibility = opacity > 0 ? 'visible' : 'hidden';
@@ -596,5 +707,10 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   addEventListener('resize', () => { if (open) layout(); });
   seal.addEventListener('click', toggle);
   render();
+  // The dotted copies are made while the page is read, a stamp at a time
+  // when the page is idle, so opening the gallery has nothing left to draw.
+  const idle = window.requestIdleCallback ?? (task => setTimeout(task, 200));
+  const sizes = measure();
+  stamps.forEach(stamp => stamp.decoded.then(() => idle(() => { if (!open) prepareSoft(stamp, sizes); })));
   return { reset };
 }

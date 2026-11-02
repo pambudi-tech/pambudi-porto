@@ -12,6 +12,7 @@ import { mountPress } from '../shared/press.mjs';
 import { mountProjectSwitch } from '../project/project-switch.mjs';
 import { coverDither } from '../project/cover-dither.mjs';
 import { mountTitleMarquee } from '../project/title-marquee.mjs';
+import { OPENING, sewAround } from '../works/opening-cue.mjs';
 
 // work.html?work=<id>: the case study in content/projects/, or for a work
 // without one yet, its card's details over the stand-in gallery. The index
@@ -61,11 +62,30 @@ const detail = mountProjectDetail({ ...project, locked });
 // this one's place on the same cloth (project-transition.mjs); opened on its
 // own, the page goes.
 const toParent = (type, detail) => window.parent.dispatchEvent(new CustomEvent(type, { detail }));
+// A next project slow to get ready shows it is on its way, as a card does on
+// the works row (opening-cue.mjs): this cover is sewn around, then the top
+// bar says so. It stops as soon as the next one begins to take its place.
+let preparing = null;
+function cuePreparing() {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let ring = null, words = null;
+  const timers = [
+    setTimeout(() => { ring = sewAround(detail.cover, { reduced }); }, OPENING.cue),
+    setTimeout(() => {
+      words = Object.assign(document.createElement('span'), { className: 'project-nav-status', textContent: 'preparing…', role: 'status' });
+      document.querySelector('.project-nav').append(words);
+    }, OPENING.words),
+  ];
+  return { stop() { timers.forEach(clearTimeout); ring?.stop(); words?.remove(); } };
+}
+window.projectLeaving = () => { preparing?.stop(); preparing = null; };
 const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch'), {
   id, title: project.name, motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
   go: next => {
-    if (preview) toParent('project-route-switch', { id: next });
-    else location.assign(workHref(WORKS.find(work => work.id === next)));
+    if (preview) {
+      preparing = cuePreparing();
+      toParent('project-route-switch', { id: next });
+    } else location.assign(workHref(WORKS.find(work => work.id === next)));
   },
   prepare: next => { if (preview) toParent('project-route-prepare', { id: next }); },
 });

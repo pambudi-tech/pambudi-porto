@@ -99,6 +99,12 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-depth-paper { z-index: 0; }
 .project-depth-photo { position: absolute; inset: 0; z-index: 1; overflow: hidden; background: #eeefeb; }
 .project-depth-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The photo in the site's dither, in its window under the sheen, its dots
+   kept square; faded in with depth. The paper and its edge stay sharp. */
+.project-depth-dither { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; opacity: 0; pointer-events: none; image-rendering: pixelated; }
+.project-depth-dither.is-soft { image-rendering: auto; }
+/* Over the dots, the dark it is dimmed by with depth; under the sheen. */
+.project-depth-dim { position: absolute; inset: 0; z-index: 1; background: #1c1b17; opacity: 0; pointer-events: none; }
 /* In the gallery the seal is the way back, so the top bar keeps only the
    project's name, with the gallery's dots beneath it. */
 .project-nav-back { max-width: 120px; overflow: hidden; transition: max-width 360ms ease, padding 360ms ease, margin 360ms ease, opacity 240ms ease, border-width 360ms ease, background-color 160ms ease; }
@@ -132,7 +138,7 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-views button:hover { color: var(--ink); }
 .project-views button[aria-pressed="true"] { color: #ffffff; cursor: default; }
 .project-views button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-.project-views-pill { position: absolute; top: 3px; bottom: 3px; left: var(--pill-left, 3px); width: var(--pill-width, 0px); border-radius: 999px; background: var(--ink); transition: left 420ms cubic-bezier(.22, 1, .36, 1), width 420ms cubic-bezier(.22, 1, .36, 1); }
+.project-views-pill { position: absolute; top: 3px; bottom: 3px; left: calc(3px + var(--pill-left, 0px)); width: var(--pill-width, 0px); border-radius: 999px; background: var(--ink); transition: left 420ms cubic-bezier(.22, 1, .36, 1), width 420ms cubic-bezier(.22, 1, .36, 1); }
 /* An image up close: over everything, on a veil of the paper. */
 .project-closeup { position: fixed; inset: 0; z-index: 20; }
 .project-closeup[hidden] { display: none; }
@@ -160,6 +166,11 @@ button.project-switch-name:hover, .project-switch.is-open .project-switch-name {
 .project-switch button:focus-visible { outline: 2px solid #ffffff; outline-offset: -3px; }
 .project-switch.is-open .project-switch-caret { rotate: 90deg; }
 .project-switch.is-moving { cursor: progress; }
+/* A next project slow to come (project.mjs, opening-cue.mjs), as a card on
+   the works row: the cover sewn around, and a word under the top bar. */
+.cover-figure .works-opening { position: absolute; z-index: 3; pointer-events: none; }
+.project-nav-status { position: absolute; top: calc(100% + 8px); left: 50%; translate: -50% 0; color: var(--muted); font: 12px/1 "Syne Mono", monospace; white-space: nowrap; pointer-events: none; animation: project-status-in 320ms ease both; }
+@keyframes project-status-in { from { opacity: 0; translate: -50% -4px; } }
 .gallery-open .project-switch-name { padding: 0 15px; pointer-events: none; }
 .gallery-open .project-switch-caret { width: 0; margin-left: -6px; opacity: 0; }
 /* The list of projects, hung from the pill. */
