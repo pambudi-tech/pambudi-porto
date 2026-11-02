@@ -36,32 +36,40 @@ export class PaperMaterial {
     const grainContext = this.grain.getContext('2d');
     const grain = grainContext.createImageData(width, height);
     this.relief = Array.from({ length: 4 }, () => layer(width, height));
-    const responses = this.relief.map(canvas => canvas.getContext('2d').createImageData(width, height));
+    const responses = this.relief.map(canvas => canvas.getContext('2d').createImageData(width, height).data);
+    const grainData = grain.data, row = width * 4;
+    // Plain loops: this runs over a million pixels while the welcome plays.
+    const respond = (pixels, i, slope) => {
+      // Encode a bounded luminance change directly. Soft-light blending on
+      // near-white paper attenuates this detail until it is almost invisible.
+      const delta = clamp(slope * 3.5, -14, 14);
+      const bright = delta >= 0;
+      pixels[i] = pixels[i + 1] = pixels[i + 2] = bright ? 255 : 0;
+      pixels[i + 3] = clamp(Math.abs(delta) / Math.max(4, bright ? 255 - rgba[i] : rgba[i]), 0, .65) * 255;
+    };
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
       // Fine mottling plus longer fibers. Both are deterministic and fixed to the sheet.
       const fiber = noise(x, y) * 7 + noise(Math.floor((x + y * .12) / 2), Math.floor(y / 7)) * 4;
-      for (let channel = 0; channel < 3; channel++) grain.data[i + channel] = rgba[i + channel] + fiber;
-      grain.data[i + 3] = rgba[i + 3];
+      grainData[i] = rgba[i] + fiber;
+      grainData[i + 1] = rgba[i + 1] + fiber;
+      grainData[i + 2] = rgba[i + 2] + fiber;
+      grainData[i + 3] = rgba[i + 3];
       let dx = 0, dy = 0;
       // Avoid treating the transparent silhouette as an embossed ridge.
       if (x > 2 && x < width - 3 && y > 2 && y < height - 3
-        && [i, i - 8, i + 8, i - width * 8, i + width * 8].every(p => rgba[p + 3] > 250)) {
+        && rgba[i + 3] > 250 && rgba[i - 5] > 250 && rgba[i + 11] > 250
+        && rgba[i - row * 2 + 3] > 250 && rgba[i + row * 2 + 3] > 250) {
         dx = (blurred[i + 8] - blurred[i - 8]) / 4;
         dy = (blurred[i + width * 8] - blurred[i - width * 8]) / 4;
       }
-      [dx, -dx, dy, -dy].forEach((slope, index) => {
-        const pixels = responses[index].data;
-        // Encode a bounded luminance change directly. Soft-light blending on
-        // near-white paper attenuates this detail until it is almost invisible.
-        const delta = clamp(slope * 3.5, -14, 14);
-        const bright = delta >= 0;
-        pixels[i] = pixels[i + 1] = pixels[i + 2] = bright ? 255 : 0;
-        pixels[i + 3] = clamp(Math.abs(delta) / Math.max(4, bright ? 255 - rgba[i] : rgba[i]), 0, .65) * 255;
-      });
+      respond(responses[0], i, dx);
+      respond(responses[1], i, -dx);
+      respond(responses[2], i, dy);
+      respond(responses[3], i, -dy);
     }
     grainContext.putImageData(grain, 0, 0);
-    this.relief.forEach((canvas, i) => canvas.getContext('2d').putImageData(responses[i], 0, 0));
+    this.relief.forEach((canvas, i) => canvas.getContext('2d').putImageData(new ImageData(responses[i], width, height), 0, 0));
     this.draw({});
     this.image.after(this.canvas);
     this.canvas.dataset.materialReady = 'true';

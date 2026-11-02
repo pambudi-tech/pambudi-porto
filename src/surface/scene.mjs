@@ -185,7 +185,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     clock?.resize(innerWidth, innerHeight, view);
     corners = !surfaceOnly && model.layout.mode === 'corners' ? cornerPositions(innerWidth, innerHeight, view, GRID).slice(2) : [];
     renderer.resolveCell = (col, row) => toVisibleCell(col, row, corners);
-    renderer.isCellVisible = surfaceOnly ? null : (col, row) => cornerCellVisible(col, row, innerWidth);
+    renderer.isCellVisible = surfaceOnly ? null : cornerCellVisible;
     scene.controls.update();
     scene.hover = null;
     requestFrame({ cloth: true, stitches: true });

@@ -4,6 +4,22 @@ import { clamp } from '../shared/math.mjs';
 
 export const WAX_LIGHT = Object.freeze({ reach: 100, fadeMs: 240, followMs: 110 });
 const restLight = () => ({ x: 0, y: -.35, strength: 0 });
+const REST_SHADE = `${(0).toFixed(3)},${(-.35).toFixed(3)}`;
+
+// The front and back seals share one image, so they share its relief and
+// its resting light rather than each building them.
+const surfaces = new Map();
+function waxSurfaceFor(image, width, height) {
+  const key = `${image.currentSrc || image.src} ${width}x${height}`;
+  if (!surfaces.has(key)) {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    context.canvas.width = width;
+    context.canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+    surfaces.set(key, buildWaxSurface(context.getImageData(0, 0, width, height).data, width, height));
+  }
+  return surfaces.get(key);
+}
 
 export function waxLightTarget(bounds, x, y) {
   if (!bounds.width || !bounds.height) return restLight();
@@ -85,10 +101,8 @@ export class WaxInteraction {
     canvas.height = Math.round(512 * this.image.naturalHeight / this.image.naturalWidth);
     canvas.className = 'wax-reflection';
     canvas.setAttribute('aria-hidden', 'true');
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    context.drawImage(this.image, 0, 0, canvas.width, canvas.height);
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    this.surface = buildWaxSurface(imageData.data, canvas.width, canvas.height);
+    const context = canvas.getContext('2d');
+    this.surface = waxSurfaceFor(this.image, canvas.width, canvas.height);
     this.pixels = context.createImageData(canvas.width, canvas.height);
     this.context = context;
     this.canvas = canvas;
@@ -126,7 +140,12 @@ export class WaxInteraction {
     const { x, y, strength } = this.current;
     const shadeKey = `${x.toFixed(3)},${y.toFixed(3)}`;
     if (shadeKey !== this.shadeKey) {
-      shadeWaxSurface(this.surface, x, y, this.pixels.data);
+      const resting = shadeKey === REST_SHADE;
+      if (resting && this.surface.resting) this.pixels.data.set(this.surface.resting);
+      else {
+        shadeWaxSurface(this.surface, x, y, this.pixels.data);
+        if (resting) this.surface.resting = this.pixels.data.slice();
+      }
       this.context.putImageData(this.pixels, 0, 0);
       this.shadeKey = shadeKey;
     }
