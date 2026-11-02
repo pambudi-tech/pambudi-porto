@@ -20,8 +20,10 @@ export class PaperMaterial {
     this.canvas.setAttribute('aria-hidden', 'true');
   }
   prepare() {
-    const width = Math.min(896, this.image.naturalWidth);
-    const height = Math.round(width * this.image.naturalHeight / this.image.naturalWidth);
+    // Always 896 wide, at the master's shape, whichever srcset candidate the
+    // page chose: with srcset, natural sizes are divided by the chosen density.
+    const width = 896;
+    const height = Math.round(width * this.image.getAttribute('height') / this.image.getAttribute('width'));
     this.canvas.width = width; this.canvas.height = height;
     this.context = this.canvas.getContext('2d');
     this.mask = layer(width, height);
