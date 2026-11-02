@@ -1,6 +1,6 @@
 import { preparePortfolio } from '../surface/scene.mjs';
 import { ARRIVAL, mountProjectDetail } from '../project/project-detail.mjs';
-import { WORKS, fullCover, projectId, projectPage } from '../content/works.mjs';
+import { WORKS, fullCover, projectId, projectPage, workHref } from '../content/works.mjs';
 import { IntroInkHover } from '../ink/intro-ink-hover.mjs';
 import { fetchPrivate } from '../project/project-pass.mjs';
 import { mountPinPanel } from '../project/project-pin.mjs';
@@ -9,6 +9,8 @@ import { mountSwipeBack } from '../project/swipe-back.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
 import { mountPress } from '../shared/press.mjs';
+import { mountProjectSwitch } from '../project/project-switch.mjs';
+import { coverDither } from '../project/cover-dither.mjs';
 
 // work.html?work=<id>: the case study in content/projects/, or for a work
 // without one yet, its card's details over the stand-in gallery. The index
@@ -54,6 +56,19 @@ if (project.passcode && !locked) project.images[0].src = fullCover(work);
 
 await track(document.fonts.load('16px "Syne Mono"'));
 const detail = mountProjectDetail({ ...project, locked });
+// The pill moves between projects. Over the works row, the next one takes
+// this one's place on the same cloth (project-transition.mjs); opened on its
+// own, the page goes.
+const toParent = (type, detail) => window.parent.dispatchEvent(new CustomEvent(type, { detail }));
+const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch'), {
+  id, title: project.name, motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
+  go: next => {
+    if (preview) toParent('project-route-switch', { id: next });
+    else location.assign(workHref(WORKS.find(work => work.id === next)));
+  },
+  prepare: next => { if (preview) toParent('project-route-prepare', { id: next }); },
+});
+window.addEventListener('project-route-switch-failed', () => projectSwitch.settle());
 // The right PIN brings the gallery and the live site, and the seal settles in with its wax-flow
 // entrance where the panel was.
 const pin = !locked ? null : mountPinPanel({
@@ -91,6 +106,29 @@ if (preview) {
     pin?.arrive(ARRIVAL * .9);
   }, { once: true });
   window.addEventListener('project-route-exit', () => detail.conceal(), { once: true });
+  // Taking another project's place from its pill (project-transition.mjs):
+  // laid over that one without its own cloth, showing its cover and its
+  // stitches, wordless; then its words arrive as that one's leave, and its
+  // cover dithers out of the other's; then its cloth comes back beneath.
+  let dither = null;
+  window.projectTakePlace = async from => {
+    document.documentElement.classList.add('project-overlay');
+    document.body.classList.add('project-switching');
+    document.body.classList.remove('project-preview');
+    scene.settleSeals();
+    dither = coverDither(detail.cover.querySelector('img'), from, { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches });
+    detail.takePlace();
+    await dither.ready;
+  };
+  window.projectArrive = () => {
+    dither?.run();
+    detail.reveal({ slide: false });
+    pin?.arrive(ARRIVAL * .9);
+  };
+  window.projectSettle = () => {
+    document.documentElement.classList.remove('project-overlay');
+    document.body.classList.remove('project-switching');
+  };
   // Before the stamp flies back, the gallery closes so the cover is in place.
   window.addEventListener('project-route-reset', () => detail.closeGallery());
   document.querySelector('.project-nav-back').addEventListener('click', event => {

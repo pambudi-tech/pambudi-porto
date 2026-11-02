@@ -355,6 +355,11 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       releaseEntrance(now);
       requestFrame({ stitches: true });
     },
+    // The seals as they rest, their wax-flow entrance skipped or cut short:
+    // for a page taking another's place, whose seal was already there.
+    settleSeals() {
+      for (const wax of waxes) wax.entrance?.finish();
+    },
     view,
     pause() {
       running = false;

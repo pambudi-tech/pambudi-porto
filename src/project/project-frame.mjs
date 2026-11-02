@@ -45,7 +45,7 @@ export function mountProjectFrame(figure) {
     }
     stitches.layout(cells, groups, dpr, scale);
   };
-  layout.reveal = () => stitches.reveal();
+  layout.reveal = options => stitches.reveal(options);
   layout.unpick = () => stitches.unpick();
   return layout;
 }

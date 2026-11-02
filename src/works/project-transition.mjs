@@ -3,10 +3,22 @@ import { cornerPitch } from '../stitch/corners.mjs';
 import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from './postage-stamp.mjs';
 import { coverFocus, projectPageHref } from '../content/works.mjs';
 import { OPENING, sewAround } from './opening-cue.mjs';
+import { fillSwitch } from '../project/project-switch.mjs';
 
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
   easing: 'cubic-bezier(.65, 0, .25, 1)',
+});
+
+// From one project to the next, from its pill: the next page lies over this
+// one with its cloth left out, so what the two share stays put (the red
+// stitches, the seal) while the words, the top bar's name and the cover
+// change together: the words cross-fade, as they leave and arrive anyway,
+// and the cover dithers from one photo into the other (cover-dither.mjs).
+export const PROJECT_SWITCH = Object.freeze({
+  cross: 420, // ms the top bar, tags and panels take to change
+  settle: 1800, // ms until the cover and the words have changed, and this page can go
+  ready: 120, // ms a likely choice is hovered before the next is readied
 });
 
 const PROJECT_NAV_MORPH = Object.freeze({
@@ -17,14 +29,16 @@ const PROJECT_NAV_MORPH = Object.freeze({
 
 // Keep the collection controls and their selected pill through the handoff.
 // One reversible timeline changes the shell's width and crossfades its labels.
-function createProjectNavMorph(gallery, title) {
+// The name is the project page's own pill, arrows and all, drawn the same.
+function createProjectNavMorph(gallery, work) {
   const toggle = gallery.nav.querySelector('.works-nav-toggle');
   const bounds = toggle.getBoundingClientRect();
   const selected = toggle.querySelector('[aria-pressed="true"]').getBoundingClientRect();
   const stage = Object.assign(document.createElement('div'), { className: 'works-nav-morph' });
   const shell = Object.assign(document.createElement('span'), { className: 'works-nav-morph-shell' });
   const pill = Object.assign(document.createElement('span'), { className: 'works-nav-morph-pill' });
-  const name = Object.assign(document.createElement('span'), { className: 'works-project-name', textContent: title });
+  const name = Object.assign(document.createElement('span'), { className: 'works-project-name' });
+  fillSwitch(name, work, { interactive: false });
   shell.setAttribute('aria-hidden', 'true');
   pill.setAttribute('aria-hidden', 'true');
   stage.style.width = `${bounds.width}px`;
@@ -88,6 +102,22 @@ function createProjectNavMorph(gallery, title) {
   };
 }
 
+// A project page's top bar taking another project's name: the pill eases to
+// `width` while the old name fades and the new one fades in, and the bar,
+// centred, carries the back button along.
+function renameNav(page, width, title, time) {
+  const pill = page.querySelector('.project-switch'), label = page.querySelector('.project-switch-title');
+  if (!pill || !label) return;
+  const from = pill.getBoundingClientRect().width, half = time(PROJECT_SWITCH.cross / 2);
+  pill.style.overflow = 'hidden';
+  pill.animate([{ width: `${from}px` }, { width: `${width}px` }], { duration: time(PROJECT_SWITCH.cross), easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' });
+  label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: half, easing: 'ease', fill: 'forwards' }).finished.then(() => {
+    label.textContent = title;
+    label.getAnimations().forEach(animation => animation.cancel());
+    label.animate([{ opacity: 0 }, { opacity: 1 }], { duration: half, easing: 'ease' });
+  }, () => {});
+}
+
 export const flightBox = rect => ({
   left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
 });
@@ -119,6 +149,8 @@ function shapeFlight(stamp, media, width, height, perf) {
 
 function followPostage(flight, stamp, media, animation, fromPerf, toPerf) {
   const paint = () => {
+    // A frame already asked for when the flight left has nothing to shape.
+    if (!flight.isConnected) return;
     const progress = animation.effect.getComputedTiming().progress ?? 0;
     const box = flight.getBoundingClientRect();
     shapeFlight(stamp, media, box.width, box.height, fromPerf + (toPerf - fromPerf) * progress);
@@ -187,7 +219,7 @@ async function prepareProject(href) {
 // "back" is the same flight home as ever.
 export async function transitionToProject(gallery, entry, { history = true, seal = true, arrived = null } = {}) {
   if (gallery.departing) return;
-  const href = entry.link.href;
+  let href = entry.link.href;
   if (new URL(href).origin !== location.origin) {
     location.assign(href);
     return;
@@ -197,12 +229,15 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   // never showed the seal, so its stamp simply flies.
   if (seal) entry.item.classList.add('is-departing');
   // The pill names the work as its card does, as the page's pill will.
-  const navMorph = createProjectNavMorph(gallery, entry.work.title);
+  let navMorph = createProjectNavMorph(gallery, entry.work);
   let preview, flight, sealOut, inDetail = false, returning = false;
   // A slow project shows it is on its way: its stamp is sewn around, then
   // the nav says so (opening-cue.mjs). Opened by its own address, the row
   // is not on show, so there is nothing to cue.
   let ring = null, preparing = null;
+  // The flight's two photos, and the hero they land on: the card's dithered
+  // one and the cover, as the open project changes.
+  let flightPhotos = [], targetImage = null, targetPostage = null;
   const cues = arrived ? [] : [
     setTimeout(() => { ring = sewAround(entry.frame, { reduced: gallery.reduced }); }, OPENING.cue),
     setTimeout(() => {
@@ -220,8 +255,15 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   const duration = gallery.reduced ? 0 : PROJECT_FLIGHT.duration;
   const flyIn = arrived ? 0 : duration;
   const requestBack = () => window.history.back();
+  // The next project, readied while its arrow or name is hovered.
+  let ready = null, readyTimer = null, switching = false;
   const restore = () => {
     settleCues();
+    clearTimeout(readyTimer);
+    ready?.frame.then(frame => frame.remove(), () => {});
+    ready = null;
+    window.removeEventListener('project-route-switch', switchTo);
+    window.removeEventListener('project-route-prepare', prepareSoon);
     preview?.remove();
     flight?.remove();
     navMorph.restore();
@@ -237,11 +279,105 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     window.removeEventListener('project-route-back', requestBack);
     gallery.paint();
   };
+  // Readies the next project out of sight, one at a time.
+  const prepareNext = id => {
+    if (ready?.id === id) return ready.frame;
+    ready?.frame.then(frame => frame.remove(), () => {});
+    const frame = prepareProject(new URL(projectPageHref(id), location.origin).href);
+    ready = { id, frame };
+    frame.catch(() => { if (ready?.frame === frame) ready = null; });
+    return frame;
+  };
+  function prepareSoon(event) {
+    clearTimeout(readyTimer);
+    if (!inDetail || switching || returning) return;
+    readyTimer = setTimeout(() => prepareNext(event.detail.id), PROJECT_SWITCH.ready);
+  }
+
+  // Another project, chosen on this one's pill: it takes this one's place,
+  // and from then on is the project here, its card the one "back" flies
+  // home to.
+  async function switchTo(event) {
+    const next = gallery.items.find(item => item.work.id === event.detail.id && item.link.href);
+    if (!next || next === entry || !inDetail || switching || returning) return;
+    switching = true;
+    clearTimeout(readyTimer);
+    const time = length => gallery.reduced ? 0 : length;
+    const page = preview.contentDocument;
+    const cover = page.querySelector('.project-cover .project-image img');
+    const from = { src: cover.currentSrc || cover.src, focus: page.defaultView.getComputedStyle(cover).objectPosition };
+    let frame;
+    try {
+      frame = await prepareNext(next.work.id);
+      await frame.contentWindow.projectTakePlace(from);
+    } catch (error) {
+      console.warn('Project switch unavailable; opening the project directly.', error);
+      location.assign(next.link.href);
+      return;
+    }
+    ready = null;
+    const nextPage = frame.contentDocument;
+    // What only one of the two has fades; what both have stays put.
+    const fade = (element, out) => element?.animate([{ opacity: out ? 1 : 0 }, { opacity: out ? 0 : 1 }],
+      { duration: time(PROJECT_SWITCH.cross), easing: 'ease', fill: out ? 'forwards' : 'backwards' });
+    const has = (doc, selector) => Boolean(doc.querySelector(selector)) && !doc.body.classList.contains('project-locked');
+    // The top bar stays, its pill easing to the next name's width as the
+    // name changes in it; the next page's own bar, the same, waits hidden
+    // until it takes over. A PIN panel leaves (the next page's own arrives
+    // as ever); the passcode tag and the seal change only where one of the
+    // two has them and the other has not.
+    const nextNav = nextPage.querySelector('.project-nav');
+    nextNav.style.visibility = 'hidden';
+    renameNav(page, nextPage.querySelector('.project-switch').getBoundingClientRect().width, next.work.title, time);
+    fade(page.querySelector('.project-pin'), true);
+    const tagBefore = page.querySelector('.cover-protected'), tagAfter = nextPage.querySelector('.cover-protected');
+    if (tagBefore && !tagAfter) fade(tagBefore, true);
+    if (!tagBefore && tagAfter) fade(tagAfter, false);
+    const sealBefore = has(page, '.project-gallery-seal'), sealAfter = has(nextPage, '.project-gallery-seal');
+    if (sealBefore && !sealAfter) fade(page.querySelector('.project-gallery-seal'), true);
+    if (!sealBefore && sealAfter) fade(nextPage.querySelector('.project-gallery-seal'), false);
+    frame.className = 'project-route';
+    frame.inert = false;
+    frame.removeAttribute('aria-hidden');
+    frame.title = `${next.work.title} project detail`;
+    // The words leave and arrive together, as the cover dithers.
+    page.body.classList.add('project-switching', 'project-arriving');
+    frame.contentWindow.projectArrive();
+    await new Promise(resolve => setTimeout(resolve, time(PROJECT_SWITCH.settle)));
+    nextNav.style.removeProperty('visibility');
+    preview.remove();
+    frame.contentWindow.projectSettle();
+
+    // From here the next project is the one open.
+    entry.item.classList.remove('is-flight-source', 'is-departing');
+    sealOut?.cancel();
+    sealOut = null;
+    preview = frame;
+    entry = next;
+    href = entry.link.href;
+    targetImage = nextPage.querySelector('.project-cover .project-image img');
+    targetPostage = nextPage.querySelector('.hero-postage-stamp');
+    for (const [image, shown] of [[flightPhotos[0], entry.image], [flightPhotos[1], targetImage]]) image.src = shown.currentSrc || shown.src;
+    // The row waits behind on its card, for the flight home, and its pill
+    // takes the new name, ready to morph back from it.
+    const card = gallery.cards[gallery.items.indexOf(entry)];
+    gallery.gliding = false;
+    gallery.scroller.scrollLeft = Math.max(0, Math.min(gallery.scroller.scrollWidth - innerWidth, card.x + card.w / 2 - innerWidth / 2));
+    gallery.updateRow();
+    navMorph.restore();
+    navMorph = createProjectNavMorph(gallery, entry.work);
+    await navMorph.enter(nextPage.querySelector('.project-nav').getBoundingClientRect(), { instant: true });
+    document.title = nextPage.title;
+    window.history.replaceState({ projectWork: entry.work.id }, '', href);
+    preview.contentWindow.addEventListener('touchstart', noteEdgeTouch, { capture: true, passive: true });
+    switching = false;
+  }
+
   try {
     preview = await prepareProject(new URL(projectPageHref(entry.work.id), location.origin).href);
     settleCues();
-    const targetImage = preview.contentDocument.querySelector('.project-cover .project-image img');
-    const targetPostage = preview.contentDocument.querySelector('.hero-postage-stamp');
+    targetImage = preview.contentDocument.querySelector('.project-cover .project-image img');
+    targetPostage = preview.contentDocument.querySelector('.hero-postage-stamp');
     const destination = targetPostage.getBoundingClientRect();
     if (!destination.width || !destination.height) throw new Error('Project hero is not ready');
     gallery.gliding = false;
@@ -252,6 +388,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     flight.className = 'project-flight';
     flight.setAttribute('aria-hidden', 'true');
     const fromImage = new Image(), toImage = new Image();
+    flightPhotos = [fromImage, toImage];
     fromImage.src = entry.image.currentSrc || entry.image.src;
     toImage.src = targetImage.currentSrc || targetImage.src;
     const media = Object.assign(document.createElement('div'), { className: 'project-flight-media' });
@@ -321,13 +458,15 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       window.history.pushState({ projectWork: entry.work.id }, '', href);
     } else if (history) window.history.pushState({ projectWork: entry.work.id }, '', href);
     window.addEventListener('project-route-back', requestBack);
+    window.addEventListener('project-route-switch', switchTo);
+    window.addEventListener('project-route-prepare', prepareSoon);
     // Touches on the project land in its own page; edge swipes there count too.
     preview.contentWindow.addEventListener('touchstart', noteEdgeTouch, { capture: true, passive: true });
 
     // `swiped`: the browser has already slid the row in, so the page is
     // simply there, with no flight over it.
     const reverse = async ({ swiped = false } = {}) => {
-      if (returning || !inDetail) return;
+      if (returning || !inDetail || switching) return;
       returning = true;
       if (swiped) {
         inDetail = false;

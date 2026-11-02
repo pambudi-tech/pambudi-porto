@@ -82,6 +82,12 @@ export function mountProjectDetail(project) {
       coverLayout.reveal();
       if (slide) slideCover();
     },
+    // Taking another project's place on the same cloth: the cover and its
+    // stitched frame show at once, as the other's were, and the words wait.
+    takePlace() {
+      document.body.classList.remove('project-preview');
+      coverLayout.reveal({ sewn: true });
+    },
     conceal() {
       document.body.classList.add('project-arriving', 'project-preview');
       document.documentElement.classList.add('project-route-leaving');
@@ -159,7 +165,7 @@ function alignCoverToSurface(container, figure) {
   new ResizeObserver(schedule).observe(opening);
   window.addEventListener('resize', schedule, { passive: true });
   schedule();
-  return { ready, reveal: () => drawFrame.reveal(), unpick: () => drawFrame.unpick() };
+  return { ready, reveal: options => drawFrame.reveal(options), unpick: () => drawFrame.unpick() };
 }
 
 // Fades at the screen's top and bottom while the page has more to scroll that

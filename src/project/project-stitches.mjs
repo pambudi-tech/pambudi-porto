@@ -39,11 +39,12 @@ export class ProjectStitches {
     if (this.started) this.canvas.dataset.entrance = this.entrance.active(now) ? 'stitching' : 'complete';
     if (this.departure) this.canvas.dataset.departure = this.departure.active(now) ? 'unpick' : 'complete';
   }
-  reveal() {
+  // `sewn` shows them already in place, with no sweep.
+  reveal({ sewn = false } = {}) {
     if (this.started) return;
     this.started = true;
     this.entrance.started = performance.now();
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) this.entrance.finish();
+    if (sewn || matchMedia('(prefers-reduced-motion: reduce)').matches) this.entrance.finish();
     const tick = now => {
       this.paint(now);
       if (this.canvas.isConnected && this.entrance.active(now)) requestAnimationFrame(tick);

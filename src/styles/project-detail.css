@@ -31,6 +31,13 @@ h1, h2 { text-wrap: balance; }
 .project-facts { transition-delay: 140ms; }
 .project-overview { transition-delay: 220ms; }
 .project-arriving .project-intro, .project-arriving .project-facts, .project-arriving .project-overview { opacity: 0; translate: 0 10px; transition-delay: 0ms; }
+/* Moving to another project (project-transition.mjs), the words change at
+   the cover's own pace, alongside its dither: the old ones leave over its
+   first half, the new ones arrive as it turns over to the next photo. */
+.project-switching :is(.project-intro, .project-facts, .project-overview) { transition-duration: 760ms, 860ms; }
+.project-switching:not(.project-arriving) .project-intro { transition-delay: 360ms; }
+.project-switching:not(.project-arriving) .project-facts { transition-delay: 440ms; }
+.project-switching:not(.project-arriving) .project-overview { transition-delay: 520ms; }
 h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .eyebrow { font-size: 14px; line-height: 1.6; color: var(--muted); }
 .project-overview { align-self: center; font-size: 14px; line-height: 1.75; }
@@ -95,6 +102,81 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-depth-dot:hover::before { opacity: .5; }
 .project-depth-dot[aria-current]::before { opacity: 1; scale: 1.2; }
 .project-depth-dot:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; border-radius: 50%; }
+/* On the sheet every stamp shows, so the dots step aside. */
+.gallery-sheet .project-depth-dots { opacity: 0; visibility: hidden; transition: opacity 300ms ease, visibility 0s linear 300ms; }
+/* The stamp in front, and every stamp on the sheet, opens up close; one
+   waiting behind takes the camera to it. Hovered, a stamp lifts a little. */
+.gallery-open .project-depth-stamp { pointer-events: auto; cursor: pointer; }
+.gallery-open .project-depth-stamp.is-current, .gallery-sheet .project-depth-stamp { cursor: zoom-in; }
+.project-depth-stamp > * { transition: scale 280ms cubic-bezier(.22, 1, .36, 1); }
+@media (hover: hover) {
+  .gallery-open .project-depth-stamp:hover > * { scale: 1.02; }
+}
+.project-depth-stamp:focus-visible { outline: 2px solid var(--ink); outline-offset: 6px; }
+/* Its stamp stays empty while an image is up close: the image is out of it. */
+.project-depth-stamp.is-closeup-source { visibility: hidden !important; }
+/* The switch between the depth and the sheet, opening out beside the
+   project's name as the back button folds away; its ink pill slides. */
+.project-views { position: relative; display: flex; gap: 2px; max-width: 0; margin-left: -8px; padding: 3px 0; overflow: hidden; border: 0 solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); box-shadow: 0 1px 2px rgb(0 0 0 / .05); opacity: 0; pointer-events: none; transition: max-width 360ms ease, padding 360ms ease, margin 360ms ease, opacity 240ms ease, border-width 360ms ease; }
+.gallery-open .project-views { max-width: 200px; margin-left: 0; padding: 3px; border-width: 1px; opacity: 1; pointer-events: auto; }
+.project-views button { position: relative; z-index: 1; height: 28px; padding: 0 13px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 12px/1 "Syne Mono", monospace; white-space: nowrap; transition: color 300ms ease; }
+.project-views button:hover { color: var(--ink); }
+.project-views button[aria-pressed="true"] { color: #ffffff; cursor: default; }
+.project-views button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.project-views-pill { position: absolute; top: 3px; bottom: 3px; left: var(--pill-left, 3px); width: var(--pill-width, 0px); border-radius: 999px; background: var(--ink); transition: left 420ms cubic-bezier(.22, 1, .36, 1), width 420ms cubic-bezier(.22, 1, .36, 1); }
+/* An image up close: over everything, on a veil of the paper. */
+.project-closeup { position: fixed; inset: 0; z-index: 20; }
+.project-closeup[hidden] { display: none; }
+.project-closeup-backdrop { position: absolute; inset: 0; background: rgb(255 255 255 / .9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.project-closeup-frame { position: absolute; overflow: hidden; background: #eeefeb; box-shadow: 0 1px 2px rgb(58 55 50 / .08), 0 18px 48px rgb(58 55 50 / .14); cursor: zoom-in; touch-action: none; user-select: none; -webkit-user-select: none; }
+.project-closeup-frame[data-zoomed] { cursor: grab; }
+.project-closeup-frame.is-dragging { cursor: grabbing; }
+.project-closeup-frame img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: 0 0; -webkit-user-drag: none; }
+.project-closeup-bar { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; display: flex; gap: 8px; align-items: center; translate: -50% 0; }
+.project-closeup-back { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: var(--ink); font: 12px/1 "Syne Mono", monospace; }
+.project-closeup-back::before { content: ''; display: block; width: 20px; height: 20px; background: currentColor; mask: url('/assets/contact/angle-left.svg') center / contain no-repeat; }
+.project-closeup-back:hover { background: #f4f3f0; }
+.project-closeup-count { padding: 9px 15px; border: 3px solid #ffffff; border-radius: 999px; outline: 1px solid rgb(73 72 63 / .14); background: var(--ink); color: #ffffff; font: 12px/1 "Syne Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.project-closeup-step { position: absolute; top: 50%; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid rgb(73 72 63 / .14); border-radius: 50%; background: rgb(255 255 255 / .92); color: var(--ink); translate: 0 -50%; transition: background-color 160ms ease, opacity 200ms ease; }
+.project-closeup-step::before { content: ''; width: 20px; height: 20px; background: currentColor; mask: url('/assets/contact/angle-left.svg') center / contain no-repeat; }
+.project-closeup-step[data-step="-1"] { left: 24px; }
+.project-closeup-step[data-step="1"] { right: 24px; }
+.project-closeup-step[data-step="1"]::before { rotate: 180deg; }
+.project-closeup-step:hover:not(:disabled) { background: #f4f3f0; }
+.project-closeup-step:disabled { opacity: .3; cursor: default; }
+:is(.project-closeup-back, .project-closeup-step):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* The project pill lights up under the pointer, and its caret turns as the
+   list opens. In the gallery it is just the name again. */
+button.project-switch-name:hover, .project-switch.is-open .project-switch-name { background: rgb(255 255 255 / .16); }
+.project-switch button:focus-visible { outline: 2px solid #ffffff; outline-offset: -3px; }
+.project-switch.is-open .project-switch-caret { rotate: 90deg; }
+.project-switch.is-moving { cursor: progress; }
+.gallery-open .project-switch-name { padding: 0 15px; pointer-events: none; }
+.gallery-open .project-switch-caret { width: 0; margin-left: -6px; opacity: 0; }
+/* The list of projects, hung from the pill. */
+.project-switch-list { position: fixed; z-index: 12; width: 288px; max-height: calc(100dvh - 84px); overflow-y: auto; padding: 6px; border: 1px solid rgb(73 72 63 / .14); border-radius: 18px; background: rgb(255 255 255 / .96); box-shadow: 0 1px 2px rgb(0 0 0 / .05), 0 14px 36px rgb(58 55 50 / .13); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transform-origin: 50% 0; }
+.project-switch-list[hidden] { display: none; }
+.project-switch-list { overscroll-behavior: contain; }
+.project-switch-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 12px 6px 6px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; font: 12px/1.3 "Syne Mono", monospace; transition: background-color 160ms ease; }
+.project-switch-item:hover, .project-switch-item:focus-visible { background: #f4f3f0; outline: none; }
+.project-switch-item[aria-current] { cursor: default; }
+.project-switch-item[aria-current]::after { content: ''; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--ink); }
+/* Each project's stamp: its photo on a little paper, as on its card. */
+.project-switch-stamp { flex: none; width: 52px; height: 39px; padding: 2px; background: linear-gradient(var(--works-paper-light), var(--works-paper-dark)); filter: var(--works-paper-shadow); }
+.project-switch-stamp img { display: block; width: 100%; height: 100%; object-fit: cover; background: #eeefeb; }
+.project-switch-text { display: grid; gap: 4px; min-width: 0; }
+.project-switch-work { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-switch-years { color: var(--muted); font-size: 11px; }
+/* Up close, the seal, the top bar and the dots step aside: the close-up has
+   its own "back" and count where the bar was. */
+.closeup-open .project-gallery-seal { opacity: 0; pointer-events: none; }
+.project-nav { transition: opacity 240ms ease; }
+.closeup-open :is(.project-nav, .project-depth-dots) { opacity: 0; pointer-events: none; }
+@media (max-width: 760px) {
+  .project-closeup-step { top: auto; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); translate: none; }
+  .project-closeup-step[data-step="-1"] { left: calc(50% - 56px); }
+  .project-closeup-step[data-step="1"] { right: calc(50% - 56px); }
+}
 .project-cover figcaption { display: none; }
 .gallery-item { position: relative; min-width: 0; scroll-margin-top: 32px; }
 .project-image { position: relative; display: block; width: 100%; padding: 0; border: 0; background: #eeefeb; text-align: left; }

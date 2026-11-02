@@ -8,6 +8,10 @@
 html.project-route-leaving { background: transparent; }
 .project-route-leaving #cloth { visibility: hidden; }
 .project-route-leaving .project-nav { opacity: 0; transition: opacity 180ms ease; }
+/* A project taking another's place lies over it without its own cloth,
+   until the other has gone (project-transition.mjs). */
+html.project-overlay { background: transparent; }
+.project-overlay #cloth { visibility: hidden; }
 .project-nav-handoff .project-nav { visibility: hidden; }
 .project-flight { position: fixed; z-index: 40; pointer-events: none; }
 /* The paper lies under the photo, which fills it, as on a card and the cover. */
@@ -19,7 +23,11 @@ html.project-route-leaving { background: transparent; }
 .works-gallery.is-returning .works-item { opacity: 1; transition: opacity 320ms ease 140ms; }
 .works-gallery.is-returning .is-flight-source { visibility: hidden; }
 .is-project-transition #portfolio-clock { opacity: 0; transition: opacity 200ms ease; }
-.works-project-name, .project-nav-name { display: block; padding: 9px 15px; border-radius: 999px; background: var(--ink); color: #ffffff; font: 12px/1 "Syne Mono", monospace; white-space: nowrap; }
+.works-project-name, .project-nav-name { display: flex; align-items: center; padding: 0; border-radius: 999px; background: var(--ink); color: #ffffff; font: 12px/1 "Syne Mono", monospace; white-space: nowrap; }
+/* The pill's parts, on the project page and in the works row's morph alike:
+   the name, with a caret for the list of projects it opens. */
+.project-switch-name { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 15px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; transition: background-color 160ms ease, padding 360ms ease; }
+.project-switch-caret { flex: none; width: 10px; height: 10px; background: currentColor; mask: url('/assets/contact/angle-left.svg') center / contain no-repeat; rotate: -90deg; transition: rotate 300ms cubic-bezier(.22, 1, .36, 1), width 360ms ease, opacity 240ms ease, margin 360ms ease; }
 .works-project-name { border: 3px solid #ffffff; outline: 1px solid rgb(73 72 63 / .14); }
 .works-nav-morph { position: relative; flex: none; overflow: clip; border-radius: 999px; box-shadow: 0 1px 2px rgb(0 0 0 / .05); }
 .works-nav-morph-shell { position: absolute; inset: 0; border: 1px solid rgb(73 72 63 / .14); border-radius: inherit; outline: 1px solid transparent; outline-offset: -1px; background: #ffffff; }
