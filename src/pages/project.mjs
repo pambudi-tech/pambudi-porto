@@ -11,6 +11,7 @@ import { startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
 import { mountPress } from '../shared/press.mjs';
 import { mountProjectSwitch } from '../project/project-switch.mjs';
 import { coverDither } from '../project/cover-dither.mjs';
+import { mountTitleMarquee } from '../project/title-marquee.mjs';
 
 // work.html?work=<id>: the case study in content/projects/, or for a work
 // without one yet, its card's details over the stand-in gallery. The index
@@ -94,6 +95,8 @@ const pin = !locked ? null : mountPinPanel({
 new IntroInkHover(document.querySelector('.project-opening'), matchMedia('(prefers-reduced-motion: reduce)'), {
   selector: '.project-intro h1, .project-intro p, .project-facts dt, .project-facts dd, .project-overview p',
 });
+// On a phone, a title too long for its line travels along it.
+mountTitleMarquee(document.querySelector('.project-intro h1'), { motionPreference: matchMedia('(prefers-reduced-motion: reduce)') });
 await track(Promise.allSettled([detail.ready, detail.cover.querySelector('img').decode()]));
 const scene = await preparePortfolio({ surfaceOnly: true, surfaceNavigation: false, stitching: false });
 scene.start();

@@ -82,6 +82,10 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 /* The homepage paper's ink bleed on the project's words, each in its own colour. */
 .project-opening :is(h1, p, dt, dd) { position: relative; }
 .project-opening .ink-bleed { color: inherit; }
+/* The project title's soft edges on a phone, eased as it travels
+   (title-marquee.mjs): the near one, and the far one, fading in from 24px. */
+@property --title-fade-near { syntax: '<length>'; inherits: true; initial-value: 0px; }
+@property --title-fade-far { syntax: '<length>'; inherits: true; initial-value: 24px; }
 /* The depth gallery the seal opens, between the cloth and the page: stamps
    one behind another, seen through one shared perspective. */
 .project-depth { position: fixed; inset: 0; z-index: 1; perspective: 1000px; pointer-events: none; }
@@ -133,8 +137,8 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-closeup-frame.is-dragging { cursor: grabbing; }
 .project-closeup-frame img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: 0 0; -webkit-user-drag: none; }
 .project-closeup-bar { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; display: flex; gap: 8px; align-items: center; translate: -50% 0; }
-.project-closeup-back { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: var(--ink); font: 12px/1 "Syne Mono", monospace; }
-.project-closeup-back::before { content: ''; display: block; width: 20px; height: 20px; background: currentColor; mask: url('/assets/contact/angle-left.svg') center / contain no-repeat; }
+.project-closeup-back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 13px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: var(--ink); font: 12px/1 "Syne Mono", monospace; }
+.project-closeup-back::before { content: ''; display: block; flex: none; width: 10px; height: 10px; background: currentColor; mask: url('/assets/contact/angle-left.svg') center / contain no-repeat; }
 .project-closeup-back:hover { background: #f4f3f0; }
 .project-closeup-count { padding: 9px 15px; border: 3px solid #ffffff; border-radius: 999px; outline: 1px solid rgb(73 72 63 / .14); background: var(--ink); color: #ffffff; font: 12px/1 "Syne Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .project-closeup-step { position: absolute; top: 50%; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid rgb(73 72 63 / .14); border-radius: 50%; background: rgb(255 255 255 / .92); color: var(--ink); translate: 0 -50%; transition: background-color 160ms ease, opacity 200ms ease; }
@@ -219,6 +223,16 @@ button.project-switch-name:hover, .project-switch.is-open .project-switch-name {
   /* The stitched corners keep clear of the words above and below. */
   .project-cover { padding-block: calc(var(--frame-margin, 0px) + 12px); }
   h1 { font-size: 16px; margin-bottom: 2px; }
+  /* The title keeps to one line, so every project's cover sits at the same
+     height and holds still as the pill moves between them. One too long
+     is masked at its edges and travels (title-marquee.mjs); the intro
+     clips it, leaving the ink's 8px of spread around it. */
+  .project-intro { min-width: 0; overflow: hidden; margin: -8px -8px 0; padding: 8px 8px 0; }
+  .project-intro h1 :is(.ink-source, .ink-bleed-copy) { position: relative; white-space: nowrap; }
+  .project-intro h1.is-masked .ink-bleed {
+    -webkit-mask-image: linear-gradient(90deg, transparent 8px, #000 calc(8px + var(--title-fade-near)), #000 calc(100% - 8px - var(--title-fade-far)), transparent calc(100% - 8px));
+    mask-image: linear-gradient(90deg, transparent 8px, #000 calc(8px + var(--title-fade-near)), #000 calc(100% - 8px - var(--title-fade-far)), transparent calc(100% - 8px));
+  }
   .eyebrow { font-size: 14px; }
   /* The facts two by two, each label above its value. */
   .project-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; font-size: 14px; line-height: 1.4; }

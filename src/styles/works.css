@@ -268,7 +268,8 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
-.works-nav button:hover:not(:disabled) { color: var(--ink); }
+/* Hover darkens an unchosen label; the chosen one keeps its white on ink. */
+.works-nav button:hover:not(:disabled, [aria-pressed="true"]) { color: var(--ink); }
 .works-nav button:disabled { opacity: .45; cursor: not-allowed; }
 .works-nav button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .works-nav-back,
@@ -278,11 +279,12 @@
   background: rgb(255 255 255 / .92);
   box-shadow: 0 1px 2px rgb(0 0 0 / .05);
 }
-.works-nav .works-nav-back { height: 36px; padding: 0 14px 0 10px; border: 1px solid rgb(73 72 63 / .14); background: rgb(255 255 255 / .92); color: var(--ink); }
+.works-nav .works-nav-back { gap: 6px; height: 36px; padding: 0 14px 0 13px; border: 1px solid rgb(73 72 63 / .14); background: rgb(255 255 255 / .92); color: var(--ink); }
+/* The size of the project pill's caret, as on every back button. */
 .works-back-icon {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
   background: currentColor;
   mask: url('/assets/contact/angle-left.svg') center / contain no-repeat;
 }

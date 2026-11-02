@@ -1,13 +1,15 @@
 // One project's cover giving way to the next's, when the top bar's pill moves
 // between projects: the photo breaks into a coarse dither, its dots turn over
 // to the next photo one by one, in the dither's own order, and the dither
-// fines away into it. A canvas laid over the cover's photo draws it, then
+// fines away into it: a ring of dots growing out from the middle of the cover
+// to its corners, its edge long and soft. A canvas laid over the cover's photo draws it, then
 // leaves, as the PIN's reveal does (cover-reveal.mjs).
 export const COVER_DITHER = Object.freeze({
-  duration: 1700, // ms from the one photo to the other
-  coarsest: 4,    // CSS px, the dots at their largest, midway
+  duration: 2200, // ms from the one photo to the other, eased
+  coarsest: 4,    // CSS px, the dots at their largest, in the ring
   levels: [32, 4], // brightness steps, at either end and midway
   handover: 240,  // ms the clean canvas takes to fade into the photo beneath
+  ring: .75,      // how wide the ring of dots is, against the whole way out
 });
 
 const VERTEX = `
@@ -22,7 +24,7 @@ const FRAGMENT = `
 precision highp float;
 uniform sampler2D before, after;
 uniform vec2 box, beforeSize, afterSize, beforeFocus, afterFocus;
-uniform float progress, coarsest, levelsFine, levelsCoarse;
+uniform float progress, coarsest, levelsFine, levelsCoarse, ring;
 
 float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
 float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
@@ -43,18 +45,23 @@ vec2 place(vec2 p, vec2 size, vec2 focus) {
 
 void main() {
   vec2 p = vec2(gl_FragCoord.x, box.y - gl_FragCoord.y);
-  float peak = sin(progress * 3.14159265);
-  float cell = max(1.0, floor(mix(1.0, coarsest, peak) + 0.5));
+  // Each place's own moment, by its distance from the middle, the corners
+  // at 1: the ring reaches the middle first. Taken on the grid of the
+  // largest dots, which every smaller dot divides, so a dot never splits.
+  float away = length((floor(p / coarsest) + 0.5) * coarsest - box * 0.5) / length(box * 0.5);
+  float local = clamp((progress * (1.0 + ring) - away) / ring, 0.0, 1.0);
+  // The dots grow toward the ring's middle and shrink after, in powers of two.
+  float cell = pow(2.0, floor(log2(coarsest) * sin(local * 3.14159265) + 0.5));
   vec2 c = floor(p / cell);
   vec2 centre = (c + 0.5) * cell;
-  bool turned = bayer8(c + vec2(3.0, 5.0)) < smoothstep(0.22, 0.78, progress);
+  bool turned = bayer8(c + vec2(3.0, 5.0)) < smoothstep(0.22, 0.78, local);
   vec3 rgb = turned ? texture2D(after, place(centre, afterSize, afterFocus)).rgb
     : texture2D(before, place(centre, beforeSize, beforeFocus)).rgb;
-  float steps = floor(exp(mix(log(levelsFine), log(levelsCoarse), peak)));
+  float steps = floor(exp(mix(log(levelsFine), log(levelsCoarse), sin(local * 3.14159265))));
   vec3 dotted = dither(rgb, c, steps);
-  vec3 clean = progress < 0.5 ? texture2D(before, place(p, beforeSize, beforeFocus)).rgb
+  vec3 clean = local < 0.5 ? texture2D(before, place(p, beforeSize, beforeFocus)).rgb
     : texture2D(after, place(p, afterSize, afterFocus)).rgb;
-  float amount = smoothstep(0.0, 0.16, progress) * (1.0 - smoothstep(0.84, 1.0, progress));
+  float amount = smoothstep(0.0, 0.16, local) * (1.0 - smoothstep(0.84, 1.0, local));
   gl_FragColor = vec4(mix(clean, dotted, amount), 1.0);
 }`;
 
@@ -78,7 +85,7 @@ function createRenderer(canvas) {
   gl.enableVertexAttribArray(corner);
   gl.vertexAttribPointer(corner, 2, gl.FLOAT, false, 0, 0);
   const uniforms = Object.fromEntries(['before', 'after', 'box', 'beforeSize', 'afterSize', 'beforeFocus', 'afterFocus',
-    'progress', 'coarsest', 'levelsFine', 'levelsCoarse'].map(name => [name, gl.getUniformLocation(program, name)]));
+    'progress', 'coarsest', 'levelsFine', 'levelsCoarse', 'ring'].map(name => [name, gl.getUniformLocation(program, name)]));
   const upload = (unit, image) => {
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
@@ -96,7 +103,9 @@ const focusOf = position => {
   const [x = 50, y = 50] = (position.match(/-?[\d.]+(?=%)/g) ?? []).map(Number);
   return [x / 100, y / 100];
 };
-const ease = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+// Fast from the start, slowing to the end: the ring bursts out of the middle
+// and settles into the corners.
+const ease = t => 1 - (1 - t) ** 3;
 
 // Lays the previous cover, `from` ({ src, focus }), over this page's cover
 // `img`, ready to give way to it: `ready` resolves once it shows, and `run()`
@@ -126,7 +135,8 @@ export function coverDither(img, from, { reduced = false } = {}) {
     if (canvas.width !== w || canvas.height !== h) Object.assign(canvas, { width: w, height: h });
     gl.viewport(0, 0, w, h);
     gl.uniform2f(uniforms.box, w, h);
-    gl.uniform1f(uniforms.coarsest, COVER_DITHER.coarsest * dpr);
+    // A power of two in device pixels, so the smaller dots divide it.
+    gl.uniform1f(uniforms.coarsest, 2 ** Math.round(Math.log2(COVER_DITHER.coarsest * dpr)));
   };
   const draw = progress => {
     gl.uniform1f(uniforms.progress, progress);
@@ -142,6 +152,7 @@ export function coverDither(img, from, { reduced = false } = {}) {
     gl.uniform2f(uniforms.afterFocus, ...focusOf(getComputedStyle(img).objectPosition));
     gl.uniform1f(uniforms.levelsFine, COVER_DITHER.levels[0]);
     gl.uniform1f(uniforms.levelsCoarse, COVER_DITHER.levels[1]);
+    gl.uniform1f(uniforms.ring, COVER_DITHER.ring);
     place();
     draw(0);
     img.after(canvas);
