@@ -1,32 +1,73 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEPTH, galleryPlacement, depthOpacity, galleryCurrent, wheelScrolls, sheetLayout, sheetProgress, SHEET } from './project-gallery.mjs';
+import { DEPTH, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, SHEET } from './project-gallery.mjs';
 import { fitRect, panTo, zoomAt, CLOSEUP } from './project-closeup.mjs';
 
-test('gallery stamps alternate sides and always fit on screen at the camera', () => {
-  const room = { width: 1400, height: 900, w: 600, h: 450 };
-  for (let index = 0; index < 8; index++) {
-    const { x, y } = galleryPlacement(index, room);
-    assert.equal(Math.sign(x), index % 2 ? 1 : -1);
-    assert.ok(Math.abs(x) + room.w / 2 <= room.width / 2 - DEPTH.side + 1e-9);
-    assert.ok(room.height / 2 + y - room.h / 2 >= DEPTH.top - 1e-9);
-    assert.ok(room.height / 2 + y + room.h / 2 <= room.height - DEPTH.bottom + 1e-9);
+const SCREENS = {
+  desktop: { width: 1440, height: 900, w: 662, h: 497 },
+  phone: { width: 390, height: 844, w: 304, h: 228 },
+};
+// A stamp's rectangle on screen, `depth` spacings behind the camera.
+const shown = (index, depth, room) => {
+  const scale = DEPTH.perspective / (DEPTH.perspective + depth * DEPTH.spacing);
+  const { x, y } = galleryPlacement(index, { ...room, scale });
+  return { x0: x - room.w * scale / 2, x1: x + room.w * scale / 2, y0: y - room.h * scale / 2, y1: y + room.h * scale / 2 };
+};
+// The share of the stamp `depth` behind stamp `at` that the nearer ones leave in view.
+const uncovered = (at, depth, room) => {
+  const target = shown(at + depth, depth, room), nearer = Array.from({ length: depth }, (_, k) => shown(at + k, k, room));
+  let seen = 0;
+  for (let i = 0; i < 40; i++) for (let j = 0; j < 30; j++) {
+    const px = target.x0 + (i + .5) / 40 * (target.x1 - target.x0), py = target.y0 + (j + .5) / 30 * (target.y1 - target.y0);
+    if (!nearer.some(r => px > r.x0 && px < r.x1 && py > r.y0 && py < r.y1)) seen++;
   }
-  assert.deepEqual(galleryPlacement(3, room), galleryPlacement(3, room));
+  return seen / 1200;
+};
+
+test('a stamp at the camera always fits on screen, the same on every visit', () => {
+  for (const room of Object.values(SCREENS)) {
+    for (let index = 0; index < 12; index++) {
+      const r = shown(index, 0, room);
+      assert.ok(r.x0 >= -room.width / 2 + DEPTH.side - 1e-9 && r.x1 <= room.width / 2 - DEPTH.side + 1e-9);
+      assert.ok(r.y0 + room.height / 2 >= DEPTH.top - 1e-9 && r.y1 + room.height / 2 <= room.height - DEPTH.bottom + 1e-9);
+    }
+  }
+  assert.deepEqual(galleryPlacement(3, SCREENS.desktop), galleryPlacement(3, SCREENS.desktop));
 });
 
-test('stamps fade in from the fog and out as they pass the camera', () => {
+test('from any stamp, the two behind it show around it', () => {
+  for (const [name, room] of Object.entries(SCREENS)) {
+    for (let at = 0; at < 12; at++) {
+      assert.ok(uncovered(at, 1, room) >= .35, `${name}: the next behind stamp ${at}`);
+      assert.ok(uncovered(at, 2, room) >= .35, `${name}: the second behind stamp ${at}`);
+    }
+  }
+});
+
+test('stamps behind are blurred, not faded, but for the far fog and as they pass', () => {
   assert.equal(depthOpacity(0), 1);
+  assert.equal(depthOpacity(-DEPTH.spacing * 2), 1);
   assert.equal(depthOpacity(DEPTH.pass), 0);
   assert.equal(depthOpacity(-DEPTH.spacing * DEPTH.fog), 0);
-  assert.ok(depthOpacity(-DEPTH.spacing) > depthOpacity(-DEPTH.spacing * 2));
+  assert.equal(depthBlur(0), 0);
+  assert.ok(depthBlur(-DEPTH.spacing * 2) > depthBlur(-DEPTH.spacing));
+  assert.equal(depthBlur(-DEPTH.spacing * 99), DEPTH.blurMost);
 });
 
-test('the current stamp is the one nearest the camera', () => {
+test('the depth goes on for ever: past the last stamp, the first comes round', () => {
+  const s = DEPTH.spacing;
   assert.equal(galleryCurrent(0, 4), 0);
-  assert.equal(galleryCurrent(DEPTH.spacing * .6, 4), 1);
-  assert.equal(galleryCurrent(DEPTH.spacing * 9, 4), 3);
-  assert.equal(galleryCurrent(-DEPTH.spacing, 4), 0);
+  assert.equal(galleryCurrent(s * .6, 4), 1);
+  assert.equal(galleryCurrent(s * 9, 4), 1);
+  // At spot 3 of 3 stamps, the first is met again, in front.
+  assert.deepEqual(galleryMeeting(0, s * 3, 3), { spot: 3, z: 0 });
+  assert.deepEqual(galleryMeeting(1, s * 3, 3), { spot: 4, z: -s });
+  // Nothing is met before the spot where the gallery opens.
+  assert.ok(galleryMeeting(2, 0, 3).spot >= 0);
+  // A stamp by its number, at the spot nearest the camera's.
+  assert.equal(gallerySpotOf(0, 5, 3), 6);
+  assert.equal(gallerySpotOf(2, 5, 3), 5);
+  assert.equal(gallerySpotOf(1, 0, 3), 1);
 });
 
 // A trackpad scroll: the fingers' push, wobbling, then momentum fading out.

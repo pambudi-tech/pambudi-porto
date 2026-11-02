@@ -14,7 +14,11 @@ import { mountCloseup } from './project-closeup.mjs';
 export const DEPTH = Object.freeze({
   perspective: 1000, spacing: 640, duration: 1000,
   step: 800,     // ms a scroll's flight to the next stamp takes
-  fog: 3,        // stamps fade out this many spacings ahead
+  fog: 4,        // stamps fade out over the last spacing before this many ahead
+  blur: 4,       // px of blur for each spacing a stamp is behind the camera
+  blurMost: 10,  // px, the most blur any stamp gets
+  tilt: 12,      // degrees a stamp tips, edge to edge, under the pointer
+  scatter: .07,  // turns either way each stamp may stray from its third
   pass: 360,     // and are gone this far past the camera
   approach: 1.5, // spacings the stamps travel in from as it opens
   intent: 60,    // px of wheel or swipe past an end that opens or closes it
@@ -34,34 +38,78 @@ export const SHEET = Object.freeze({
 });
 
 // The hero's layers, each sent this far toward the camera, gone by `fade`.
+// Each goes out of focus as it nears, to `blur` px by the time it is gone:
+// the nearer it flies, the more.
 const LAYERS = [
-  { selector: '.project-intro, .project-facts, .project-overview', z: 900, fade: .35 },
-  { selector: '.cover-frame', z: 650, fade: .55 },
-  { selector: '.hero-postage-stamp, .cover-figure .project-image, .cover-protected', z: 420, fade: .75 },
+  { selector: '.project-intro, .project-facts, .project-overview', z: 900, fade: .35, blur: 14 },
+  { selector: '.cover-frame', z: 650, fade: .55, blur: 10 },
+  { selector: '.hero-postage-stamp, .cover-figure .project-image, .cover-protected', z: 420, fade: .75, blur: 7 },
 ];
 
 const ease = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 const easeOut = t => 1 - (1 - t) ** 3;
 
-// Where a stamp sits on screen, from the middle of the room between the dots
-// and the seal: sides alternate, each set in by its own scatter, the same on
-// every visit. A stamp at the camera always fits on screen.
-export function galleryPlacement(index, { width, height, w, h, top = DEPTH.top, bottom = DEPTH.bottom, side = DEPTH.side }) {
+// Where a stamp shows on screen, seen at `scale` (1 at the camera, less
+// deeper in), from the middle of the screen: round the middle of the room
+// between the dots and the seal, each a third of a turn on from the last,
+// give or take its own scatter, so the two behind the one in front fall
+// either side of it, along whichever way the screen has room: across a wide
+// one, up and down a tall one. The further back, and so the smaller, the further out
+// it may go, so they show around the one in front rather than behind it. A
+// stamp at the camera always fits on screen.
+export function galleryPlacement(index, { width, height, w, h, scale = 1, top = DEPTH.top, bottom = DEPTH.bottom, side = DEPTH.side }) {
   const { lift, shift } = placement(index);
-  const roomX = Math.max(0, width / 2 - side - w / 2);
-  const roomY = Math.max(0, (height - top - bottom - h) / 2);
+  const roomX = Math.max(0, width / 2 - side - w * scale / 2);
+  const roomY = Math.max(0, (height - top - bottom - h * scale) / 2);
+  // The first stamp in the middle of the way with room, the next two either side.
+  const wide = width / 2 - side - w / 2 >= (height - top - bottom - h) / 2;
+  const angle = (wide ? Math.PI / 2 : 0) + (index / 3 + (shift - .5) * DEPTH.scatter) * 2 * Math.PI;
+  const reach = .72 + .28 * lift;
   const middle = top + (height - top - bottom) / 2 - height / 2;
-  return { x: (index % 2 ? 1 : -1) * roomX * (.35 + .5 * shift), y: middle + (lift * 2 - 1) * roomY };
+  return { x: Math.cos(angle) * reach * roomX, y: middle + Math.sin(angle) * reach * roomY };
 }
 
-// How much of a stamp shows at a depth relative to the camera: fading in
-// from the fog ahead, and out as it passes.
+// A stamp's offset from the camera's axis at depth `z`, as translate3d takes
+// it: where it should show, undone by the perspective that draws it in.
+export function galleryOffset(index, z, room) {
+  const scale = z < 0 ? DEPTH.perspective / (DEPTH.perspective - z) : 1;
+  const { x, y } = galleryPlacement(index, { ...room, scale });
+  return { x: x / scale, y: y / scale };
+}
+
+// How much of a stamp shows at a depth relative to the camera: whole, but
+// for the last spacing before the fog, where it fades in, and as it passes.
 export const depthOpacity = (z, spacing = DEPTH.spacing) =>
-  clamp(z > 0 ? 1 - z / DEPTH.pass : 1 + z / (spacing * DEPTH.fog), 0, 1);
+  clamp(z > 0 ? 1 - z / DEPTH.pass : DEPTH.fog + z / spacing, 0, 1);
+
+// How out of focus a stamp is, in px: sharp at the camera, softer the
+// further behind, as a lens's depth of field.
+export const depthBlur = (z, spacing = DEPTH.spacing) =>
+  z < 0 ? Math.min(DEPTH.blurMost, -z / spacing * DEPTH.blur) : 0;
+
+// The depth goes on for ever: past the last stamp, the first comes round
+// again, and on. A place along it is a `spot`, 0 where the gallery opens;
+// spot k shows stamp k mod count. Back from spot 0 is the way out.
+export const gallerySpot = (camera, spacing = DEPTH.spacing) => Math.max(0, Math.round(camera / spacing));
 
 // The stamp nearest the camera.
 export const galleryCurrent = (camera, count, spacing = DEPTH.spacing) =>
-  clamp(Math.round(camera / spacing), 0, Math.max(0, count - 1));
+  count ? gallerySpot(camera, spacing) % count : 0;
+
+// Where stamp `index` is met next, for a camera at `camera`: the spot it
+// shows at, and its depth there, never further behind the camera than it has
+// just passed (`pass`), nor so far ahead that it would come round again first.
+export function galleryMeeting(index, camera, count, spacing = DEPTH.spacing) {
+  const first = Math.max(0, Math.ceil((camera - DEPTH.pass) / spacing));
+  const spot = first + (((index - first) % count) + count) % count;
+  return { spot, z: camera - spot * spacing };
+}
+
+// The spot nearest `near` that shows stamp `index`.
+export function gallerySpotOf(index, near, count) {
+  const before = near - (((near - index) % count) + count) % count;
+  return before >= 0 && near - before <= before + count - near ? before : before + count;
+}
 
 // The sheet's stamps, nearly as large as the screen allows: of the column
 // counts that give a stamp within `fuller` of the widest, the one with the
@@ -157,7 +205,34 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     const paper = createPostageStamp(`project-depth-paper-${index}`, 'project-depth-paper');
     const media = Object.assign(document.createElement('div'), { className: 'project-depth-photo' });
     media.append(Object.assign(new Image(item.width, item.height), { src: item.src, alt: item.alt, decoding: 'async' }));
-    element.append(paper, media);
+    // A sheen over the photo, lit where the pointer tips the stamp.
+    const sheen = Object.assign(document.createElement('div'), { className: 'project-depth-sheen' });
+    media.append(sheen);
+    // The stamp tilts within its place, which the depth sets each frame.
+    const tilt = Object.assign(document.createElement('div'), { className: 'project-depth-tilt' });
+    tilt.append(paper, media);
+    element.append(tilt);
+    // Under a pointer it tips toward it, as a stamp held up to the light: the
+    // one in front in the depth, and every one on the sheet.
+    const lean = event => {
+      const live = open && !busy && !closeup.isOpen() && (view === 'sheet' || index === current);
+      if (!live || event.pointerType === 'touch' || reduced()) { level(); return; }
+      const box = element.getBoundingClientRect();
+      const x = (event.clientX - box.left) / box.width - .5, y = (event.clientY - box.top) / box.height - .5;
+      tilt.style.setProperty('--tilt-x', `${(-y * DEPTH.tilt).toFixed(2)}deg`);
+      tilt.style.setProperty('--tilt-y', `${(x * DEPTH.tilt).toFixed(2)}deg`);
+      tilt.style.setProperty('--sheen-x', `${((x + .5) * 100).toFixed(1)}%`);
+      tilt.style.setProperty('--sheen-y', `${((y + .5) * 100).toFixed(1)}%`);
+      tilt.classList.add('is-tilted');
+    };
+    const level = () => {
+      tilt.style.removeProperty('--tilt-x');
+      tilt.style.removeProperty('--tilt-y');
+      tilt.classList.remove('is-tilted');
+    };
+    element.addEventListener('pointermove', lean);
+    element.addEventListener('pointerleave', level);
+    element.addEventListener('click', level);
     element.setAttribute('role', 'button');
     element.setAttribute('aria-label', `Image ${index + 1} of ${images.length}: ${item.alt}`);
     element.tabIndex = -1;
@@ -165,7 +240,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     // behind in the depth brings the camera to it.
     const choose = () => {
       if (!open || busy || closeup.isOpen()) return;
-      if (view === 'sheet' || index === current) { jumpTo(index); closeup.open(index); } else flyTo(index);
+      if (view === 'sheet' || index === current) { jumpTo(index); closeup.open(index); } else flyToSpot(stamps[index].spot);
     };
     element.addEventListener('click', choose);
     element.addEventListener('keydown', event => {
@@ -175,7 +250,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
       choose();
     });
     root.append(element);
-    return { element, paper, media, x: 0, y: 0, sheetX: 0, sheetY: 0, sheetScale: 1 };
+    return { element, paper, media, spot: index, sheetX: 0, sheetY: 0, sheetScale: 1 };
   });
   const dots = Object.assign(document.createElement('nav'), { className: 'project-depth-dots' });
   dots.setAttribute('aria-label', 'Gallery');
@@ -220,6 +295,12 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   let layers = [];
   // The view, and how far the stamps are on their way to the sheet, 0–1.
   let view = 'depth', sheet = 0, morph = null;
+  // Where the camera was as the gallery began to close from the sheet: the
+  // sheet then draws back as the camera does, flat, without gathering into
+  // the depth first.
+  let leavingFrom = null;
+  // The screen and the stamps' size, for their places in the depth.
+  let stage = null;
 
   function layout() {
     const width = innerWidth, height = innerHeight, narrow = width <= 760;
@@ -228,12 +309,12 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     const h = Math.round(w * 3 / 4);
     const perf = STAMP.perf * cornerPitch(width);
     const outline = stampOutline(w, h, perf);
-    stamps.forEach((stamp, index) => {
-      Object.assign(stamp.element.style, { width: `${w}px`, height: `${h}px`, marginLeft: `${-w / 2}px`, marginTop: `${-h / 2}px`, zIndex: String(stamps.length - index) });
+    stamps.forEach(stamp => {
+      Object.assign(stamp.element.style, { width: `${w}px`, height: `${h}px`, marginLeft: `${-w / 2}px`, marginTop: `${-h / 2}px` });
       drawPostageStamp(stamp.paper, w, h, perf, { whole: true });
       stamp.media.style.clipPath = `path('${outline}')`;
-      Object.assign(stamp, galleryPlacement(index, { width, height, w, h }));
     });
+    stage = { width, height, w, h };
     const grid = sheetLayout(stamps.length, narrow ? { width, height, side: 16, gap: 16 } : { width, height });
     stamps.forEach((stamp, index) => {
       Object.assign(stamp, { sheetX: grid.cells[index].x, sheetY: grid.cells[index].y, sheetScale: grid.width / w });
@@ -248,14 +329,23 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   function render() {
     const lerp = (a, b, t) => a + (b - a) * t;
     stamps.forEach((stamp, index) => {
-      const z = camera - index * DEPTH.spacing;
+      const { spot: at, z } = galleryMeeting(index, camera, stamps.length);
+      const from = Math.min(z, DEPTH.pass);
+      stamp.spot = at;
       const t = sheetProgress(sheet, index, stamps.length);
-      const x = lerp(stamp.x, stamp.sheetX, t), y = lerp(stamp.y, stamp.sheetY, t);
-      const depth = lerp(Math.min(z, DEPTH.pass), 0, t), scale = lerp(1, stamp.sheetScale, t);
+      // Placed by its spot, so each time round it sits somewhere new.
+      const spot = stage ? galleryOffset(at, from, stage) : { x: 0, y: 0 };
+      const x = lerp(spot.x, stamp.sheetX, t), y = lerp(spot.y, stamp.sheetY, t);
+      const back = leavingFrom === null ? 0 : camera - leavingFrom;
+      const depth = lerp(from, 0, t) + t * back, scale = lerp(1, stamp.sheetScale, t);
       const opacity = lerp(depthOpacity(z), 1, t) * appear;
+      const blur = lerp(depthBlur(z), 0, t) + t * depthBlur(back);
+      stamp.element.style.filter = blur > .05 ? `blur(${blur.toFixed(2)}px)` : '';
       stamp.element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${depth.toFixed(1)}px) scale(${scale.toFixed(4)})`;
       stamp.element.style.opacity = opacity.toFixed(3);
       stamp.element.style.visibility = opacity > 0 ? 'visible' : 'hidden';
+      // The nearer over the further, whichever time round each is.
+      stamp.element.style.zIndex = String(5000 + Math.round(depth));
     });
     const now = galleryCurrent(camera, stamps.length);
     if (now !== current) {
@@ -268,11 +358,12 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     });
   }
 
-  // Straight to a stamp, unseen: under the close-up, or on the sheet.
+  // Straight to a stamp, unseen: under the close-up, or on the sheet. It is
+  // met at the spot nearest the one the camera is headed for.
   function jumpTo(index) {
     cancelAnimationFrame(frame);
     frame = null;
-    camera = target = clamp(index, 0, stamps.length - 1) * DEPTH.spacing;
+    camera = target = gallerySpotOf(index, gallerySpot(target), stamps.length) * DEPTH.spacing;
     render();
   }
 
@@ -307,8 +398,8 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   // The camera's flight to a stamp, as fixed as the one that opened the
   // gallery. Sent on again mid-flight, it carries on at speed rather than
   // starting from rest.
-  function flyTo(index) {
-    const from = camera, to = clamp(index, 0, stamps.length - 1) * DEPTH.spacing;
+  function flyToSpot(spot) {
+    const from = camera, to = Math.max(0, spot) * DEPTH.spacing;
     const curve = frame ? easeOut : ease;
     cancelAnimationFrame(frame);
     target = to;
@@ -321,8 +412,10 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
       frame = t < 1 ? requestAnimationFrame(step) : null;
     });
   }
-  // However hard the scroll, one stamp on from where the camera is headed.
-  const flyOn = direction => flyTo(galleryCurrent(target, stamps.length) + direction);
+  // A stamp by its number, met at its spot nearest the camera's way.
+  const flyTo = index => flyToSpot(gallerySpotOf(index, gallerySpot(target), stamps.length));
+  // However hard the scroll, one spot on from where the camera is headed.
+  const flyOn = direction => flyToSpot(gallerySpot(target) + direction);
 
   // The camera's flight in or out, with the stamps appearing alongside.
   function travel(from, to, appearFrom, appearTo, length = DEPTH.duration) {
@@ -344,16 +437,23 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
   }
 
   // The hero's layers part at their own speeds, each growing away from the
-  // middle of the screen as it nears the camera.
+  // middle of the screen and blurring as it nears the camera; closing, they
+  // come back into focus as they settle.
   function partHero(direction) {
     const duration = reduced() ? 0 : DEPTH.duration;
     const at = z => `perspective(${DEPTH.perspective}px) translateZ(${z}px)`;
     if (direction === 'normal') {
-      layers = LAYERS.flatMap(({ selector, z, fade }) => [...document.querySelectorAll(selector)].map(element => {
+      layers = LAYERS.flatMap(({ selector, z, fade, blur }) => [...document.querySelectorAll(selector)].map(element => {
         const box = element.getBoundingClientRect();
         element.style.transformOrigin = `${innerWidth / 2 - box.left}px ${innerHeight / 2 - box.top}px`;
-        return element.animate([{ transform: at(0), opacity: 1 }, { opacity: 0, offset: fade }, { transform: at(z), opacity: 0 }],
-          { duration, easing: 'cubic-bezier(.55, 0, .45, 1)', fill: 'both' });
+        // Its own filter, the stamp paper's shadow, is kept under the blur.
+        const own = getComputedStyle(element).filter, base = own === 'none' ? '' : `${own} `;
+        const focus = amount => `${base}blur(${amount}px)`;
+        return element.animate([
+          { transform: at(0), opacity: 1, filter: focus(0) },
+          { opacity: 0, filter: focus(blur), offset: fade },
+          { transform: at(z), opacity: 0, filter: focus(blur) },
+        ], { duration, easing: 'cubic-bezier(.55, 0, .45, 1)', fill: 'both' });
       }));
     } else layers.forEach(animation => animation.reverse());
     return Promise.all(layers.map(animation => animation.finished));
@@ -382,8 +482,14 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
         await Promise.all([partHero('normal'), travel(-DEPTH.spacing * DEPTH.approach, 0, 0, 1)]);
       } else {
         settle(false);
-        // From the sheet, the stamps fall back into the depth as it closes.
-        await Promise.all([partHero('reverse'), travel(camera, camera - DEPTH.spacing * DEPTH.approach, 1, 0), morphTo(0, DEPTH.duration)]);
+        // From the sheet, the sheet itself draws back and fades as the hero
+        // returns, as the depth would, without becoming the depth first.
+        if (sheet > 0) {
+          cancelAnimationFrame(morph);
+          morph = null;
+          leavingFrom = camera;
+        }
+        await Promise.all([partHero('reverse'), travel(camera, camera - DEPTH.spacing * DEPTH.approach, 1, 0)]);
         reset();
       }
     } catch {
@@ -397,6 +503,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
 
   // Closed at once, the hero whole again.
   function reset() {
+    leavingFrom = null;
     cancelAnimationFrame(frame);
     cancelAnimationFrame(morph);
     frame = morph = null;
@@ -481,10 +588,10 @@ export function mountProjectGallery({ images, title, seal, motionPreference }) {
     if (event.key === 'Escape') { toggle(); return; }
     if (!step || view === 'sheet') return;
     event.preventDefault();
-    const next = galleryCurrent(target, stamps.length) + step;
-    // Up from the first stamp goes back to the cover.
+    const next = gallerySpot(target) + step;
+    // Up from where the gallery opened goes back to the cover.
     if (next < 0) { toggle(); return; }
-    flyTo(next);
+    flyToSpot(next);
   });
   addEventListener('resize', () => { if (open) layout(); });
   seal.addEventListener('click', toggle);

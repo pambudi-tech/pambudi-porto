@@ -90,6 +90,12 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
    one behind another, seen through one shared perspective. */
 .project-depth { position: fixed; inset: 0; z-index: 1; perspective: 1000px; pointer-events: none; }
 .project-depth-stamp { position: absolute; left: 50%; top: 50%; margin: 0; visibility: hidden; will-change: transform, opacity; }
+/* The stamp's own layer, which tips under the pointer (project-gallery.mjs). */
+.project-depth-tilt { position: absolute; inset: 0; transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); transition: transform 600ms cubic-bezier(.22, 1, .36, 1), scale 280ms cubic-bezier(.22, 1, .36, 1); }
+.project-depth-tilt.is-tilted { transition: transform 140ms ease-out, scale 280ms cubic-bezier(.22, 1, .36, 1); }
+/* The light it catches, following the pointer, and gone when it rests. */
+.project-depth-sheen { position: absolute; inset: 0; z-index: 2; background: radial-gradient(circle at var(--sheen-x, 50%) var(--sheen-y, 50%), rgb(255 255 255 / .22), rgb(255 255 255 / 0) 55%); mix-blend-mode: soft-light; opacity: 0; pointer-events: none; transition: opacity 400ms ease; }
+.is-tilted .project-depth-sheen { opacity: 1; }
 .project-depth-paper { z-index: 0; }
 .project-depth-photo { position: absolute; inset: 0; z-index: 1; overflow: hidden; background: #eeefeb; }
 .project-depth-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -112,7 +118,6 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
    waiting behind takes the camera to it. Hovered, a stamp lifts a little. */
 .gallery-open .project-depth-stamp { pointer-events: auto; cursor: pointer; }
 .gallery-open .project-depth-stamp.is-current, .gallery-sheet .project-depth-stamp { cursor: zoom-in; }
-.project-depth-stamp > * { transition: scale 280ms cubic-bezier(.22, 1, .36, 1); }
 @media (hover: hover) {
   .gallery-open .project-depth-stamp:hover > * { scale: 1.02; }
 }
