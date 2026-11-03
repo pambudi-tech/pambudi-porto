@@ -123,7 +123,7 @@ export class DotClock {
     this.time = this.formatter.format(now);
     this.element.dateTime = now.toISOString();
     this.element.setAttribute('aria-label', this.loading === undefined ? this.message || `Local time ${this.time}` : `Loading ${this.loading}%`);
-    if (this.view && !this.message && this.loading === undefined) this.board.refreshTarget(this.layout().glyphs);
+    if (this.view && !this.message && this.loading === undefined && !this.away) this.board.refreshTarget(this.layout().glyphs);
     this.paint();
     if (!document.hidden) this.timer = setTimeout(() => this.tick(), 1000 - Date.now() % 1000);
   }
@@ -131,7 +131,7 @@ export class DotClock {
     if (message === (this.message || '')) return;
     this.message = message;
     this.element.setAttribute('aria-label', message || `Local time ${this.time}`);
-    if (this.view) this.board.transitionTo(this.layout().glyphs, performance.now(), this.motionPreference.matches || document.hidden);
+    if (this.view && !this.away) this.board.transitionTo(this.layout().glyphs, performance.now(), this.motionPreference.matches || document.hidden);
     this.paint();
   }
   setLoading(percent) {
@@ -151,6 +151,22 @@ export class DotClock {
     this.element.dataset.mode = 'clock';
     this.element.setAttribute('aria-label', `Local time ${this.time}`);
     if (this.view) this.board.transitionTo(this.layout().glyphs, performance.now(), this.motionPreference.matches || document.hidden);
+    this.paint();
+  }
+  // Leaves as a departure board does: its text rolling out letter by letter
+  // to a blank board, which the seconds then leave blank until it arrives.
+  depart() {
+    this.away = true;
+    if (this.view) this.board.transitionTo([], performance.now(), this.motionPreference.matches || document.hidden);
+    this.paint();
+  }
+  // Comes back into view as a departure board does: from blank, its text
+  // rolling in letter by letter.
+  arrive() {
+    this.away = false;
+    if (!this.view) return;
+    this.board.finish([]);
+    this.board.transitionTo(this.layout().glyphs, performance.now(), this.motionPreference.matches || document.hidden);
     this.paint();
   }
   layout() {

@@ -8,6 +8,9 @@ import { fillSwitch } from '../project/project-switch.mjs';
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
   easing: 'cubic-bezier(.65, 0, .25, 1)',
+  // A cover's passcode tag tucks up under its stamp, as long as it took to
+  // drop out (project-detail.css), before the stamp flies home.
+  tagTuck: 480,
 });
 
 // From one project to the next, from its pill: the next page lies over this
@@ -271,6 +274,8 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     gallery.root.classList.remove('is-navigating', 'is-returning');
     entry.item.classList.remove('is-flight-source', 'is-departing');
     sealOut?.cancel();
+    // The clock, hidden while the project showed, rolls back in.
+    if (document.body.classList.contains('is-project-transition')) gallery.scene.rollClock?.();
     document.body.classList.remove('is-project-transition');
     gallery.scene.resume();
     gallery.departing = false;
@@ -413,6 +418,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     document.body.append(flight);
     gallery.root.inert = true;
     gallery.root.classList.add('is-navigating');
+    gallery.scene.rollClockOut?.();
     document.body.classList.add('is-project-transition');
     gallery.scene.unpickBranding();
     gallery.scene.unpickVisitorStitches();
@@ -507,6 +513,13 @@ export async function transitionToProject(gallery, entry, { history = true, seal
           return true;
         });
         await Promise.allSettled(swapped.map(([flying]) => flying.decode()));
+      }
+      // The cover's passcode tag goes first, the reverse of its arrival: it
+      // tucks back up under the stamp before the stamp flies home.
+      const coverTag = preview.contentDocument.querySelector('.cover-protected.is-dropping');
+      if (coverTag && !gallery.reduced) {
+        await coverTag.animate([{ translate: 'none' }, { translate: '0 -100%' }],
+          { duration: PROJECT_FLIGHT.tagTuck, easing: 'cubic-bezier(.64, 0, .78, 0)', fill: 'forwards' }).finished;
       }
       const hero = targetPostage.getBoundingClientRect();
       const card = entry.frame.getBoundingClientRect();

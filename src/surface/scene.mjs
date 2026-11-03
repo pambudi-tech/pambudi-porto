@@ -469,6 +469,10 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       clock?.setMessage(message);
       requestFrame();
     },
+    // The clock rolls its text out as a project opens from the works row, and
+    // back in as the row returns.
+    rollClockOut() { clock?.depart(); },
+    rollClock() { clock?.arrive(); },
     // Stops drawing and removes every listener the scene added.
     destroy() {
       running = false;
