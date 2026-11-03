@@ -1,33 +1,35 @@
 import { clamp } from '../shared/math.mjs';
 
-// The relit seal's entrance: molten wax pours and spreads, flat and glowing;
-// it cools as its lip rises; a stamp presses its middle down and the label
-// in; a low light runs along the lip, and the room's light takes over.
-export const WAX_POUR = Object.freeze({ duration: 1400 });
+// The relit seal's entrance, as sealing wax behaves. Melted, it is the same
+// red, only wet and glossy. It pools as a thick dome with its own uneven
+// outline, spreading quickly, then slower and slower. A stamp comes down,
+// its shadow first; pressing squeezes the puddle out into the seal's
+// outline, rolling up the lip and pressing the middle a little past rest. The stamp lifts
+// and leaves the impression, label and all, and the wet gloss dulls to the
+// seal's satin as it sets.
+export const WAX_POUR = Object.freeze({ duration: 2800 });
 
 const span = (ms, from, to) => clamp((ms - from) / (to - from));
-const outCubic = t => 1 - (1 - t) ** 3;
 const inOutSine = t => (1 - Math.cos(Math.PI * t)) / 2;
-// Past 1 and back: the stamp goes a little deep before it lifts.
-const outBack = t => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
+// Viscous: quick at first, then slower and slower.
+const viscous = t => 1 - (1 - t) ** 2.6;
+// The stamp's press: wax squeezed out fast, then held.
+const squeeze = t => 1 - (1 - t) ** 3;
 
-// Each part, 0 to 1, `ms` after the pour begins.
+// Each part, `ms` after the pour begins. `spread` is the puddle's size,
+// `form` how far it has become the stamped seal, `press` the
+// middle's depth (past 1 while the stamp holds it down), `wet` the melted
+// gloss, `stamp` the stamp's shadow and `label` the impression's lettering.
 export function pourAt(ms) {
-  const cool = inOutSine(span(ms, 250, 900));
-  const pressed = span(ms, 820, 1100);
-  const glint = span(ms, 1000, WAX_POUR.duration);
+  const pressing = squeeze(span(ms, 1250, 1550));
+  const lifting = inOutSine(span(ms, 1750, 2000));
   return {
-    pour: outCubic(span(ms, 0, 560)),
-    molten: 1 - cool,
-    cool,
-    press: pressed > 0 ? outBack(pressed) : 0,
-    label: inOutSine(pressed),
-    // The glint rises and falls; its lamp runs left to right as it does.
-    glint: Math.sin(Math.PI * glint),
-    sweep: inOutSine(glint),
+    spread: viscous(span(ms, 0, 1150)),
+    form: pressing,
+    press: pressing * (1 + .12 * (1 - lifting)),
+    wet: 1 - inOutSine(span(ms, 1850, WAX_POUR.duration)),
+    stamp: inOutSine(span(ms, 950, 1300)) * (1 - lifting),
+    label: span(ms, 1780, 1880),
     done: ms >= WAX_POUR.duration,
   };
 }
-
-// The glint's lamp, low over the lip, in the seal's space (wax-light.mjs).
-export const glintLamp = (sweep, aspect) => [(sweep - .5) * aspect * 1.3, .62, .42];

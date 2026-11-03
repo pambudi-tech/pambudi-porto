@@ -18,19 +18,38 @@ void main() {
 const FRAGMENT = `#version 300 es
 precision highp float;
 in vec2 vPos;
-uniform sampler2D photo, albedo, relief;
+uniform sampler2D photo, albedo, relief, letters;
 uniform vec3 light;
-uniform float extension, peak, depth, gloss, detail, level, sheen, pour, molten, press;
+uniform float extension, aspect, peak, depth, gloss, detail, level, sheen, spread, form, press, wet, stamp, pixel, seed, lettered;
 out vec4 outColor;
 const float ASPECT = ${WAX_ASPECT};
 const float SPAN = ${WAX_ASPECT - 1};
 // Where the end caps begin, the stretch eases over three source pixels
 // (243 to 246 px from the centre), as it did on the approved mesh.
 const float EASE_FROM = 243. / 280., EASE_TO = 246. / 280.;
-// While it forms (wax-pour.mjs), the lip rises as the wax cools and the
-// middle, the inner ridge with it, as the stamp presses it.
-float formed(float height) { return mix(press, 1. - molten, smoothstep(.24, .42, height)); }
+// While it forms (wax-pour.mjs), the lip rolls up as the stamp squeezes the
+// wax out, and the middle, the inner ridge with it, sinks as it presses.
+float formed(float height) { return mix(press, form, smoothstep(.24, .42, height)); }
 float surface(vec2 uv) { float b = texture(relief, uv).b; return b * peak * depth * formed(b); }
+// The label's letters, raised from the field as an engraved stamp leaves
+// them, from a height map of the seal's own size (wax-letters.mjs).
+const float LETTER = .007;
+const vec3 INK = vec3(.718, .102, .125);
+float letterAt(vec2 pos) { return texture(letters, vec2(pos.x / aspect + .5, .5 - pos.y)).r * LETTER * lettered * form; }
+// Each pour is its own: lobes run ahead or lag, and change as it spreads.
+float hash(float n) { return fract(sin(n * 78.233) * 43758.5453); }
+float reachAt(float a) {
+  float r = 0.;
+  for (int i = 0; i < 6; i++) {
+    // Whole numbers of lobes, so the edge meets itself all the way round.
+    float f = float(i), k = floor(2. + f * 1.6) + floor(hash(seed + f * 3.1) * 2.);
+    float phase = hash(seed + f) * 6.283 + spread * (hash(seed + f * 7.7) - .5) * 9.;
+    r += sin(k * a + phase) * .16 / (1. + f * .7);
+  }
+  // Busier while it runs, calmer as it slows; and quicker one way than another.
+  float pace = mix(.7, 1.6, .5 + .5 * sin(2. * a + hash(seed + 9.) * 6.283));
+  return pow(spread, pace) * (1. + r * mix(1., .45, spread));
+}
 void main() {
   float stretch = 1. + extension / SPAN, along = abs(vPos.x), x;
   float from = EASE_FROM * stretch, to = EASE_TO + extension * .5;
@@ -44,30 +63,52 @@ void main() {
     stretch = 1.;
   }
   vec2 uv = vec2(sign(vPos.x) * x / ASPECT + .5, .5 - vPos.y);
-  vec4 source = texture(photo, uv);
-  if (source.a < .004 || any(lessThan(uv, vec2(0))) || any(greaterThan(uv, vec2(1)))) discard;
-  // The pour spreads from the middle with a wavering front, to the outline.
-  vec2 c = (uv - .5) * vec2(2);
-  float angle = atan(c.y, c.x * ASPECT);
-  float wave = (.05 * sin(angle * 5. + pour * 9.) + .03 * sin(angle * 9. - pour * 13.)) * (1. - pour);
-  float front = pour * 1.3 - length(c) + wave;
-  float reach = pour >= 1. ? 1. : smoothstep(0., .012, front);
-  if (reach <= 0.) discard;
+  // Before the stamp, a puddle with its own outline: poured a little off
+  // the middle, flowing out unevenly, a glossy dome with a thick rounded rim,
+  // rippling faintly while it still flows. Its slopes come from neighbouring
+  // pixels.
+  vec2 poured = (vec2(hash(seed + 11.), hash(seed + 12.)) - .5) * vec2(.3, .08) * (1. - .6 * spread);
+  vec2 p = (uv - .5) * vec2(ASPECT, 1.) - poured;
+  vec2 radii = vec2(1.02, .4);
+  float local = max(reachAt(atan(p.y / radii.y, p.x / radii.x)), 1e-3);
+  float e = length(p / radii) / local;
+  float puddle = (1. - e) * radii.y * local;
+  float poolHeight = .065 * (1. - exp(-max(puddle, 0.) / .028)) * (1. + .25 * (1. - e * e))
+    + .0015 * sin(e * 22. - spread * 18.) * (1. - spread) * step(0., puddle);
+  vec3 poolNormal = normalize(vec3(-dFdx(poolHeight), -dFdy(poolHeight), pixel));
+  // The stamp squeezes it out to the seal's own outline (signed, in the
+  // colour's alpha), which then gives way to the photograph's exact edge.
+  float outline = (textureLod(albedo, uv, 0.).a - .5) * 80. / 280.;
+  float edge = mix(puddle, outline, form);
+  float alpha = mix(smoothstep(-pixel, pixel, edge), textureLod(photo, uv, 0.).a, smoothstep(.85, 1., form));
+  if (alpha < .004 || any(lessThan(uv, vec2(0))) || any(greaterThan(uv, vec2(1)))) discard;
+  vec4 source = textureLod(photo, uv, 0.);
   vec4 r = texture(relief, uv);
-  vec3 base = texture(albedo, uv).rgb;
+  // The puddle is plain wax; the stamp's impression brings the seal's colour.
+  vec3 base = mix(textureLod(albedo, vec2(.5), 6.).rgb, textureLod(albedo, uv, 0.).rgb, form);
   vec2 slope = r.xy * 2. - 1.;
   float shaped = depth * formed(r.b);
-  vec3 n = normalize(vec3(slope.x * shaped / stretch, slope.y * shaped, sqrt(max(1. - dot(slope, slope), 0.))));
-  float h = r.b * peak * shaped;
-  float cavity = mix(1., r.a, clamp(shaped, 0., 1.));
-  // The rolled lip is glossy; the pressed field is satin.
-  float polish = mix(.3, 1., smoothstep(.24, .42, r.b));
+  vec3 stamped = normalize(vec3(slope.x * shaped / stretch, slope.y * shaped, sqrt(max(1. - dot(slope, slope), 0.))));
+  vec3 n = normalize(mix(poolNormal, stamped, form));
+  float h = mix(poolHeight, r.b * peak * shaped, form);
+  float cavity = mix(1., mix(1., r.a, clamp(shaped, 0., 1.)), form);
+  if (lettered > 0.) {
+    vec2 rise = vec2(letterAt(vPos + vec2(pixel, 0)) - letterAt(vPos - vec2(pixel, 0)),
+      letterAt(vPos + vec2(0, pixel)) - letterAt(vPos - vec2(0, pixel))) / (2. * pixel);
+    n = normalize(vec3(n.xy / max(n.z, .2) - rise, 1.));
+    h += letterAt(vPos);
+    // A touch of the ink's brighter red keeps the label legible.
+    base = mix(base, INK, smoothstep(.15, .5, texture(letters, vec2(vPos.x / aspect + .5, .5 - vPos.y)).r) * .4 * form);
+  }
+  // The rolled lip is glossy and the pressed field satin; melted, all of it
+  // is wet.
+  float polish = mix(mix(.3, 1., smoothstep(.24, .42, r.b)), 1., wet);
   vec3 l = normalize(light - vec3(vPos, h));
   float shadow = 1.;
   vec2 step = vec2(l.x / (ASPECT * stretch), -l.y);
   for (int i = 1; i <= 24; i++) {
     float t = float(i) * .006;
-    float above = h + l.z * t - surface(uv + step * t);
+    float above = h + l.z * t - surface(uv + step * t) - (lettered > 0. ? letterAt(vPos + l.xy * t) : 0.);
     shadow = min(shadow, clamp(1. + above / (t * .3), 0., 1.));
   }
   float facing = dot(n, l);
@@ -84,12 +125,12 @@ void main() {
     // Light carried through the wax: shaded wax stays a deep red, not grey.
     + base * base * .3 * (1. - shadow) * smoothstep(-.2, .4, facing)) * level
     + vec3(1., .95, .92) * shine * (.6 + fresnel) * cavity;
-  // Molten: the wax glows a deeper, hotter red, and a thin bright bead runs
-  // along the pour's rounded front.
-  float bead = smoothstep(.004, .02, front) * (1. - smoothstep(.02, .06, front)) * molten * (1. - pour * pour);
-  colour += base * vec3(.5, .05, .02) * molten + vec3(1., .78, .7) * bead * .6;
+  // The stamp overhead shades the wax, its shadow a little away from the lamp.
+  vec2 away = -normalize(light.xy + 1e-5) * .1;
+  float under = 1. - smoothstep(.45, 1.1, length((uv - .5) * 2. - vec2(away.x / ASPECT, -away.y)));
+  colour *= 1. - stamp * .5 * under;
   colour = mix(colour, source.rgb, detail);
-  outColor = vec4(colour * source.a * reach, source.a * reach);
+  outColor = vec4(colour * alpha, alpha);
 }`;
 
 // The photo is the one the page already shows, so it costs no extra bytes.
@@ -141,17 +182,25 @@ async function createRenderer() {
     gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
     gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    // The colour's smaller levels give the puddle its plain wax; otherwise
+    // every texture is read at full size.
+    if (unit === 1) gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, unit === 1 ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     image.close?.();
   });
-  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail', 'level', 'sheen', 'pour', 'molten', 'press']
+  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail', 'level', 'sheen', 'spread', 'form', 'press', 'wet', 'stamp', 'pixel', 'seed', 'letters', 'lettered']
     .map(name => [name, gl.getUniformLocation(program, name)]));
-  gl.uniform1i(u.photo, 0); gl.uniform1i(u.albedo, 1); gl.uniform1i(u.relief, 2);
+  gl.uniform1i(u.photo, 0); gl.uniform1i(u.albedo, 1); gl.uniform1i(u.relief, 2); gl.uniform1i(u.letters, 3);
+  // Seals without letters read an empty map.
+  gl.activeTexture(gl.TEXTURE3);
+  const blank = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, blank);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
   gl.uniform1f(u.peak, WAX_RELIEF_PEAK);
-  const state = { canvas, gl, u, views: new Set(), lost: false };
+  const state = { canvas, gl, u, blank, views: new Set(), lost: false };
   // A lost context leaves every seal's last picture in place; a fresh
   // renderer redraws them once the browser allows WebGL again.
   canvas.addEventListener('webglcontextlost', event => {
@@ -167,7 +216,7 @@ async function createRenderer() {
 
 // Draws one seal at its size in the shared context, from the bottom left,
 // and returns that corner of the drawing buffer.
-function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail, level, sheen, pour, molten, press }) {
+function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail, level, sheen, spread, form, press, wet, stamp, seed }, letters) {
   // The buffer only grows, so seals of different sizes never reallocate it.
   if (canvas.width < w || canvas.height < h) {
     canvas.width = Math.max(canvas.width, w);
@@ -178,7 +227,9 @@ function render({ canvas, gl, u }, w, h, { width, height, extension, light, dept
   gl.uniform3f(u.light, ...light);
   gl.uniform1f(u.depth, depth); gl.uniform1f(u.gloss, gloss); gl.uniform1f(u.detail, detail);
   gl.uniform1f(u.level, level); gl.uniform1f(u.sheen, sheen);
-  gl.uniform1f(u.pour, pour); gl.uniform1f(u.molten, molten); gl.uniform1f(u.press, press);
+  gl.uniform1f(u.spread, spread); gl.uniform1f(u.form, form); gl.uniform1f(u.press, press);
+  gl.uniform1f(u.wet, wet); gl.uniform1f(u.stamp, stamp); gl.uniform1f(u.pixel, 1 / h); gl.uniform1f(u.seed, seed);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, letters);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   return [0, canvas.height - h, w, h];
 }
@@ -196,17 +247,41 @@ export class WaxGL {
     this.ready = true;
   }
   // `light` is the point light's position in the seal's space.
-  // `pour`, `molten` and `press` play the entrance (wax-pour.mjs); left out,
-  // the seal is formed.
+  // The label's letters, as a height map the seal's size (wax-letters.mjs),
+  // raised in the wax; null leaves the field plain.
+  setLetters(map) {
+    this.letters = map;
+    this.lettersChanged = true;
+  }
+  lettersTexture() {
+    const { gl, blank } = this.renderer;
+    if (!this.letters) return blank;
+    if (this.lettersFor !== this.renderer) { this.texture = gl.createTexture(); this.lettersFor = this.renderer; this.lettersChanged = true; }
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    if (this.lettersChanged) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.letters);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.lettersChanged = false;
+    }
+    return this.texture;
+  }
+  // `spread`, `form`, `press`, `wet` and `stamp` play the entrance
+  // (wax-pour.mjs), its puddle shaped by `seed`; left out, the seal is
+  // formed and set.
   draw({ width = 768, height = 280, extension = 0, light = [-.8, .45, 1], depth = 1, gloss = 60, detail = 0, level = 1, sheen = 1,
-    pour = 1, molten = 0, press = 1 } = {}) {
-    this.last = { width, height, extension, light, depth, gloss, detail, level, sheen, pour, molten, press };
+    spread = 1, form = 1, press = 1, wet = 0, stamp = 0, seed = 0 } = {}) {
+    this.last = { width, height, extension, light, depth, gloss, detail, level, sheen, spread, form, press, wet, stamp, seed };
     if (!this.ready || this.disposed || this.renderer.lost) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     else this.context.clearRect(0, 0, w, h);
-    const source = render(this.renderer, w, h, this.last);
+    const letters = this.lettersTexture();
+    this.renderer.gl.uniform1f(this.renderer.u.lettered, this.letters ? 1 : 0);
+    const source = render(this.renderer, w, h, this.last, letters);
     this.context.drawImage(this.renderer.canvas, ...source, 0, 0, w, h);
     this.canvas.dataset.ready = 'true';
   }

@@ -55,6 +55,10 @@ output { color: var(--ink); min-width: 2.6em; font-variant-numeric: tabular-nums
   color: transparent;
   text-shadow: none;
 }
+/* Pressed into the wax, the label is drawn by the WebGL seal; the text stays
+   for screen readers. */
+.seal[data-letters] .seal-label { color: transparent; text-shadow: none; }
+.seal[data-letters] .seal-label::after { content: none; }
 /* The WebGL seal draws over its photo, which stays until the model is ready. */
 .seal > .gl, .seal > .fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
 .seal:has(.gl[data-ready]) > .fallback { visibility: hidden; }

@@ -41,15 +41,20 @@ def blur(a, r):
 def masked_blur(a, weight, r):
     return blur(a * weight, r) / np.maximum(blur(weight, r), 1e-4)
 
-# Distance inside the outline, in source pixels.
-outer = np.where(mask, 1000., 0.).astype(np.float32)
-for _ in range(90):
-    old = outer.copy()
-    for axis in (0, 1):
-        outer = np.minimum(outer, np.roll(old, 1, axis) + 1)
-        outer = np.minimum(outer, np.roll(old, -1, axis) + 1)
-    for y, x in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
-        outer = np.minimum(outer, np.roll(old, (y, x), (0, 1)) + 1.414214)
+def chamfer(inside, steps):
+    distance = np.where(inside, 1000., 0.).astype(np.float32)
+    for _ in range(steps):
+        old = distance.copy()
+        for axis in (0, 1):
+            distance = np.minimum(distance, np.roll(old, 1, axis) + 1)
+            distance = np.minimum(distance, np.roll(old, -1, axis) + 1)
+        for y, x in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+            distance = np.minimum(distance, np.roll(old, (y, x), (0, 1)) + 1.414214)
+    return distance
+
+# Distance inside the outline, in source pixels, and outside it.
+outer = chamfer(mask, 90)
+outside = chamfer(~mask, 41)
 
 # The sunken field is a clean oval, not a copy of the wavy outline. Its rim,
 # the thin inner ridge, was measured on the image: centre (383, 145) from the
@@ -108,9 +113,12 @@ def texture(name, pixels, colour, save_to=None):
 
 peak = float(height.max())
 normal_image = texture('Wax normal • OpenGL', np.dstack((normal * .5 + .5, alpha)), 'Non-Color')
-# The website takes its outline from the seal image, so the colour is opaque.
+# The website takes its outline from the seal image.
 albedo_image = texture('Wax colour • without baked light', np.dstack((albedo, alpha)), 'sRGB')
-texture('Wax colour • web', np.dstack((albedo, np.ones_like(alpha))), 'sRGB', SOURCE / 'wax-seal-albedo.png')
+# Its alpha is the outline's signed distance, ±40 source pixels about 0.5,
+# for the entrance's puddle to become the seal (src/wax/wax-gl.mjs).
+outline = np.clip(.5 + (np.where(mask, outer, -outside)) / 80, 0, 1)
+texture('Wax colour • web', np.dstack((albedo, outline)), 'sRGB', SOURCE / 'wax-seal-albedo.png')
 # R,G: OpenGL normal (y up). B: height / peak. A: cavity.
 texture('Wax relief • normal, height, cavity',
         np.dstack((normal[:, :, 0] * .5 + .5, normal[:, :, 1] * .5 + .5, height / peak, cavity)),
