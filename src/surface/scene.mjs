@@ -14,6 +14,7 @@ import { FreeStitch } from '../stitch/free-stitch.mjs';
 import { SurfaceCamera, mountSurfaceNavigation } from '../stitch/surface-zoom.mjs';
 import { MOTIF_HINT_COLOR } from '../stitch/thread-colors.mjs';
 import { PaperInteraction } from '../paper/paper-interaction.mjs';
+import { lightPosition } from '../paper/paper-gl.mjs';
 import { PaperFlip } from '../paper/paper-flip.mjs';
 import { setupEmailCopy } from '../paper/contact-links.mjs';
 import { mountPaperTextContour, mountAboutTextMask } from '../paper/paper-text-contour.mjs';
@@ -87,16 +88,25 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     scene.cancelTap();
     scene.controls.open(x, y);
   });
+  // The paper's seals are lit by the paper's own lamp.
+  let waxes = [];
+  const paperFrame = document.querySelector('#surface .portfolio-frame');
+  const paperAspect = paperFrame ? paperFrame.getAttribute('width') / paperFrame.getAttribute('height') : 1;
   const sheet = surfaceOnly ? null : new PaperInteraction(document.querySelector('#surface .portfolio-paper'), {
     requestFrame, reduced: motionPreference.matches, placementMirror: document.querySelector('.preloader-paper'),
+    onLight: values => {
+      const lamp = lightPosition(values, paperAspect), rest = lightPosition({}, paperAspect);
+      for (const wax of waxes) if (wax.relit) wax.followPaper(lamp, rest);
+    },
   });
   const paperFlip = surfaceOnly ? null : new PaperFlip(sheet.element, {
     reduced: motionPreference.matches,
     onStart: () => sheet.setFlipping(true),
     onFinish: () => sheet.setFlipping(false),
   });
-  const waxes = [...document.querySelectorAll('.works-seal')]
-    .map(element => new WaxInteraction(element, motionPreference, { startWhen }));
+  waxes = [...document.querySelectorAll('.works-seal')].map(element => new WaxInteraction(element, motionPreference,
+    { startWhen, relit: Boolean(element.closest('.portfolio-paper')) }));
+  if (sheet) sheet.onLight(sheet.current);
   const freeStitch = new FreeStitch(model, animations, {
     resolveCell: (col, row, tool) => tool === 'unpick' ? toStoredCell(col, row, corners) : [col, row],
     canPlace(col, row, tool) {

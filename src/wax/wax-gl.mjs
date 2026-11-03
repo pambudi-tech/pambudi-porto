@@ -20,7 +20,7 @@ precision highp float;
 in vec2 vPos;
 uniform sampler2D photo, albedo, relief;
 uniform vec3 light;
-uniform float extension, peak, depth, gloss, detail;
+uniform float extension, peak, depth, gloss, detail, level, sheen;
 out vec4 outColor;
 const float ASPECT = ${WAX_ASPECT};
 const float SPAN = ${WAX_ASPECT - 1};
@@ -65,11 +65,13 @@ void main() {
   float nh = max(dot(n, halfway), 0.);
   float fresnel = .04 + .96 * pow(1. - max(n.z, 0.), 5.);
   // A crisp highlight and the soft glow of the same lamp around it.
-  float shine = (pow(nh, gloss * mix(.35, 1., polish)) * 1.7 * polish + pow(nh, gloss * .18) * .22)
+  float shine = (pow(nh, gloss * mix(.35, 1., polish)) * 1.7 * polish + pow(nh, gloss * .18) * .22 * sheen)
     * smoothstep(0., .2, facing) * shadow;
-  vec3 colour = base * cavity * (.36 + .9 * diffuse)
+  // Level sets how strongly the wax answers the lamp, and sheen the soft
+  // glow around its highlight: a room light from far off asks for less.
+  vec3 colour = (base * cavity * (.36 + .9 * diffuse)
     // Light carried through the wax: shaded wax stays a deep red, not grey.
-    + base * base * .3 * (1. - shadow) * smoothstep(-.2, .4, facing)
+    + base * base * .3 * (1. - shadow) * smoothstep(-.2, .4, facing)) * level
     + vec3(1., .95, .92) * shine * (.6 + fresnel) * cavity;
   colour = mix(colour, source.rgb, detail);
   outColor = vec4(colour * source.a, source.a);
@@ -89,11 +91,12 @@ const assets = () => Promise.all(WAX_ASSETS.map(url => fetchOK(url).then(r => r.
   .then(blob => createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))));
 
 // Waits for the driver to finish compiling off the main thread, when it can.
+// A timer, not animation frames, so a tab in the background finishes too.
 function linked(gl, program) {
   const parallel = gl.getExtension('KHR_parallel_shader_compile');
   if (!parallel) return Promise.resolve();
   return new Promise(resolve => {
-    const check = () => gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR) ? resolve() : requestAnimationFrame(check);
+    const check = () => gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR) ? resolve() : setTimeout(check, 16);
     check();
   });
 }
@@ -129,7 +132,7 @@ async function createRenderer() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     image.close?.();
   });
-  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail']
+  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail', 'level', 'sheen']
     .map(name => [name, gl.getUniformLocation(program, name)]));
   gl.uniform1i(u.photo, 0); gl.uniform1i(u.albedo, 1); gl.uniform1i(u.relief, 2);
   gl.uniform1f(u.peak, WAX_RELIEF_PEAK);
@@ -149,7 +152,7 @@ async function createRenderer() {
 
 // Draws one seal at its size in the shared context, from the bottom left,
 // and returns that corner of the drawing buffer.
-function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail }) {
+function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail, level, sheen }) {
   // The buffer only grows, so seals of different sizes never reallocate it.
   if (canvas.width < w || canvas.height < h) {
     canvas.width = Math.max(canvas.width, w);
@@ -159,6 +162,7 @@ function render({ canvas, gl, u }, w, h, { width, height, extension, light, dept
   gl.uniform1f(u.extension, extension); gl.uniform1f(u.aspect, width / height);
   gl.uniform3f(u.light, ...light);
   gl.uniform1f(u.depth, depth); gl.uniform1f(u.gloss, gloss); gl.uniform1f(u.detail, detail);
+  gl.uniform1f(u.level, level); gl.uniform1f(u.sheen, sheen);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   return [0, canvas.height - h, w, h];
 }
@@ -176,8 +180,8 @@ export class WaxGL {
     this.ready = true;
   }
   // `light` is the point light's position in the seal's space.
-  draw({ width = 768, height = 280, extension = 0, light = [-.8, .45, 1], depth = 1, gloss = 60, detail = 0 } = {}) {
-    this.last = { width, height, extension, light, depth, gloss, detail };
+  draw({ width = 768, height = 280, extension = 0, light = [-.8, .45, 1], depth = 1, gloss = 60, detail = 0, level = 1, sheen = 1 } = {}) {
+    this.last = { width, height, extension, light, depth, gloss, detail, level, sheen };
     if (!this.ready || this.disposed || this.renderer.lost) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));

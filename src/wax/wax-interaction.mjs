@@ -1,11 +1,16 @@
 import { buildWaxSurface, shadeWaxSurface } from './wax-material.mjs';
 import { WaxEntrance } from './wax-entrance.mjs';
+import { WaxGL } from './wax-gl.mjs';
+import { WAX_ASPECT } from './wax-layout.mjs';
+import { WAX_REST, WAX_ROOM, WAX_HOVER, lampInSeal, mixLamp, waxFinish, paperLampInSeal, sealShadow, labelFill } from './wax-light.mjs';
 import { clamp } from '../shared/math.mjs';
 import { offMainThread } from '../shared/prep.mjs';
 
 export const WAX_LIGHT = Object.freeze({ reach: 100, fadeMs: 240, followMs: 110 });
 const restLight = () => ({ x: 0, y: -.35, strength: 0 });
 const REST_SHADE = `${(0).toFixed(3)},${(-.35).toFixed(3)}`;
+const idle = () => new Promise(resolve => (window.requestIdleCallback
+  ? requestIdleCallback(resolve, { timeout: 2000 }) : setTimeout(resolve, 200)));
 
 // The front and back seals share one image, so they share its relief and
 // its resting light rather than each building them.
@@ -64,12 +69,17 @@ export function waxLabelShadow({ x, y, strength }, aspect) {
 
 export class WaxInteraction {
   // `entrance: false` skips the wax-flow entrance, for a seal that appears
-  // some other way.
-  constructor(element, motionPreference, { startWhen, entrance = true } = {}) {
+  // some other way. `relit` lights the wax itself in WebGL, where it can.
+  constructor(element, motionPreference, { startWhen, entrance = true, relit = false } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
+    this.label = element.querySelector('.works-seal-label');
     this.motionPreference = motionPreference;
-    this.entrance = entrance ? new WaxEntrance(element, motionPreference, { startWhen }) : null;
+    this.relit = relit;
+    // The entrance spreads the relit wax once it is drawn, so nothing changes
+    // as it settles.
+    this.entrance = entrance ? new WaxEntrance(element, motionPreference,
+      { startWhen, source: () => (this.view ? this.canvas : null) }) : null;
     this.current = restLight();
     this.target = restLight();
     this.frame = null;
@@ -113,6 +123,10 @@ export class WaxInteraction {
   }
   async prepare() {
     await this.image.decode();
+    // The relit wax; without WebGL 2, the photograph's own relief as before.
+    if (this.relit) {
+      try { await this.prepareRelit(); return; } catch (error) { console.warn('Wax lighting:', error); }
+    }
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = Math.round(512 * this.image.naturalHeight / this.image.naturalWidth);
@@ -128,8 +142,56 @@ export class WaxInteraction {
     this.element.dataset.waxReady = 'true';
     if (this.target.strength) this.requestDraw();
   }
+  async prepareRelit() {
+    // After the page has settled: nothing here may hold up its first paint.
+    await idle();
+    const canvas = document.createElement('canvas');
+    canvas.className = 'wax-gl';
+    canvas.setAttribute('aria-hidden', 'true');
+    const view = new WaxGL(canvas);
+    await view.prepare();
+    this.view = view;
+    this.canvas = canvas;
+    if (this.label) this.label.dataset.text = this.label.textContent;
+    new ResizeObserver(() => { this.measured = null; this.draw(); }).observe(this.element);
+    this.draw();
+    this.image.after(canvas);
+    // Settle its hidden style first, so it fades in over the photograph,
+    // which then steps aside: their soft edges would otherwise double.
+    getComputedStyle(canvas).opacity;
+    this.element.dataset.waxRelit = 'fading';
+    const settle = () => { this.element.dataset.waxRelit = 'settled'; };
+    canvas.addEventListener('transitionend', settle, { once: true });
+    setTimeout(settle, 600);
+    this.element.dataset.waxReady = 'true';
+    if (this.target.strength) this.requestDraw();
+  }
+  // The paper's lamp, now and at rest (paper-gl.mjs lightPosition), for a
+  // seal on the paper: it lights the seal as it lights the sheet.
+  followPaper(lamp, rest) {
+    this.paperLight = { lamp, rest };
+    if (this.view && !this.suspended) this.draw();
+  }
+  // Where the seal sits on its sheet, and its label within it; read once and
+  // again on resize, never while drawing.
+  measure() {
+    const width = this.image.offsetWidth, height = this.image.offsetHeight;
+    const frame = this.element.closest('.paper-face')?.querySelector('.portfolio-frame');
+    let paper = null;
+    if (frame) {
+      const sheet = frame.getBoundingClientRect(), seal = this.image.getBoundingClientRect();
+      if (sheet.height) paper = {
+        x: (seal.left + seal.width / 2 - sheet.left - sheet.width / 2) / sheet.height,
+        y: (seal.top + seal.height / 2 - sheet.top - sheet.height / 2) / sheet.height,
+        height: seal.height / sheet.height,
+      };
+    }
+    const label = this.label ? [width / 2 - this.label.offsetLeft, height / 2 - this.label.offsetTop] : [0, 0];
+    this.measured = { width, height, paper, label };
+    return this.measured;
+  }
   requestDraw() {
-    if (this.suspended || !this.surface || this.frame !== null) return;
+    if (this.suspended || !(this.surface || this.view) || this.frame !== null) return;
     this.frame = requestAnimationFrame(now => {
       this.frame = null;
       const elapsed = this.lastTime === null ? 16 : now - this.lastTime;
@@ -150,10 +212,39 @@ export class WaxInteraction {
       this.lastTime = null;
       this.current = restLight();
       this.target = restLight();
-      if (this.surface) this.draw();
-    } else this.resetLight();
+      if (this.surface || this.view) this.draw();
+    } else {
+      // Measured afresh as its face comes round: turned away, it may not be.
+      this.measured = null;
+      this.resetLight();
+    }
+  }
+  // The lamp is the room's (the paper's, or a default above the upper left)
+  // until a pointer comes near: then a close lamp comes down over it, and the
+  // wax takes on its full gloss.
+  drawRelit() {
+    const { width, height, paper, label } = this.measured ?? this.measure();
+    if (!width || !height) return;
+    const aspect = width / height, strength = this.current.strength;
+    const onPaper = this.paperLight && paper;
+    const room = onPaper ? paperLampInSeal(this.paperLight.lamp, paper) : lampInSeal(WAX_REST, aspect, 1);
+    const rest = onPaper ? paperLampInSeal(this.paperLight.rest, paper) : room;
+    const lamp = mixLamp(room, lampInSeal(this.current, aspect, WAX_HOVER.lift), strength);
+    const finish = waxFinish(onPaper ? WAX_ROOM : WAX_HOVER, strength);
+    const key = [...lamp, finish.level, width, height].map(value => value.toFixed(4)).join();
+    if (key === this.drawn) return;
+    this.drawn = key;
+    this.view.draw({ width, height, extension: Math.max(0, aspect - WAX_ASPECT), light: lamp, ...finish });
+    const style = this.element.style;
+    for (const [name, value] of Object.entries(waxLabelShadow({ x: lamp[0] / (aspect / 2), y: -lamp[1] * 2, strength: 1 }, aspect)))
+      style.setProperty(name, value);
+    const [sx, sy] = sealShadow(lamp, height);
+    style.setProperty('--wax-shadow-x', `${sx.toFixed(2)}px`);
+    style.setProperty('--wax-shadow-y', `${sy.toFixed(2)}px`);
+    this.label?.style.setProperty('--label-fill', labelFill(lamp, rest, { unit: height, centre: label, gloss: finish.gloss, sheen: finish.sheen }));
   }
   draw() {
+    if (this.view) { this.drawRelit(); return; }
     const { x, y, strength } = this.current;
     const shadeKey = `${x.toFixed(3)},${y.toFixed(3)}`;
     if (shadeKey !== this.shadeKey) {

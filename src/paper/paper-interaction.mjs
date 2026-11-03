@@ -8,12 +8,14 @@ const LIGHT = ['lx', 'ly', 'light'];
 const clampUnit = value => Math.max(-1, Math.min(1, value));
 
 export class PaperInteraction {
-  constructor(element, { requestFrame, reduced = false, placementMirror, onTap } = {}) {
+  // `onLight` hears each pose the sheet is lit with, for what lies on it.
+  constructor(element, { requestFrame, reduced = false, placementMirror, onTap, onLight } = {}) {
     this.element = element;
     this.image = element.querySelector('img') ?? element;
     this.requestFrame = requestFrame;
     this.placementMirror = placementMirror;
     this.onTap = onTap;
+    this.onLight = onLight;
     this.state = { x: 0, y: 0, hovered: false, lit: false, pressed: false, reduced };
     this.current = paperTarget(this.state);
     this.target = { ...this.current };
@@ -199,6 +201,7 @@ export class PaperInteraction {
     }
     // Light only the face showing, and neither while it turns in 3D.
     if (!this.flipping) (this.element.dataset.paperSide === 'red' ? this.backMaterial : this.material)?.draw(values);
+    this.onLight?.(values);
     const engaged = this.state.hovered || this.state.pressed;
     this.element.classList.toggle('paper-engaged', engaged || this.moving || this.placementStarted != null);
     document.body.classList.toggle('paper-hover', engaged);

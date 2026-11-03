@@ -82,9 +82,11 @@ export function drawWaxSpread(context, image, progress, mask) {
 }
 
 export class WaxEntrance {
-  constructor(element, motionPreference, { startWhen } = {}) {
+  // `source` gives what to spread when it is not the seal's photograph.
+  constructor(element, motionPreference, { startWhen, source } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
+    this.source = source;
     this.frame = null;
     this.done = false;
     this.startWhen = startWhen;
@@ -127,7 +129,7 @@ export class WaxEntrance {
         // each frame is drawn afresh from the time, so it shows the same.
         const state = this.facingAway()
           ? waxSpreadAt(progress, this.canvas.width, this.canvas.height)
-          : drawWaxSpread(context, this.image, progress, this.mask);
+          : drawWaxSpread(context, this.source?.() ?? this.image, progress, this.mask);
         this.element.dataset.waxEntrance = 'spreading';
         this.element.dataset.waxSpread = progress.toFixed(3);
         this.element.style.setProperty('--wax-label-reveal', state.label.toFixed(4));
