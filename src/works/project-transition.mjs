@@ -233,7 +233,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   if (seal) entry.item.classList.add('is-departing');
   // The pill names the work as its card does, as the page's pill will.
   let navMorph = createProjectNavMorph(gallery, entry.work);
-  let preview, flight, sealOut, inDetail = false, returning = false;
+  let preview, flight, sealOut, printOut = [], inDetail = false, returning = false;
   // A slow project shows it is on its way: its stamp is sewn around, then
   // the nav says so (opening-cue.mjs). Opened by its own address, the row
   // is not on show, so there is nothing to cue.
@@ -274,6 +274,9 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     gallery.root.classList.remove('is-navigating', 'is-returning');
     entry.item.classList.remove('is-flight-source', 'is-departing');
     sealOut?.cancel();
+    // The card's print is let go of here; landing, it eases back in (CSS).
+    printOut.forEach(animation => animation.cancel());
+    printOut = [];
     // The clock, hidden while the project showed, rolls back in.
     if (document.body.classList.contains('is-project-transition')) gallery.scene.rollClock?.();
     document.body.classList.remove('is-project-transition');
@@ -410,11 +413,19 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     // Only cover the card once its photo can be painted, so it never blinks
     // to an empty window.
     await Promise.allSettled([fromImage.decode(), toImage.decode()]);
-    // The pressed seal fades off the card first; then the stamp flies.
-    if (seal) {
-      sealOut = entry.seal?.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: gallery.reduced ? 0 : 200, easing: 'ease', fill: 'forwards' });
-      await sealOut?.finished;
-    }
+    // The pressed seal fades off the card first, and the card's print leaves
+    // as it lands, in reverse: its words and number ease out, and its
+    // passcode tag tucks up under the stamp. Then the stamp flies.
+    if (seal) sealOut = entry.seal?.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: gallery.reduced ? 0 : 200, easing: 'ease', fill: 'forwards' });
+    // Opened by its own address (`arrived`), the row is not on show.
+    const leave = !gallery.reduced && !arrived;
+    const out = { easing: 'cubic-bezier(.64, 0, .78, 0)', fill: 'forwards' };
+    printOut = !leave ? [] : [
+      ...entry.item.querySelectorAll('.works-text, .works-number'),
+    ].map(element => element.animate([{ opacity: 1, translate: 'none' }, { opacity: 0, translate: '0 4px' }], { ...out, duration: 420, delay: 60 }));
+    const tag = leave ? entry.item.querySelector('.works-protected') : null;
+    if (tag) printOut.push(tag.animate([{ translate: '-50% 0' }, { translate: '-50% -100%' }], { ...out, duration: PROJECT_FLIGHT.tagTuck }));
+    await Promise.all([sealOut?.finished, ...printOut.map(animation => animation.finished)]);
     document.body.append(flight);
     gallery.root.inert = true;
     gallery.root.classList.add('is-navigating');
