@@ -32,10 +32,12 @@ const float EASE_FROM = 243. / 280., EASE_TO = 246. / 280.;
 float formed(float height) { return mix(press, form, smoothstep(.24, .42, height)); }
 float surface(vec2 uv) { float b = texture(relief, uv).b; return b * peak * depth * formed(b); }
 // The label's letters, raised from the field as an engraved stamp leaves
-// them, from a height map of the seal's own size (wax-letters.mjs).
-const float LETTER = .007;
+// them, from a height map of the seal's own size (wax-letters.mjs): firm
+// shoulders and a flat top, standing well clear of the field.
+const float LETTER = .016;
 const vec3 INK = vec3(.718, .102, .125);
-float letterAt(vec2 pos) { return texture(letters, vec2(pos.x / aspect + .5, .5 - pos.y)).r * LETTER * lettered * form; }
+vec4 lettersAt(vec2 pos) { return texture(letters, vec2(pos.x / aspect + .5, .5 - pos.y)); }
+float letterAt(vec2 pos) { return smoothstep(.06, .62, lettersAt(pos).r) * LETTER * lettered * form; }
 // Each pour is its own: lobes run ahead or lag, and change as it spreads.
 float hash(float n) { return fract(sin(n * 78.233) * 43758.5453); }
 float reachAt(float a) {
@@ -97,8 +99,12 @@ void main() {
       letterAt(vPos + vec2(0, pixel)) - letterAt(vPos - vec2(0, pixel))) / (2. * pixel);
     n = normalize(vec3(n.xy / max(n.z, .2) - rise, 1.));
     h += letterAt(vPos);
-    // A touch of the ink's brighter red keeps the label legible.
-    base = mix(base, INK, smoothstep(.15, .5, texture(letters, vec2(vPos.x / aspect + .5, .5 - vPos.y)).r) * .4 * form);
+    // The field is shaded where the letters stand on it, and a touch of the
+    // ink's brighter red keeps the label legible.
+    vec4 map = lettersAt(vPos);
+    float on = smoothstep(.15, .5, map.r);
+    cavity *= 1. - .38 * map.g * (1. - on) * form;
+    base = mix(base, INK, on * .22 * form);
   }
   // The rolled lip is glossy and the pressed field satin; melted, all of it
   // is wet.
