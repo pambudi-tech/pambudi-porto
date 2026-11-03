@@ -1,4 +1,5 @@
 import { FRAME_REGISTRATION } from './frame-registration.mjs';
+import { hardwareWebGL2 } from '../shared/gpu.mjs';
 
 // The paper lit as a surface: the paper model's baked relief normals on one
 // quad, cut to the sheet's outline. A point light follows the pointer, and
@@ -141,8 +142,9 @@ export class PaperGL {
   async prepare() {
     // After the page has settled: nothing here may hold up its first paint.
     await idle();
-    const gl = this.canvas.getContext('webgl2', { premultipliedAlpha: true, antialias: false });
-    if (!gl) throw new Error('WebGL 2 unavailable');
+    // Only on a graphics card; otherwise the photograph's own relief (PaperMaterial).
+    const gl = hardwareWebGL2(this.canvas, { premultipliedAlpha: true, antialias: false });
+    if (!gl) throw new Error('WebGL 2 on a graphics card unavailable');
     this.gl = gl;
     const program = gl.createProgram();
     const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]].map(([type, source]) => {
