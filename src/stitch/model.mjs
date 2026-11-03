@@ -12,7 +12,17 @@ export const SURFACE_SPACING = 1.25;
 export const surfaceSpacing = width => isPhone(width) ? 1.5 : SURFACE_SPACING;
 export const edgeGapStitches = width => isPhone(width) ? 1 : 3;
 export const keyOf = (x, y) => `${x},${y}`;
-export const parseKey = key => key.split(',').map(Number);
+// Keys repeat every frame while stitches sew in; parse each one once.
+const parsed = new Map();
+export const parseKey = key => {
+  let cell = parsed.get(key);
+  if (!cell) {
+    cell = key.split(',').map(Number);
+    if (parsed.size > 50000) parsed.clear();
+    parsed.set(key, cell);
+  }
+  return [...cell];
+};
 export const DEFAULT_LAYOUT = { columns: 128, rows: 162, size: 94 };
 export function readLayout(layout) {
   if (!layout || !Number.isInteger(layout.columns) || !Number.isInteger(layout.rows) || !Number.isFinite(layout.size)) return { ...DEFAULT_LAYOUT };

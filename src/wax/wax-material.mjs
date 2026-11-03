@@ -22,23 +22,24 @@ export function buildWaxSurface(rgba, width, height) {
     const i = y * width + x;
     if (alpha[i] < 96) continue;
     const d = distance[i] / pitch;
-    const sample = (dx, dy) => tone[clamp(y + dy, 0, height - 1) * width + clamp(x + dx, 0, width - 1)];
-    const detail = (sample(-1, 0) + sample(1, 0) + sample(0, -1) + sample(0, 1) + tone[i] * 4) / 8;
+    // The four neighbours, held to the image's edge.
+    const left = x > 0 ? i - 1 : i, right = x < width - 1 ? i + 1 : i;
+    const up = y > 0 ? i - width : i, down = y < height - 1 ? i + width : i;
+    const detail = (tone[left] + tone[right] + tone[up] + tone[down] + tone[i] * 4) / 8;
     heights[i] = pitch * (.55 * (1 - Math.exp(-d / 1.7))
       + 3.3 * bump(d, 8, 5.5) - .7 * bump(d, 16, 3)
       + 1.05 * bump(d, 21, 3.2) + detail * .85);
     rim[i] = Math.min(1, bump(d, 8, 8) + .6 * bump(d, 21, 4));
   }
   const normals = new Float32Array(count * 3);
+  const raised = neighbor => alpha[neighbor] >= 96 ? heights[neighbor] : 0;
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const i = y * width + x;
     if (alpha[i] < 96) continue;
-    const sample = (dx, dy) => {
-      const neighbor = clamp(y + dy, 0, height - 1) * width + clamp(x + dx, 0, width - 1);
-      return alpha[neighbor] >= 96 ? heights[neighbor] : 0;
-    };
-    const nx = (sample(-1, 0) - sample(1, 0)) * .5;
-    const ny = (sample(0, -1) - sample(0, 1)) * .5;
+    const left = x > 0 ? i - 1 : i, right = x < width - 1 ? i + 1 : i;
+    const up = y > 0 ? i - width : i, down = y < height - 1 ? i + width : i;
+    const nx = (raised(left) - raised(right)) * .5;
+    const ny = (raised(up) - raised(down)) * .5;
     const length = Math.hypot(nx, ny, 1);
     normals[i * 3] = nx / length;
     normals[i * 3 + 1] = ny / length;

@@ -24,7 +24,8 @@ export class PaperInteraction {
     await this.image.decode();
     const canvas = document.createElement('canvas');
     canvas.width = 224;
-    canvas.height = Math.round(224 * this.image.naturalHeight / this.image.naturalWidth);
+    // The master's shape: with srcset, natural sizes are rounded per density.
+    canvas.height = Math.round(224 * this.image.getAttribute('height') / this.image.getAttribute('width'));
     const context = canvas.getContext('2d', { willReadFrequently: true });
     context.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -34,7 +35,7 @@ export class PaperInteraction {
     this.element.dataset.paperReady = 'true';
     this.measure();
     const material = new PaperMaterial(this.image);
-    material.prepare();
+    await material.prepare();
     material.draw(this.current);
     this.material = material;
   }

@@ -38,12 +38,23 @@ export function moveBirdPoint(x, y, motion) {
 
 // `pitch` is the flight's climb or dive: it turns the whole figure about the
 // breast after the body's own follow-through. Negative raises the head.
+// Each pose's cells as numbers, built once: articulatePose looks them up for
+// every hole around the dove, every frame it flies.
+const SOURCE_SPAN = 4096;
+const sources = new WeakMap();
+const sourceOf = pose => {
+  let source = sources.get(pose);
+  if (!source) sources.set(pose, source = new Set(pose.map(([x, y]) => x * SOURCE_SPAN + y)));
+  return source;
+};
+
 export function articulatePose(pose, time, pitch = 0) {
   if (time === 0 && pitch === 0) return pose;
   const motion = bodyMotionAt(time);
-  const source = new Set(pose.map(([x, y]) => `${x},${y}`));
+  const source = sourceOf(pose);
   const cells = [];
   const cos = Math.cos(pitch), sin = Math.sin(pitch);
+  const bodyCos = Math.cos(motion.pitch), bodySin = Math.sin(motion.pitch);
   // Inverse sampling keeps solid feather areas solid when the body flexes.
   // The two-cell source padding already used by samplePose holds the small
   // movement, widened by how far the pitch swings the wingtips and tail.
@@ -56,11 +67,18 @@ export function articulatePose(pose, time, pitch = 0) {
       const uy = 35 - (x - 26) * sin + (y - 35) * cos;
       let sx = ux, sy = uy;
       for (let i = 0; i < 3; i++) {
-        const [tx, ty] = moveBirdPoint(sx, sy, motion);
+        // moveBirdPoint, inlined.
+        const tail = smoothstep(25, 5, sx) * smoothstep(31, 38, sy);
+        const head = smoothstep(29, 38, sx) * smoothstep(21, 25, sy) * (1 - smoothstep(31, 36, sy));
+        const dx = sx - 26, dy = sy - 35;
+        const tx = 26 + dx * bodyCos - dy * bodySin;
+        const ty = 35 + dx * bodySin + dy * bodyCos + motion.lift
+          + tail * motion.tail
+          + head * (motion.head - dx * bodySin * .65);
         sx += ux - tx;
         sy += uy - ty;
       }
-      if (source.has(`${Math.round(sx)},${Math.round(sy)}`)) cells.push([x, y]);
+      if (source.has(Math.round(sx) * SOURCE_SPAN + Math.round(sy))) cells.push([x, y]);
     }
   }
   return cells;

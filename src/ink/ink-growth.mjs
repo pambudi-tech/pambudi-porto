@@ -91,6 +91,7 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
   density.height = canvas.height + padding * 2;
   const densityContext = density.getContext('2d');
   const mask = densityContext.createImageData(density.width, density.height);
+  const maskData = mask.data;
   for (let y = 0; y < density.height; y++) for (let x = 0; x < density.width; x++) {
     const col = x - padding, row = y - padding;
     const index = row * canvas.width + col;
@@ -99,7 +100,9 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
     // Give those areas a continuous growth field too, rather than a late pop.
     const fallback = .25 + .2 * (1 + Math.sin(x / (9 * dpr)) * Math.sin(y / (7 * dpr)));
     const arrival = inside && field.arrival[index] < 1 ? field.arrival[index] : fallback;
-    mask.data.set([255, 255, 255, Math.round((1 - arrival) * 255)], (y * density.width + x) * 4);
+    const offset = (y * density.width + x) * 4;
+    maskData[offset] = maskData[offset + 1] = maskData[offset + 2] = 255;
+    maskData[offset + 3] = Math.round((1 - arrival) * 255);
   }
   densityContext.putImageData(mask, 0, 0);
   return createNativeInkLayer(paragraph, density.toDataURL(), {
@@ -116,13 +119,16 @@ export function createImageInkLayer(image) {
   density.height = Math.max(1, Math.ceil(density.width * height / width));
   const context = density.getContext('2d');
   const mask = context.createImageData(density.width, density.height);
+  const maskData = mask.data;
   for (let y = 0; y < density.height; y++) for (let x = 0; x < density.width; x++) {
     const u = x / density.width, v = y / density.height;
     const distance = Math.hypot((u - .5) * 1.2, v - .5);
     const organic = .5 + .22 * Math.sin(u * 23 + Math.sin(v * 11))
       + .16 * Math.sin(v * 31 - u * 9) + .1 * Math.sin((u + v) * 57);
     const arrival = Math.min(.88, .06 + distance * .8 + organic * .2);
-    mask.data.set([255, 255, 255, Math.round((1 - arrival) * 255)], (y * density.width + x) * 4);
+    const offset = (y * density.width + x) * 4;
+    maskData[offset] = maskData[offset + 1] = maskData[offset + 2] = 255;
+    maskData[offset + 3] = Math.round((1 - arrival) * 255);
   }
   context.putImageData(mask, 0, 0);
   return createNativeInkLayer(image, density.toDataURL(), { width, height, padding: 0 });

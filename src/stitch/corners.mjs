@@ -76,7 +76,8 @@ export function cornerPositions(width, height, view, grid) {
 }
 
 export function isUpperCornerCell(col, row) {
-  return row >= 0 && row < CORNER_SIZE && SLOTS.slice(0, 2).some(slot => col >= slot && col < slot + CORNER_SIZE);
+  return row >= 0 && row < CORNER_SIZE
+    && ((col >= SLOTS[0] && col < SLOTS[0] + CORNER_SIZE) || (col >= SLOTS[1] && col < SLOTS[1] + CORNER_SIZE));
 }
 
 export const cornerCellVisible = (col, row) => !isUpperCornerCell(col, row);

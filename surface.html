@@ -11,11 +11,11 @@
     <link rel="stylesheet" href="/src/styles/pages/surface.css" />
   </head>
   <body>
-    <main id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls" aria-busy="true">
+    <div id="surface" tabindex="0" role="application" aria-label="Interactive stitch surface" aria-describedby="canvas-help" aria-haspopup="dialog" aria-controls="stitch-controls" aria-busy="true">
       <canvas id="cloth" aria-hidden="true"></canvas>
       <canvas id="embroidery" aria-hidden="true"></canvas>
       <canvas id="gesture" aria-hidden="true"></canvas>
-    </main>
+    </div>
     <p id="canvas-help" class="sr-only">Click or tap to stitch a random motif. Open Stitch tools or right-click or long-press for Free stitch, thread colors, Unpick, and undo/redo. Scroll or pinch to zoom. Hold Space and drag, use the middle mouse button, or move two fingers to pan. Plus and minus zoom; zero or the percentage button resets the view. Use arrow keys and Enter to stitch with a keyboard. Reload for a clean surface.</p>
     <nav class="surface-navigation" aria-label="Surface controls">
       <button id="surface-tools" class="tools-toggle" type="button" aria-label="Stitch tools" aria-haspopup="dialog" aria-controls="stitch-controls" title="Stitch tools">

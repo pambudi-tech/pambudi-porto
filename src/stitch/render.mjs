@@ -139,16 +139,28 @@ export function drawCross(ctx, x, y, colorId, variation = 0, progress = 1) {
   ctx.restore();
 }
 
+// A thread sprite: one cross, at three times its size, 5 units of margin.
+export const SPRITE = Object.freeze({ scale: 3, margin: 5, steps: 12, size: (GRID + 10) * 3 });
+export const spriteKey = (color, variation, step) => `${color}:${variation}:${step}`;
+export function drawSprite(ctx, color, variation, step) {
+  ctx.scale(SPRITE.scale, SPRITE.scale);
+  drawCross(ctx, SPRITE.margin, SPRITE.margin, color, variation, step / SPRITE.steps);
+}
+
+// Sprites drawn ahead of time off the main thread (src/shared/prep.mjs), by
+// the same drawSprite; any not here yet are drawn on demand as before.
+export const preparedSprites = new Map();
+
 export function threadSprite(sprites, color, variation, progress = 1) {
-  const step = Math.round(progress * 12);
-  const key = `${color}:${variation}:${step}`;
+  const step = Math.round(progress * SPRITE.steps);
+  const key = spriteKey(color, variation, step);
   if (!sprites.has(key)) {
-    const sprite = document.createElement('canvas');
-    const scale = 3, margin = 5;
-    sprite.width = sprite.height = (GRID + margin * 2) * scale;
-    const ctx = sprite.getContext('2d');
-    ctx.scale(scale, scale);
-    drawCross(ctx, margin, margin, color, variation, step / 12);
+    let sprite = preparedSprites.get(key);
+    if (!sprite) {
+      sprite = document.createElement('canvas');
+      sprite.width = sprite.height = SPRITE.size;
+      drawSprite(sprite.getContext('2d'), color, variation, step);
+    }
     if (sprites.size > 768) {
       const transient = [...sprites.keys()].find(key => !key.endsWith(':12'));
       sprites.delete(transient ?? sprites.keys().next().value);

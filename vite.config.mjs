@@ -2,11 +2,13 @@ import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { projectRoutes, siteHtml } from './build/site-html.mjs';
 import { worksApi } from './build/works-api.mjs';
+import { assetVersions } from './build/asset-versions.mjs';
+import { inlineStyles } from './build/inline-styles.mjs';
 
 const page = name => fileURLToPath(new URL(name, import.meta.url));
 
 export default defineConfig({
-  plugins: [siteHtml(), projectRoutes(), worksApi()],
+  plugins: [siteHtml(), projectRoutes(), worksApi(), assetVersions(), inlineStyles()],
   server: { host: '127.0.0.1', port: 4317 },
   preview: { host: '127.0.0.1', port: 4317 },
   build: {
