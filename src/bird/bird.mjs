@@ -14,6 +14,8 @@ const PITCH_STEP = .02;
 
 // Area sampling preserves the outline at the surface's actual stitch spacing.
 // No sub-grid stitches or scaled bird image are needed.
+// Cells from -1024 to 3071 on either axis, keyed as one positive number.
+const COVERAGE_SPAN = 4096, COVERAGE_BIAS = 1024;
 export function samplePose(pose, columns, rows) {
   const sx = columns / (BIRD_COLUMNS + 4), sy = rows / (BIRD_ROWS + 4);
   const coverage = new Map();
@@ -23,12 +25,14 @@ export function samplePose(pose, columns, rows) {
     for (let y = Math.floor(top); y < Math.ceil(bottom); y++) {
       for (let x = Math.floor(left); x < Math.ceil(right); x++) {
         const area = (Math.min(x + 1, right) - Math.max(x, left)) * (Math.min(y + 1, bottom) - Math.max(y, top));
-        const key = keyOf(x, y);
+        // Numeric keys: this runs whenever the flying dove changes pose.
+        const key = (x + COVERAGE_BIAS) * COVERAGE_SPAN + y + COVERAGE_BIAS;
         coverage.set(key, (coverage.get(key) ?? 0) + area);
       }
     }
   }
-  return [...coverage].filter(([, area]) => area >= .34).map(([key]) => key.split(',').map(Number));
+  return [...coverage].filter(([, area]) => area >= .34)
+    .map(([key]) => [Math.floor(key / COVERAGE_SPAN) - COVERAGE_BIAS, key % COVERAGE_SPAN - COVERAGE_BIAS]);
 }
 
 export function projectPose(pose, columns, direction, col, row) {
