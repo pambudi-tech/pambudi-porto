@@ -42,6 +42,9 @@ export class StitchWordmark {
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.ceil((this.isDots ? view.y + bottomRow * pitch : height) * dpr);
     this.cells = cells;
+    // Each cell's key and thread variation, for the paint every frame.
+    this.cellKeys = cells.map(([col, row]) => `${col},${row}`);
+    this.variations = cells.map(([col, row]) => ((col * 17 + row * 31) % 8 + 8) % 8);
     this.dpr = dpr;
     this.entrance ??= new StitchEntrance({ started: this.entranceStarted ?? performance.now(), sweep: ENTRANCE.wordmark, reduced: this.motionPreference?.matches });
     this.entrance.plan([flameEntranceOrder(cells)]);
@@ -63,11 +66,12 @@ export class StitchWordmark {
       drawActiveDots(context, this.cells, view, (col, row) => this.progress(`${col},${row}`, now), '#d6d6d6');
     } else {
       context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
-      for (const [col, row] of this.cells) {
-        const progress = this.progress(`${col},${row}`, now);
+      const { cells, cellKeys, variations } = this;
+      for (let i = 0; i < cells.length; i++) {
+        const progress = this.progress(cellKeys[i], now);
         if (progress <= 0) continue;
-        const variation = ((col * 17 + row * 31) % 8 + 8) % 8;
-        context.drawImage(this.sprite(ORNAMENT_COLOR, variation, progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+        const [col, row] = cells[i];
+        context.drawImage(this.sprite(ORNAMENT_COLOR, variations[i], progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
       }
     }
     this.animating = this.entrance.active(now) || Boolean(this.departure?.active(now));

@@ -118,7 +118,11 @@ export class WaxEntrance {
       const tick = now => {
         const progress = clamp((now - started) / WAX_ENTRANCE.duration);
         if (progress >= 1) { this.finish(); return; }
-        const state = drawWaxSpread(context, this.image, progress, this.mask);
+        // A seal on the turned-away face is not drawn until the paper turns;
+        // each frame is drawn afresh from the time, so it shows the same.
+        const state = this.facingAway()
+          ? waxSpreadAt(progress, this.canvas.width, this.canvas.height)
+          : drawWaxSpread(context, this.image, progress, this.mask);
         this.element.dataset.waxEntrance = 'spreading';
         this.element.dataset.waxSpread = progress.toFixed(3);
         this.element.style.setProperty('--wax-label-reveal', state.label.toFixed(4));
@@ -129,6 +133,12 @@ export class WaxEntrance {
     };
     if (this.startWhen) this.startWhen.then(start);
     else start();
+  }
+  // Whether the seal sits on the paper's face turned away from the viewer,
+  // and the paper is not turning.
+  facingAway() {
+    const face = this.element.closest('.paper-face');
+    return face?.getAttribute('aria-hidden') === 'true' && face.closest('.portfolio-paper')?.dataset.flipping !== 'true';
   }
   finish() {
     this.done = true;
