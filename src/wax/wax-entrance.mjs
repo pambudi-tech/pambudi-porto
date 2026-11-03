@@ -2,6 +2,8 @@ import { INK_ENTRANCE } from '../paper/paper-ink.mjs';
 import { clamp } from '../shared/math.mjs';
 
 export const WAX_ENTRANCE = Object.freeze({
+  // How long the entrance may wait for the relit wax (wax-interaction.mjs).
+  waitFor: 1200,
   ...INK_ENTRANCE, points: 192,
   // Start the original soft label reveal while the outer rim is still flowing.
   labelAt: .5,
@@ -83,12 +85,14 @@ export function drawWaxSpread(context, image, progress, mask) {
 
 export class WaxEntrance {
   // `source` gives what to spread when it is not the seal's photograph;
-  // `instead`, when it returns true, has played its own entrance.
-  constructor(element, motionPreference, { startWhen, source, instead } = {}) {
+  // `instead`, when it returns true, has played its own entrance; `waitFor`
+  // is briefly waited for first, so that it can.
+  constructor(element, motionPreference, { startWhen, source, instead, waitFor } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
     this.source = source;
     this.instead = instead;
+    this.waitFor = waitFor;
     this.frame = null;
     this.done = false;
     this.startWhen = startWhen;
@@ -141,8 +145,9 @@ export class WaxEntrance {
       };
       this.frame = requestAnimationFrame(tick);
     };
-    if (this.startWhen) this.startWhen.then(start);
-    else start();
+    const begin = () => Promise.race([this.waitFor, new Promise(resolve => setTimeout(resolve, WAX_ENTRANCE.waitFor))]).then(start);
+    if (this.startWhen) this.startWhen.then(begin);
+    else begin();
   }
   // Whether the seal sits on the paper's face turned away from the viewer,
   // and the paper is not turning.

@@ -110,7 +110,7 @@ const pin = !locked ? null : mountPinPanel({
     }
     document.body.classList.remove('project-locked');
     seal.classList.add('works-seal');
-    new WaxInteraction(seal, matchMedia('(prefers-reduced-motion: reduce)'));
+    new WaxInteraction(seal, matchMedia('(prefers-reduced-motion: reduce)'), { relit: true });
   },
 });
 // The homepage paper's ink bleed, following the pointer over the project's words.

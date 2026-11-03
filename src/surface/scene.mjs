@@ -96,7 +96,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     requestFrame, reduced: motionPreference.matches, placementMirror: document.querySelector('.preloader-paper'),
     onLight: values => {
       const lamp = lightPosition(values, paperAspect), rest = lightPosition({}, paperAspect);
-      for (const wax of waxes) if (wax.relit) wax.followPaper(lamp, rest);
+      for (const wax of waxes) if (wax.element.closest('.portfolio-paper')) wax.followPaper(lamp, rest);
     },
   });
   const paperFlip = surfaceOnly ? null : new PaperFlip(sheet.element, {
@@ -105,7 +105,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     onFinish: () => sheet.setFlipping(false),
   });
   waxes = [...document.querySelectorAll('.works-seal')].map(element => new WaxInteraction(element, motionPreference,
-    { startWhen, relit: Boolean(element.closest('.portfolio-paper')) }));
+    { startWhen, relit: true }));
   if (sheet) sheet.onLight(sheet.current);
   const freeStitch = new FreeStitch(model, animations, {
     resolveCell: (col, row, tool) => tool === 'unpick' ? toStoredCell(col, row, corners) : [col, row],
@@ -376,10 +376,10 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       releaseEntrance(now);
       requestFrame({ stitches: true });
     },
-    // The seals as they rest, their wax-flow entrance skipped or cut short:
-    // for a page taking another's place, whose seal was already there.
+    // The seals as they rest, their entrance skipped or cut short: for a
+    // page taking another's place, whose seal was already there.
     settleSeals() {
-      for (const wax of waxes) wax.entrance?.finish();
+      for (const wax of waxes) wax.settle();
     },
     view,
     pause() {

@@ -143,7 +143,7 @@ export class WorksGallery {
       element.innerHTML = '<img src="/assets/works-wax-seal.webp" width="768" height="280" alt="" draggable="false" />'
         + '<span class="works-seal-label">details</span>';
       frame.append(element);
-      seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false }) };
+      seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false, relit: true }) };
     }
     link.append(frame);
     // Work behind a passcode says so on a small tag just below the frame.

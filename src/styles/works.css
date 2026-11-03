@@ -111,13 +111,13 @@
 }
 .works-details .works-seal-label { font-size: var(--seal-label-size, 16px); }
 .works-item.is-active .works-details { opacity: 1; scale: 1; }
-.works-link:hover .works-details { filter: drop-shadow(0 3px 3px rgb(69 0 0 / .23)); }
+.works-link:hover .works-details { filter: drop-shadow(calc(var(--wax-shadow-x, 0px) * 1.5) calc(var(--wax-shadow-y, 2px) * 1.5) 3px rgb(69 0 0 / .23)); }
 /* Pressed, and kept pressed once clicked, until it fades before the flight. */
 .works-item.is-departing .works-details { opacity: 1; scale: 1; }
 .works-link:active .works-details,
 .works-item.is-departing .works-details {
   transform: translate(-50%, calc(-50% + 1px)) scale(.98);
-  filter: brightness(.74) drop-shadow(0 1px 1px rgb(69 0 0 / .18));
+  filter: brightness(.74) drop-shadow(calc(var(--wax-shadow-x, 0px) * .5) calc(var(--wax-shadow-y, 2px) * .5) 1px rgb(69 0 0 / .18));
 }
 .works-link:active .works-details .wax-reflection,
 .works-item.is-departing .works-details .wax-reflection { opacity: 0; }

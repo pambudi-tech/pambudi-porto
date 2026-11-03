@@ -80,8 +80,11 @@ export class WaxInteraction {
     this.relit = relit;
     // Relit in time, the seal pours as wax instead of the flat entrance;
     // otherwise that entrance spreads whatever is drawn by then.
-    this.entrance = entrance ? new WaxEntrance(element, motionPreference,
-      { startWhen, source: () => (this.view ? this.canvas : null), instead: () => this.pour() }) : null;
+    this.relitSettled = new Promise(resolve => { this.settleRelit = resolve; });
+    this.entrance = entrance ? new WaxEntrance(element, motionPreference, {
+      startWhen, waitFor: this.relitSettled,
+      source: () => (this.view ? this.canvas : null), instead: () => this.pour(),
+    }) : null;
     this.current = restLight();
     this.target = restLight();
     this.frame = null;
@@ -127,8 +130,9 @@ export class WaxInteraction {
     await this.image.decode();
     // The relit wax; without WebGL 2, the photograph's own relief as before.
     if (this.relit) {
-      try { await this.prepareRelit(); return; } catch (error) { console.warn('Wax lighting:', error); }
+      try { await this.prepareRelit(); return; } catch (error) { console.warn('Wax lighting:', error); } finally { this.settleRelit(); }
     }
+    this.settleRelit();
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = Math.round(512 * this.image.naturalHeight / this.image.naturalWidth);
@@ -161,6 +165,9 @@ export class WaxInteraction {
     this.letters = document.createElement('canvas');
     this.pressLetters();
     new ResizeObserver(() => { this.measured = null; this.pressLetters(); this.draw(); }).observe(this.element);
+    // A label that changes its words ("gallery", "back") is pressed afresh.
+    if (this.label) new MutationObserver(() => { this.pressLetters(); this.draw(); })
+      .observe(this.label, { childList: true, characterData: true, subtree: true });
     this.draw();
     this.image.after(canvas);
     // Settle its hidden style first, so it fades in over the photograph,
@@ -187,6 +194,7 @@ export class WaxInteraction {
   // it cannot, and the flat entrance plays instead. A seal on the face turned
   // away is simply there when the paper turns.
   pour() {
+    if (this.settled) return true;
     if (!this.view || this.motionPreference.matches) return false;
     if (this.element.closest('.paper-face')?.getAttribute('aria-hidden') !== 'true') {
       this.pouring = { start: performance.now(), seed: Math.random() * 1000 };
@@ -196,6 +204,17 @@ export class WaxInteraction {
       this.requestDraw();
     }
     return true;
+  }
+  // The seal as it rests, its entrance skipped or cut short, the pour too:
+  // for a page taking another's place, whose seal was already there.
+  settle() {
+    this.settled = true;
+    this.entrance?.finish();
+    if (!this.pouring) return;
+    this.pouring = null;
+    this.element.dataset.waxPour = 'set';
+    this.drawn = null;
+    this.draw();
   }
   // The paper's lamp, now and at rest (paper-gl.mjs lightPosition), for a
   // seal on the paper: it lights the seal as it lights the sheet.
