@@ -104,8 +104,8 @@ void main() {
     // brighter red on their tops keeps the label legible at rest.
     vec4 map = lettersAt(vPos);
     on = smoothstep(.15, .5, map.r) * form;
-    cavity *= 1. - .65 * map.g * (1. - on) * form;
-    base = mix(base, INK * 1.08, on * .7);
+    cavity *= 1. - .8 * map.g * (1. - on) * form;
+    base = mix(base, INK * 1.22, on * .85);
   }
   // The rolled lip is glossy and the pressed field satin; melted, all of it
   // is wet.

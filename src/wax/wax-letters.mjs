@@ -37,10 +37,18 @@ export function drawLetters(canvas, label, seal, scale) {
   const box = (label.offsetHeight - parseFloat(style.paddingBottom || 0)) * scale;
   const top = label.offsetTop * scale + (box - lines.length * lineHeight) / 2;
   const middle = (label.offsetLeft + label.offsetWidth / 2) * scale;
-  for (const [colour, blur] of [['#f00', .028], ['#0f0', .12]]) {
-    context.fillStyle = colour;
+  // Each stroke a little bolder than the type, as an engraving widens in wax,
+  // so the label reads at the seal's small size.
+  context.lineJoin = 'round';
+  context.lineWidth = size * scale * .045;
+  for (const [colour, blur] of [['#f00', .018], ['#0f0', .12]]) {
+    context.fillStyle = context.strokeStyle = colour;
     context.filter = `blur(${(size * scale * blur).toFixed(2)}px)`;
-    lines.forEach((line, i) => context.fillText(line, middle, top + (i + .5) * lineHeight));
+    lines.forEach((line, i) => {
+      const y = top + (i + .5) * lineHeight;
+      context.fillText(line, middle, y);
+      context.strokeText(line, middle, y);
+    });
   }
   return canvas;
 }
