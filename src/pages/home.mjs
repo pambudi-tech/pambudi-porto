@@ -32,29 +32,10 @@ function loadImages(root) {
   }
 }
 
-// Settles once the welcome's frame has been painted: as the browser reports
-// it where it can, else a frame later; at most half a second either way.
-const framePainted = () => new Promise(resolve => {
-  const timer = setTimeout(done, 500);
-  let observer = null;
-  function done() { clearTimeout(timer); observer?.disconnect(); resolve(); }
-  if (!PerformanceObserver.supportedEntryTypes?.includes('largest-contentful-paint')) {
-    requestAnimationFrame(() => requestAnimationFrame(done));
-    return;
-  }
-  observer = new PerformanceObserver(list => {
-    if (list.getEntries().some(entry => entry.element?.classList.contains('preloader-frame'))) done();
-  });
-  observer.observe({ type: 'largest-contentful-paint', buffered: true });
-});
-
 async function boot() {
   // The welcome's frame first, painted; then the page's code and images
   // behind it, well within the welcome's own time.
-  if (welcome) {
-    await welcome.frameShown;
-    await framePainted();
-  }
+  if (welcome) await welcome.framePainted;
   const application = track(import('../surface/scene.mjs'));
   // The works gallery is only needed after the reveal; fetch it alongside.
   const gallery = import('../works/gallery.mjs');
