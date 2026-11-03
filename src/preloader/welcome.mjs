@@ -5,7 +5,7 @@ import { PRELOADER, LoadingCounter, loadingProgress, minimumElapsed, settleWithi
 import { paperInkEntrance } from '../paper/paper-ink.mjs';
 import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
 import { applyPaperPose } from '../paper/paper-pose.mjs';
-import { createImageInkLayer, imageInkDensity } from '../ink/ink-growth.mjs';
+import { createArtInkLayer, createImageInkLayer, imageInkDensity } from '../ink/ink-growth.mjs';
 import { preloaderFrameRegion } from '../paper/frame-registration.mjs';
 
 // The welcome loader (src/partials/preloader.html): the frame and "Welcome to
@@ -30,6 +30,22 @@ function markWelcomed() {
 // Starts the welcome for a page that tracks `count` loads of its own through
 // `track`, and calls `ready` once its scene is prepared. `finish` waits for
 // the count and the entrances, holds, and fades; `fail` shows the retry.
+// Settles once the welcome's frame has been painted: as the browser reports
+// it where it can, else a frame later; at most half a second either way.
+const framePainted = () => new Promise(resolve => {
+  const timer = setTimeout(done, 500);
+  let observer = null;
+  function done() { clearTimeout(timer); observer?.disconnect(); resolve(); }
+  if (!PerformanceObserver.supportedEntryTypes?.includes('largest-contentful-paint')) {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+    return;
+  }
+  observer = new PerformanceObserver(list => {
+    if (list.getEntries().some(entry => entry.element?.classList.contains('preloader-frame'))) done();
+  });
+  observer.observe({ type: 'largest-contentful-paint', buffered: true });
+});
+
 export function startWelcome({ count, preference, clock: clockElement = document.getElementById('portfolio-clock') }) {
   const loader = document.getElementById('preloader');
   const title = loader.querySelector('.preloader-title');
@@ -44,7 +60,7 @@ export function startWelcome({ count, preference, clock: clockElement = document
   const counterFinished = new Promise(resolve => { finishCounter = resolve; });
   const titleFinished = new Promise(resolve => { finishTitle = resolve; });
   const paperFinished = new Promise(resolve => { finishPaper = resolve; });
-  // The page's own loads, its scene, the title's font and the frame.
+  // The page's own loads, its scene, the title and the frame.
   const total = count + 1 + 2;
   let completed = 0, sceneReady = false, failed = false, frame;
 
@@ -64,46 +80,12 @@ export function startWelcome({ count, preference, clock: clockElement = document
   };
   frame = requestAnimationFrame(progress);
 
-  // Adobe's stylesheet loads without delaying the black screen; once its
-  // face is in, the title inks in.
-  const adobeStyles = document.getElementById('adobe-fonts');
-  const stylesheetReady = new Promise((resolve, reject) => {
-    const loaded = () => { adobeStyles.media = 'all'; resolve(); };
-    if (adobeStyles.sheet) loaded();
-    else {
-      adobeStyles.addEventListener('load', loaded, { once: true });
-      adobeStyles.addEventListener('error', () => reject(new Error('Adobe font stylesheet unavailable')), { once: true });
-    }
-  });
-  // It is fetched once the frame shows (frameShowing, below): fetched with
-  // the page, it held up the frame, the page's largest paint, on a slow line.
-  const fetchAdobeStyles = () => { if (adobeStyles.dataset.href && !adobeStyles.href) adobeStyles.href = adobeStyles.dataset.href; };
-  track(stylesheetReady.then(async () => {
-    // Changing a cached stylesheet's media does not register its font faces
-    // until style recalculation. Flush that change before asking for the face.
-    getComputedStyle(title).fontFamily;
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    return document.fonts.load('48px "military-scribe"');
-  }).then(fonts => {
-    if (!fonts.length) throw new Error('Military Scribe unavailable');
-    title.classList.add('is-ready');
-    return paperInkEntrance(title, {
-      motionPreference: preference, duration: PRELOADER.welcomeDuration, delay: 0,
-      shapeText: true, onComplete: finishTitle,
-    });
-  }).catch(error => {
-    // Without Adobe's face the title stays unshown, but the welcome must
-    // still count it done and open the page, as it does for the frame.
-    console.warn('Welcome title:', error);
-    finishTitle();
-  }));
   // Settles once the frame shows, or will not: the page loads its own
   // images behind it from then on (home.mjs).
   let frameShown;
   const frameShowing = new Promise(resolve => { frameShown = resolve; });
   // The frame's ink field is worked out while the frame itself loads.
   const frameInk = preference.matches ? null : imageInkDensity(framePreview, preloaderFrameRegion());
-  frameShowing.then(() => requestAnimationFrame(() => requestAnimationFrame(fetchAdobeStyles)));
   track(framePreview.decode().then(async () => {
     await paperInkEntrance(paperPreview, {
       motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
@@ -112,6 +94,24 @@ export function startWelcome({ count, preference, clock: clockElement = document
     });
     paperPreview.classList.add('is-ready');
   }).catch(() => finishPaper()).finally(frameShown));
+  // Nothing else is fetched before the frame has painted: on a slow line it
+  // would hold the frame, the page's largest paint, up (home.mjs waits too).
+  const framePainting = frameShowing.then(framePainted);
+  // The title, outlined (title-art.mjs): fetched once the frame has painted,
+  // then inked in letter by letter as text was.
+  track(framePainting.then(() => import('./title-art.mjs')).then(({ TITLE_VIEWBOX, TITLE_LETTERS }) => {
+    title.innerHTML = `<svg class="preloader-title-art" viewBox="${TITLE_VIEWBOX}" aria-hidden="true" focusable="false">${
+      TITLE_LETTERS.map(d => `<path d="${d}"/>`).join('')}</svg>`;
+    title.classList.add('is-ready');
+    return paperInkEntrance(title, {
+      motionPreference: preference, duration: PRELOADER.welcomeDuration, delay: 0,
+      waitForFonts: false, createLayers: () => [createArtInkLayer(title.firstElementChild)], onComplete: finishTitle,
+    });
+  }).catch(error => {
+    // Unshown, the title still counts as done, and the page still opens.
+    console.warn('Welcome title:', error);
+    finishTitle();
+  }));
 
   const fadeOut = () => new Promise(resolve => {
     if (preference.matches) { loader.classList.add('is-leaving'); resolve(); return; }
@@ -130,6 +130,7 @@ export function startWelcome({ count, preference, clock: clockElement = document
     clock,
     track,
     frameShown: frameShowing,
+    framePainted: framePainting,
     ready() { completed++; sceneReady = true; },
     // Resolves once the count has reached 100, the entrances have finished and
     // the welcome has shown for its minimum; `reveal` then runs as it fades.
@@ -156,6 +157,8 @@ export function startWelcome({ count, preference, clock: clockElement = document
       cancelAnimationFrame(frame);
       console.error('Startup:', error);
       title.textContent = 'Unable to load. Please try again.';
+      title.removeAttribute('role');
+      title.removeAttribute('aria-label');
       title.classList.add('is-ready');
       loader.querySelector('.preloader-retry').hidden = false;
     },

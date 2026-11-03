@@ -42,7 +42,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   z-index: 1;
   margin: 0;
   padding: 24px;
-  font-family: "military-scribe", "Syne Mono", monospace;
+  font-family: "Syne Mono", monospace;
   font-size: clamp(32px, 4.5vw, 58px);
   font-weight: 400;
   font-style: normal;
@@ -50,8 +50,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   text-align: center;
   opacity: 0;
 }
-.preloader-title p { margin: 0; position: relative; white-space: nowrap; }
-.preloader-title p:first-child { font-size: .62em; margin-bottom: .25em; }
+/* The outlined title (welcome.mjs): "House of Pambudi" as wide as its line
+   of type was at this font size. */
+.preloader-title-art { display: block; width: 5.785em; height: auto; margin: 0 auto; overflow: visible; fill: currentColor; stroke: none; }
+.ink-entrance.ink-preparing .preloader-title-art { opacity: 0; }
 .preloader-title.is-ready { opacity: 1; }
 .preloader.is-leaving { opacity: 0; pointer-events: none; }
 /* The welcome plays once a session (welcome.mjs); later pages skip it. */

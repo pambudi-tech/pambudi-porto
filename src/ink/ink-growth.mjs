@@ -83,7 +83,13 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
     const x = style.textAlign === 'center' ? (bounds.width - metrics.width) / 2 : rect.left - bounds.left;
     context.fillText(text, x, rect.top - bounds.top + (metrics.fontBoundingBoxAscent ?? parseFloat(style.fontSize) * .8));
   }
-  const source = context.getImageData(0, 0, canvas.width, canvas.height);
+  return inkLayerFrom(paragraph, canvas, glyphs, dpr);
+}
+
+// Lettering drawn on `canvas` as `element` shows it, and each letter's box
+// on it: the ink's density mask, laid over the element.
+function inkLayerFrom(element, canvas, glyphs, dpr) {
+  const source = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
   const field = growthField(source.data, canvas.width, canvas.height, glyphs);
   const padding = Math.ceil(8 * dpr);
   const density = document.createElement('canvas');
@@ -105,9 +111,35 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
     maskData[offset + 3] = Math.round((1 - arrival) * 255);
   }
   densityContext.putImageData(mask, 0, 0);
-  return createNativeInkLayer(paragraph, density.toDataURL(), {
+  return createNativeInkLayer(element, density.toDataURL(), {
     width: canvas.width / dpr, height: canvas.height / dpr, padding: padding / dpr,
   });
+}
+
+// Lettering outlined in an inline SVG, one path a letter (the welcome's
+// title): drawn as it shows, each letter's box seeding its own ink, as
+// createInkLayer does for a line of text.
+export function createArtInkLayer(svg) {
+  const bounds = svg.getBoundingClientRect();
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.ceil(bounds.width * dpr));
+  canvas.height = Math.max(1, Math.ceil(bounds.height * dpr));
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  const box = svg.viewBox.baseVal;
+  const sx = bounds.width / box.width * dpr, sy = bounds.height / box.height * dpr;
+  context.setTransform(sx, 0, 0, sy, -box.x * sx, -box.y * sy);
+  context.fillStyle = '#fff';
+  const glyphs = [...svg.querySelectorAll('path')].map(path => {
+    context.fill(new Path2D(path.getAttribute('d')));
+    const letter = path.getBBox();
+    return {
+      left: Math.floor((letter.x - box.x) * sx), right: Math.ceil((letter.x + letter.width - box.x) * sx),
+      top: Math.floor((letter.y - box.y) * sy), bottom: Math.ceil((letter.y + letter.height - box.y) * sy),
+    };
+  });
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  return inkLayerFrom(svg, canvas, glyphs, dpr);
 }
 
 // An image's ink field: where each point of it inks in, sooner nearer the
