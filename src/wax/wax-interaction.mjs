@@ -279,7 +279,10 @@ export class WaxInteraction {
     if (!width || !height) return;
     const aspect = width / height, strength = this.current.strength;
     const onPaper = this.paperLight && paper;
-    const room = onPaper ? paperLampInSeal(this.paperLight.lamp, paper) : lampInSeal(WAX_REST, aspect, 1);
+    // Turned away, it is drawn as it rests, so it always comes round looking
+    // as it did when the page opened, not as it was when the paper turned.
+    const room = onPaper ? paperLampInSeal(this.suspended ? this.paperLight.rest : this.paperLight.lamp, paper)
+      : lampInSeal(WAX_REST, aspect, 1);
     const lamp = mixLamp(room, lampInSeal(this.current, aspect, WAX_HOVER.lift), strength);
     const finish = waxFinish(onPaper ? WAX_ROOM : WAX_HOVER, strength);
     // While it pours, the entrance's parts; melted wax is glassy until it sets.
