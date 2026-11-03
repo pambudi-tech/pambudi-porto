@@ -110,30 +110,71 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
   });
 }
 
-// `region`, fractions of the image's box, limits the growth to that part of it.
-export function createImageInkLayer(image, region = { x: 0, y: 0, width: 1, height: 1 }) {
-  const style = getComputedStyle(image);
-  const boxWidth = Math.max(1, parseFloat(style.width) || image.clientWidth);
-  const boxHeight = Math.max(1, parseFloat(style.height) || image.clientHeight);
-  const width = Math.max(1, boxWidth * region.width), height = Math.max(1, boxHeight * region.height);
-  const density = document.createElement('canvas');
-  density.width = Math.min(512, Math.ceil(width));
-  density.height = Math.max(1, Math.ceil(density.width * height / width));
-  const context = density.getContext('2d');
-  const mask = context.createImageData(density.width, density.height);
-  const maskData = mask.data;
-  for (let y = 0; y < density.height; y++) for (let x = 0; x < density.width; x++) {
-    const u = x / density.width, v = y / density.height;
+// An image's ink field: where each point of it inks in, sooner nearer the
+// middle, in an organic spread. Pure, with no closures, so a worker runs it.
+export function imageInkField(width, height) {
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const u = x / width, v = y / height;
     const distance = Math.hypot((u - .5) * 1.2, v - .5);
     const organic = .5 + .22 * Math.sin(u * 23 + Math.sin(v * 11))
       + .16 * Math.sin(v * 31 - u * 9) + .1 * Math.sin((u + v) * 57);
     const arrival = Math.min(.88, .06 + distance * .8 + organic * .2);
-    const offset = (y * density.width + x) * 4;
-    maskData[offset] = maskData[offset + 1] = maskData[offset + 2] = 255;
-    maskData[offset + 3] = Math.round((1 - arrival) * 255);
+    const offset = (y * width + x) * 4;
+    pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
+    pixels[offset + 3] = Math.round((1 - arrival) * 255);
   }
-  context.putImageData(mask, 0, 0);
-  return createNativeInkLayer(image, density.toDataURL(), {
-    width, height, padding: 0, x: boxWidth * region.x, y: boxHeight * region.y,
+  return pixels;
+}
+
+// The field as a PNG data URL. Worked out and encoded in a worker made from
+// imageInkField itself (no file to fetch), so the welcome's frame is not
+// held up on the main thread; here, the same, where a worker cannot.
+function inkFieldURL(width, height) {
+  const here = () => {
+    const canvas = Object.assign(document.createElement('canvas'), { width, height });
+    canvas.getContext('2d').putImageData(new ImageData(imageInkField(width, height), width, height), 0, 0);
+    return canvas.toDataURL();
+  };
+  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return Promise.resolve().then(here);
+  const source = `const imageInkField = ${imageInkField};
+onmessage = async ({ data: { width, height } }) => {
+  const canvas = new OffscreenCanvas(width, height);
+  canvas.getContext('2d').putImageData(new ImageData(imageInkField(width, height), width, height), 0, 0);
+  postMessage(await canvas.convertToBlob({ type: 'image/png' }));
+};`;
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    const worker = new Worker(url);
+    const end = () => { worker.terminate(); URL.revokeObjectURL(url); };
+    worker.onmessage = ({ data }) => {
+      end();
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(data);
+    };
+    worker.onerror = event => { event.preventDefault?.(); end(); reject(new Error('Ink field worker')); };
+    worker.postMessage({ width, height });
+  }).catch(here);
+}
+
+// `region`, fractions of the image's box, limits the growth to that part of
+// it. Started as soon as the image has its size, before it has loaded:
+// `createImageInkLayer(image, region, density)` then only lays it over.
+export function imageInkDensity(image, region = { x: 0, y: 0, width: 1, height: 1 }) {
+  const style = getComputedStyle(image);
+  const boxWidth = Math.max(1, parseFloat(style.width) || image.clientWidth);
+  const boxHeight = Math.max(1, parseFloat(style.height) || image.clientHeight);
+  const width = Math.max(1, boxWidth * region.width), height = Math.max(1, boxHeight * region.height);
+  const fieldWidth = Math.min(512, Math.ceil(width));
+  const fieldHeight = Math.max(1, Math.ceil(fieldWidth * height / width));
+  return { region, boxWidth, boxHeight, width, height, url: inkFieldURL(fieldWidth, fieldHeight) };
+}
+
+export async function createImageInkLayer(image, region, density = imageInkDensity(image, region)) {
+  return createNativeInkLayer(image, await density.url, {
+    width: density.width, height: density.height, padding: 0,
+    x: density.boxWidth * density.region.x, y: density.boxHeight * density.region.y,
   });
 }
