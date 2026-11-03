@@ -16,7 +16,7 @@ export default defineConfig({
     // and font URLs that public/assets serves at /assets.
     assetsDir: 'static',
     rolldownOptions: {
-      input: { home: page('index.html'), surface: page('surface.html'), work: page('work.html') },
+      input: { home: page('index.html'), surface: page('surface.html'), work: page('work.html'), wax: page('wax.html') },
     },
   },
 });

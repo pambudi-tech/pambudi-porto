@@ -47,6 +47,21 @@ export function advanceWaxLight(current, target, elapsed) {
   }));
 }
 
+// The lettering shares the material's light position and aspect ratio.
+// Raised edges face the light; their cast shadow points away from it.
+export function waxLabelShadow({ x, y, strength }, aspect) {
+  const lx = x * aspect;
+  const ly = y;
+  const length = Math.hypot(lx, ly, .7);
+  const dx = lx / length, dy = ly / length;
+  const base = { hx: -.6, hy: -.8, sx: .8, sy: 1.2, ax: 1.4, ay: 2 };
+  return Object.fromEntries(Object.entries({
+    hx: dx * .9, hy: dy * .9,
+    sx: -dx * 1.35, sy: -dy * 1.35,
+    ax: -dx * 2, ay: -dy * 2,
+  }).map(([name, value]) => [`--wax-label-${name}`, `${(base[name] + (value - base[name]) * strength).toFixed(3)}px`]));
+}
+
 export class WaxInteraction {
   // `entrance: false` skips the wax-flow entrance, for a seal that appears
   // some other way.
@@ -152,18 +167,8 @@ export class WaxInteraction {
       this.shadeKey = shadeKey;
     }
     this.element.style.setProperty('--wax-light', strength.toFixed(4));
-    // The lettering shares the material's light position and aspect ratio.
-    // Raised edges face the light; their cast shadow points away from it.
-    const lx = x * this.surface.width / this.surface.height;
-    const ly = y;
-    const length = Math.hypot(lx, ly, .7);
-    const dx = lx / length, dy = ly / length;
-    const base = { hx: -.6, hy: -.8, sx: .8, sy: 1.2, ax: 1.4, ay: 2 };
-    for (const [name, value] of Object.entries({
-      hx: dx * .9, hy: dy * .9,
-      sx: -dx * 1.35, sy: -dy * 1.35,
-      ax: -dx * 2, ay: -dy * 2,
-    })) this.element.style.setProperty(`--wax-label-${name}`, `${(base[name] + (value - base[name]) * strength).toFixed(3)}px`);
+    for (const [name, value] of Object.entries(waxLabelShadow(this.current, this.surface.width / this.surface.height)))
+      this.element.style.setProperty(name, value);
     this.canvas.dataset.light = shadeKey;
     this.canvas.dataset.strength = strength.toFixed(4);
   }
