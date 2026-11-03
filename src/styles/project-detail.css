@@ -214,6 +214,12 @@ button.project-switch-name:hover, .project-switch.is-open .project-switch-name {
   translate: none;
 }
 .project-route-leaving .cover-protected { opacity: 0; }
+/* As the cover first shows, the tag drops out from under the stamp, top to
+   bottom, as on a works card landing (project-transition.css). */
+.cover-protected:not(.is-dropping) { visibility: hidden; }
+.cover-protected.is-dropping { animation: cover-tag-drop 480ms cubic-bezier(.22, 1, .36, 1) 80ms both; }
+@keyframes cover-tag-drop { from { translate: 0 -100%; } to { translate: none; } }
+@media (prefers-reduced-motion: reduce) { .cover-protected.is-dropping { animation: none; } }
 /* The full cover's glitching arrival (cover-reveal.mjs), over its photo. */
 .cover-reveal { position: absolute; display: block; pointer-events: none; }
 .cover-figure .project-image img { width: calc(var(--photo-overscan) * 100%); max-width: none; height: 100%; margin-left: calc((1 - var(--photo-overscan)) * 50%); object-fit: cover; }
