@@ -5,7 +5,7 @@ import { cornerPitch } from './corners.mjs';
 import { SurfaceRenderer } from './render.mjs';
 import { BirdFlight, samplePose, FIGURE_SCALE } from '../bird/bird.mjs';
 import { BIRD_COLUMNS, BIRD_ROWS } from '../bird/bird-data.mjs';
-import { WING_POSES } from '../bird/wing-motion.mjs';
+import { WING_POSES } from '../bird/wing-poses.mjs';
 
 test('restored mobile spacing and 25 percent wider desktop spacing preserve dot diameter', () => {
   for (const [width, baselinePitch] of [[320, (320 - 48) / 90], [390, 3.5], [540, 3.5], [541, 541 * .165 / 31], [1280, 6.5]]) {
