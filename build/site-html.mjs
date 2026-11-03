@@ -61,7 +61,7 @@ export function about() {
     '</section>',
     '<footer class="about-footer">',
     `  <a class="about-profile" href="${escape(contactHref(profile))}" target="_blank" rel="noopener noreferrer" aria-label="View ${escape(capitalize(firstName))}’s ${escape(contact.label)} profile"><span class="about-icon about-icon-${escape(profile)}" aria-hidden="true"></span><span>${escape(contact.tooltip)}</span></a>`,
-    `  <img class="about-signature" src="${escape(signature.src)}" srcset="${escape(signature.srcset)}" sizes="${escape(signature.sizes)}" width="${signature.width}" height="${signature.height}" alt="${escape(signature.alt)}" draggable="false" />`,
+    `  <img class="about-signature" data-src="${escape(signature.src)}" data-srcset="${escape(signature.srcset)}" sizes="${escape(signature.sizes)}" width="${signature.width}" height="${signature.height}" alt="${escape(signature.alt)}" draggable="false" />`,
     '</footer>',
   ].join('\n');
 }

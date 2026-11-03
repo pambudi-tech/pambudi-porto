@@ -13,7 +13,7 @@ export function nativeInkFrame(progress) {
   };
 }
 
-export function createNativeInkLayer(paragraph, densityURL, { width, height, padding }) {
+export function createNativeInkLayer(paragraph, densityURL, { width, height, padding, x = 0, y = 0 }) {
   const make = (name, attributes = {}) => {
     const node = document.createElementNS(SVG, name);
     for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
@@ -23,7 +23,7 @@ export function createNativeInkLayer(paragraph, densityURL, { width, height, pad
   const definitions = make('svg', { class: 'ink-bleed-definitions', 'aria-hidden': 'true', focusable: 'false' });
   const filter = make('filter', { id, x: '-20%', y: '-30%', width: '140%', height: '160%',
     'color-interpolation-filters': 'sRGB', primitiveUnits: 'userSpaceOnUse' });
-  const density = make('feImage', { href: densityURL, x: -padding, y: -padding,
+  const density = make('feImage', { href: densityURL, x: x - padding, y: y - padding,
     width: width + padding * 2, height: height + padding * 2, preserveAspectRatio: 'none', result: 'density' });
   const threshold = make('feComponentTransfer', { in: 'density', result: 'front' });
   const alpha = make('feFuncA', { type: 'linear', slope: 1 / .14, intercept: -1 / .14 });
@@ -41,6 +41,13 @@ export function createNativeInkLayer(paragraph, densityURL, { width, height, pad
   const merge = make('feMerge');
   merge.append(make('feMergeNode', { in: 'soak' }), make('feMergeNode', { in: 'growth' }));
   filter.append(density, threshold, smooth, ink, opacity, blur, wet, merge);
+  // Growing over part of the element (`x`, `y`): a clear layer over the whole
+  // box keeps the filter's output the element's size. It draws nothing.
+  if (x || y) {
+    const room = make('feFlood', { 'flood-opacity': 0, x: 0, y: 0, width: '100%', height: '100%', result: 'room' });
+    filter.prepend(room);
+    merge.prepend(make('feMergeNode', { in: 'room' }));
+  }
   definitions.append(filter);
   document.body.append(definitions);
   const previous = paragraph.style.filter;

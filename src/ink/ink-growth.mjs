@@ -110,10 +110,12 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
   });
 }
 
-export function createImageInkLayer(image) {
+// `region`, fractions of the image's box, limits the growth to that part of it.
+export function createImageInkLayer(image, region = { x: 0, y: 0, width: 1, height: 1 }) {
   const style = getComputedStyle(image);
-  const width = Math.max(1, parseFloat(style.width) || image.clientWidth);
-  const height = Math.max(1, parseFloat(style.height) || image.clientHeight);
+  const boxWidth = Math.max(1, parseFloat(style.width) || image.clientWidth);
+  const boxHeight = Math.max(1, parseFloat(style.height) || image.clientHeight);
+  const width = Math.max(1, boxWidth * region.width), height = Math.max(1, boxHeight * region.height);
   const density = document.createElement('canvas');
   density.width = Math.min(512, Math.ceil(width));
   density.height = Math.max(1, Math.ceil(density.width * height / width));
@@ -131,5 +133,7 @@ export function createImageInkLayer(image) {
     maskData[offset + 3] = Math.round((1 - arrival) * 255);
   }
   context.putImageData(mask, 0, 0);
-  return createNativeInkLayer(image, density.toDataURL(), { width, height, padding: 0 });
+  return createNativeInkLayer(image, density.toDataURL(), {
+    width, height, padding: 0, x: boxWidth * region.x, y: boxHeight * region.y,
+  });
 }
