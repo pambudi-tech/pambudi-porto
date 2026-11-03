@@ -6,7 +6,7 @@ import { paperInkEntrance } from '../paper/paper-ink.mjs';
 import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
 import { applyPaperPose } from '../paper/paper-pose.mjs';
 import { createImageInkLayer } from '../ink/ink-growth.mjs';
-import { registerPreloaderFrame } from '../paper/frame-registration.mjs';
+import { preloaderFrameRegion } from '../paper/frame-registration.mjs';
 
 // The welcome loader (src/partials/preloader.html): the frame and "Welcome to
 // House of Pambudi" inked in, the dot clock counting up as the page loads,
@@ -36,7 +36,6 @@ export function startWelcome({ count, preference, clock: clockElement = document
   loader.style.setProperty('--preloader-exit', `${PRELOADER.exit}ms`);
   const paperPreview = loader.querySelector('.preloader-paper');
   const framePreview = paperPreview.querySelector('img');
-  registerPreloaderFrame(framePreview);
   applyPaperPose(paperPreview, paperTarget(), paperPlacementAt(0, preference.matches));
   const clock = new DotClock(clockElement);
   const started = performance.now();
@@ -95,14 +94,18 @@ export function startWelcome({ count, preference, clock: clockElement = document
     console.warn('Welcome title:', error);
     finishTitle();
   }));
+  // Settles once the frame shows, or will not: the page loads its own
+  // images behind it from then on (home.mjs).
+  let frameShown;
+  const frameShowing = new Promise(resolve => { frameShown = resolve; });
   track(framePreview.decode().then(async () => {
     await paperInkEntrance(paperPreview, {
       motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
-      waitForFonts: false, createLayers: () => [createImageInkLayer(framePreview)],
+      waitForFonts: false, createLayers: () => [createImageInkLayer(framePreview, preloaderFrameRegion())],
       onComplete: finishPaper,
     });
     paperPreview.classList.add('is-ready');
-  }).catch(() => finishPaper()));
+  }).catch(() => finishPaper()).finally(frameShown));
 
   const fadeOut = () => new Promise(resolve => {
     if (preference.matches) { loader.classList.add('is-leaving'); resolve(); return; }
@@ -120,6 +123,7 @@ export function startWelcome({ count, preference, clock: clockElement = document
   return {
     clock,
     track,
+    frameShown: frameShowing,
     ready() { completed++; sceneReady = true; },
     // Resolves once the count has reached 100, the entrances have finished and
     // the welcome has shown for its minimum; `reveal` then runs as it fades.

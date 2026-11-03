@@ -36,6 +36,19 @@ test('paper lifts and tilts toward the pointer and pressing flattens it', () => 
   assert.ok(pressed.blur < hover.blur && pressed.sy < hover.sy);
 });
 
+test('the light follows a mouse anywhere while the sheet tilts only under it', () => {
+  const lit = paperTarget({ lit: true, x: .5, y: -.5 });
+  assert.deepEqual([lit.lx, lit.ly, lit.light], [.5, -.5, 1]);
+  assert.deepEqual([lit.rx, lit.ry, lit.scale], [0, 0, 1]);
+  assert.ok(lit.sx < 0 && lit.sy > paperTarget().sy, 'the shadow falls away from the light');
+  const far = paperTarget({ lit: true, x: 4, y: -9 });
+  assert.deepEqual([far.lx, far.ly], [1, -1]);
+  const pressed = paperTarget({ lit: true, hovered: true, pressed: true, x: .3, y: .2 });
+  assert.deepEqual([pressed.lx, pressed.ly, pressed.light], [.3, .2, 1], 'pressing does not move the light');
+  const reduced = paperTarget({ lit: true, reduced: true, x: .5, y: -.5 });
+  assert.deepEqual([reduced.lx, reduced.ly, reduced.light, reduced.sx], [0, 0, 0, 0]);
+});
+
 test('touch release settles exactly back to the anchored resting state', () => {
   let current = paperTarget({ pressed: true });
   const rest = paperTarget();

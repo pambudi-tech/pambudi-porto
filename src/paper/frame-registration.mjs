@@ -7,10 +7,19 @@ export const FRAME_REGISTRATION = Object.freeze({
   width: 987.561884, height: 1276.138615,
 });
 
-export function registerPreloaderFrame(image) {
-  const r = FRAME_REGISTRATION;
-  image.style.left = `${r.x / r.paperWidth * 100}%`;
-  image.style.top = `${r.y / r.paperHeight * 100}%`;
-  image.style.width = `${r.width / r.paperWidth * 100}%`;
-  image.style.height = `${r.height / r.paperHeight * 100}%`;
+// The welcome's frame image (pambudi-frame-paper.svg, tools/paper-frame.mjs)
+// is the traced frame already placed on the paper, in a box this much
+// larger than the paper on every side; base.css sizes .preloader-frame to
+// match, so the box is in place from its very first paint.
+export const FRAME_MARGIN = .15;
+
+// Where the traced frame's own box (FRAME_REGISTRATION) lies within the
+// welcome's frame image, as fractions of it: the frame's ink entrance
+// grows over this box, as it did when the image was this box.
+export function preloaderFrameRegion() {
+  const r = FRAME_REGISTRATION, span = 1 + 2 * FRAME_MARGIN;
+  return {
+    x: (r.x / r.paperWidth + FRAME_MARGIN) / span, y: (r.y / r.paperHeight + FRAME_MARGIN) / span,
+    width: r.width / r.paperWidth / span, height: r.height / r.paperHeight / span,
+  };
 }

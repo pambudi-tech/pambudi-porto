@@ -280,15 +280,36 @@ export class SurfaceRenderer {
       this.stitch.drawImage(this.sprite(color, Math.floor(hash(col, row) * 8), progress), x - 5, y - 5, GRID + 10, GRID + 10);
     }
   }
+  // Where a stored stitch shows under the current layout: its visible cell,
+  // that cell's key and its thread variation, or `hidden`. Kept until the
+  // scene lays the surface out again with new isCellVisible or resolveCell.
+  cellOf(key) {
+    if (!this.cells || this.cellsResolvedBy !== this.resolveCell || this.cellsShownBy !== this.isCellVisible || this.cells.size > 20000) {
+      this.cells = new Map();
+      this.cellsResolvedBy = this.resolveCell;
+      this.cellsShownBy = this.isCellVisible;
+    }
+    let cell = this.cells.get(key);
+    if (!cell) {
+      const stored = parseKey(key);
+      if (this.isCellVisible && !this.isCellVisible(...stored)) cell = { hidden: true };
+      else {
+        const [col, row] = this.resolveCell?.(...stored) ?? stored;
+        cell = { col, row, key: `${col},${row}`, variation: Math.floor(hash(col, row) * 8) };
+      }
+      this.cells.set(key, cell);
+    }
+    return cell;
+  }
   // Draws the model's stitches into `context` and returns the visible cells
   // they occupy.
   drawModel(context, model, view, animations, entrance, now) {
     const occupied = new Set();
     for (const [key, color] of model.stitches) {
-      const stored = parseKey(key);
-      if (this.isCellVisible && !this.isCellVisible(...stored)) continue;
-      const [col, row] = this.resolveCell?.(...stored) ?? stored;
-      occupied.add(`${col},${row}`);
+      const cell = this.cellOf(key);
+      if (cell.hidden) continue;
+      const { col, row } = cell;
+      occupied.add(cell.key);
       const animation = animations.get(key);
       if (animation?.kind === 'add') continue;
       if (animation?.kind === 'unpick' && animation.revealUnderneath) continue;
@@ -301,8 +322,7 @@ export class SurfaceRenderer {
       const x = col * GRID, y = row * GRID;
       const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
       if (sx < -GRID * view.scale || sy < -GRID * view.scale || sx > this.width || sy > this.height) continue;
-      const variation = Math.floor(hash(col, row) * 8);
-      context.drawImage(this.sprite(color, variation, progress), x - 5, y - 5, GRID + 10, GRID + 10);
+      context.drawImage(this.sprite(color, cell.variation, progress), x - 5, y - 5, GRID + 10, GRID + 10);
     }
     return occupied;
   }

@@ -21,13 +21,47 @@ const clock = welcome?.clock ?? new DotClock(document.getElementById('portfolio-
 if (!welcome) fitClock(clock);
 const track = task => (welcome ? welcome.track(task) : settleWithin(task));
 
+// The page's images name their files in data-src and data-srcset, so the
+// welcome's own frame and code load first; they load once it shows.
+function loadImages(root) {
+  for (const image of root.querySelectorAll('img[data-src]')) {
+    if (image.dataset.srcset) image.srcset = image.dataset.srcset;
+    image.src = image.dataset.src;
+    delete image.dataset.src;
+    delete image.dataset.srcset;
+  }
+}
+
+// Settles once the welcome's frame has been painted: as the browser reports
+// it where it can, else a frame later; at most half a second either way.
+const framePainted = () => new Promise(resolve => {
+  const timer = setTimeout(done, 500);
+  let observer = null;
+  function done() { clearTimeout(timer); observer?.disconnect(); resolve(); }
+  if (!PerformanceObserver.supportedEntryTypes?.includes('largest-contentful-paint')) {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+    return;
+  }
+  observer = new PerformanceObserver(list => {
+    if (list.getEntries().some(entry => entry.element?.classList.contains('preloader-frame'))) done();
+  });
+  observer.observe({ type: 'largest-contentful-paint', buffered: true });
+});
+
 async function boot() {
-  // Fetch the traced artwork too; it is not an <img> in the page itself.
-  const artwork = new Image();
-  artwork.src = '/assets/wordmark-source.webp';
   const application = track(import('../surface/scene.mjs'));
   // The works gallery is only needed after the reveal; fetch it alongside.
   const gallery = import('../works/gallery.mjs');
+  // The welcome's frame first, painted; then the page's images behind it,
+  // well within the welcome's own time.
+  if (welcome) {
+    await welcome.frameShown;
+    await framePainted();
+  }
+  loadImages(surface);
+  // Fetch the traced artwork too; it is not an <img> in the page itself.
+  const artwork = new Image();
+  artwork.src = '/assets/wordmark-source.webp';
   await Promise.all([
     ...[...surface.querySelectorAll('img'), artwork].map(image => track(image.decode())),
     track(document.fonts.load('16px "Syne Mono"')),

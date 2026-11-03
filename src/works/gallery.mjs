@@ -7,7 +7,7 @@ import { transitionToProject } from './project-transition.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
-import { DITHER_LOCKED, GLITCH, createGlitch, ditherPhoto } from './dither.mjs';
+import { DITHER_LOCKED, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
 
@@ -247,6 +247,7 @@ export class WorksGallery {
     this.root.hidden = true;
     this.isOpen = false;
     this.paper.style.visibility = '';
+    this.scene.relightPaper?.();
     await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
@@ -455,20 +456,18 @@ export class WorksGallery {
     const key = `${width}x${height}@${dpr}${options ? ':locked' : ''}:${photo.currentSrc}`;
     if (entry.dithered === key) return;
     entry.dithered = key;
-    const result = ditherPhoto(photo, width, height, dpr, options);
-    if (!result) { image.src = photo.src; return; }
     // `shown` settles once the card shows this dither, for a flight home to
-    // carry it (project-transition.mjs).
-    entry.shown = new Promise(resolve => result.toBlob(blob => {
-      if (entry.dithered === key && blob) {
-        const previous = image.src.startsWith('blob:') ? image.src : null;
-        image.src = URL.createObjectURL(blob);
-        // Decoded now, so a card first shown has only to be drawn.
-        image.decode().catch(() => {});
-        if (previous) URL.revokeObjectURL(previous);
-      }
-      resolve();
-    }));
+    // carry it (project-transition.mjs). The dither is drawn off the main
+    // thread where it can be (dither.mjs).
+    entry.shown = ditherPhotoBlob(photo, width, height, dpr, options).then(blob => {
+      if (entry.dithered !== key) return;
+      if (!blob) { image.src = photo.src; return; }
+      const previous = image.src.startsWith('blob:') ? image.src : null;
+      image.src = URL.createObjectURL(blob);
+      // Decoded now, so a card first shown has only to be drawn.
+      image.decode().catch(() => {});
+      if (previous) URL.revokeObjectURL(previous);
+    });
     if (this.glitched === entry) this.glitched = null;
   }
 

@@ -1,6 +1,7 @@
 import { drawSprite, spriteKey, SPRITE } from '../stitch/render.mjs';
 import { paperLayers } from '../paper/paper-material.mjs';
 import { buildWaxSurface } from '../wax/wax-material.mjs';
+import { ditherBitmap } from '../works/dither.mjs';
 
 // The preparation worker (prep.mjs): the same pure drawing and pixel work the
 // page would otherwise do itself, done here while the welcome plays.
@@ -17,15 +18,18 @@ const jobs = {
     const layers = paperLayers(rgba, blurred, width, height);
     return [layers, [layers.grain.buffer, ...layers.responses.map(pixels => pixels.buffer)]];
   },
+  async dither(payload) {
+    return [await ditherBitmap(payload), []];
+  },
   wax({ rgba, width, height }) {
     const surface = buildWaxSurface(rgba, width, height);
     return [surface, [surface.alpha.buffer, surface.normals.buffer, surface.rim.buffer, surface.pigment.buffer]];
   },
 };
 
-self.addEventListener('message', ({ data: { id, type, payload } }) => {
+self.addEventListener('message', async ({ data: { id, type, payload } }) => {
   try {
-    const [result, transfer] = jobs[type](payload);
+    const [result, transfer] = await jobs[type](payload);
     self.postMessage({ id, result }, transfer);
   } catch (error) {
     self.postMessage({ id, error: String(error) });

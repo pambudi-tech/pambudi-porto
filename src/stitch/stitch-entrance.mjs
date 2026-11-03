@@ -21,8 +21,10 @@ export class StitchEntrance {
     }
   }
   progress(key, now) {
-    if (this.finished || !this.offsets.has(key)) return 1;
-    return Math.max(0, Math.min(1, (now - this.started - this.offsets.get(key)) / ENTRANCE.stitch));
+    if (this.finished) return 1;
+    const offset = this.offsets.get(key);
+    if (offset === undefined) return 1;
+    return Math.max(0, Math.min(1, (now - this.started - offset) / ENTRANCE.stitch));
   }
   active(now) {
     return !this.finished && this.offsets.size > 0 && now < this.started + ENTRANCE.delay + this.sweep + ENTRANCE.stitch;
