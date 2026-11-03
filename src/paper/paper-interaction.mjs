@@ -25,8 +25,8 @@ export class PaperInteraction {
     this.write();
     this.measure();
     this.ready = this.loadMask().catch(error => console.error('Paper outline:', error));
-    // The light follows a mouse anywhere on the page, the works row included,
-    // so it is already in place whenever the sheet comes back.
+    // The light follows a mouse anywhere on the page, the works row included;
+    // the sheet comes back at rest (scene.restPaper) and follows again from there.
     addEventListener('pointermove', event => this.track(event.clientX, event.clientY, event.pointerType), { passive: true });
     document.addEventListener('mouseout', event => { if (!event.relatedTarget) this.dim(); });
   }
@@ -201,7 +201,7 @@ export class PaperInteraction {
     }
     // Light only the face showing, and neither while it turns in 3D.
     if (!this.flipping) (this.element.dataset.paperSide === 'red' ? this.backMaterial : this.material)?.draw(values);
-    this.onLight?.(values);
+    this.onLight?.(values, this);
     const engaged = this.state.hovered || this.state.pressed;
     this.element.classList.toggle('paper-engaged', engaged || this.moving || this.placementStarted != null);
     document.body.classList.toggle('paper-hover', engaged);

@@ -15,6 +15,7 @@ import { SurfaceCamera, mountSurfaceNavigation } from '../stitch/surface-zoom.mj
 import { MOTIF_HINT_COLOR } from '../stitch/thread-colors.mjs';
 import { PaperInteraction } from '../paper/paper-interaction.mjs';
 import { lightPosition } from '../paper/paper-gl.mjs';
+import { PaperInkLight } from '../paper/paper-ink-light.mjs';
 import { PaperFlip } from '../paper/paper-flip.mjs';
 import { setupEmailCopy } from '../paper/contact-links.mjs';
 import { mountPaperTextContour, mountAboutTextMask } from '../paper/paper-text-contour.mjs';
@@ -88,17 +89,19 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     scene.cancelTap();
     scene.controls.open(x, y);
   });
-  // The paper's seals are lit by the paper's own lamp.
-  let waxes = [];
+  // The paper's seals and its ink are lit by the paper's own lamp.
+  let waxes = [], inkLight = null;
   const paperFrame = document.querySelector('#surface .portfolio-frame');
   const paperAspect = paperFrame ? paperFrame.getAttribute('width') / paperFrame.getAttribute('height') : 1;
   const sheet = surfaceOnly ? null : new PaperInteraction(document.querySelector('#surface .portfolio-paper'), {
     requestFrame, reduced: motionPreference.matches, placementMirror: document.querySelector('.preloader-paper'),
-    onLight: values => {
+    onLight: (values, paper) => {
       const lamp = lightPosition(values, paperAspect), rest = lightPosition({}, paperAspect);
       for (const wax of waxes) if (wax.element.closest('.portfolio-paper')) wax.followPaper(lamp, rest);
+      if (!paper?.flipping) inkLight?.update(lamp, rest);
     },
   });
+  if (sheet) inkLight = new PaperInkLight(sheet.element);
   const paperFlip = surfaceOnly ? null : new PaperFlip(sheet.element, {
     reduced: motionPreference.matches,
     onStart: () => sheet.setFlipping(true),
@@ -106,7 +109,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   });
   waxes = [...document.querySelectorAll('.works-seal')].map(element => new WaxInteraction(element, motionPreference,
     { startWhen, relit: true }));
-  if (sheet) sheet.onLight(sheet.current);
+  if (sheet) sheet.onLight(sheet.current, sheet);
   const freeStitch = new FreeStitch(model, animations, {
     resolveCell: (col, row, tool) => tool === 'unpick' ? toStoredCell(col, row, corners) : [col, row],
     canPlace(col, row, tool) {
@@ -451,6 +454,9 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     },
     // Before the sheet turns back into view, so it arrives already lit.
     relightPaper() { sheet?.relight(); },
+    // The paper's lamp back at rest, until the pointer moves again: a sheet
+    // coming back looks as the page did when it opened.
+    restPaper() { sheet?.dim(); },
     setPaperPresent(present) {
       sheet?.reset();
       // Pause the paper's pointer lighting while it is turned away.
