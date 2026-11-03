@@ -75,6 +75,9 @@ export function startWelcome({ count, preference, clock: clockElement = document
       adobeStyles.addEventListener('error', () => reject(new Error('Adobe font stylesheet unavailable')), { once: true });
     }
   });
+  // It is fetched once the frame shows (frameShowing, below): fetched with
+  // the page, it held up the frame, the page's largest paint, on a slow line.
+  const fetchAdobeStyles = () => { if (adobeStyles.dataset.href && !adobeStyles.href) adobeStyles.href = adobeStyles.dataset.href; };
   track(stylesheetReady.then(async () => {
     // Changing a cached stylesheet's media does not register its font faces
     // until style recalculation. Flush that change before asking for the face.
@@ -100,6 +103,7 @@ export function startWelcome({ count, preference, clock: clockElement = document
   const frameShowing = new Promise(resolve => { frameShown = resolve; });
   // The frame's ink field is worked out while the frame itself loads.
   const frameInk = preference.matches ? null : imageInkDensity(framePreview, preloaderFrameRegion());
+  frameShowing.then(() => requestAnimationFrame(() => requestAnimationFrame(fetchAdobeStyles)));
   track(framePreview.decode().then(async () => {
     await paperInkEntrance(paperPreview, {
       motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
