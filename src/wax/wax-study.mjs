@@ -1,7 +1,8 @@
 import { WaxGL, WAX_ASSETS } from './wax-gl.mjs';
 import { waxLayout, WAX_ASPECT } from './wax-layout.mjs';
 import { advanceWaxLight, waxLabelShadow } from './wax-interaction.mjs';
-import { WAX_REST, lampInSeal, labelFill } from './wax-light.mjs';
+import { WAX_REST, lampInSeal, labelFill, mixLamp } from './wax-light.mjs';
+import { pourAt, glintLamp } from './wax-pour.mjs';
 import { clamp } from '../shared/math.mjs';
 
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -10,10 +11,11 @@ const seal = document.querySelector('.seal');
 const label = seal.querySelector('.seal-label');
 const input = document.querySelector('#label');
 const sweep = document.querySelector('#sweep');
+const replay = document.querySelector('#replay');
 const measure = document.createElement('canvas').getContext('2d');
 const settings = { lift: 1, depth: 1, gloss: 60, detail: 0 };
 const rest = () => ({ ...WAX_REST });
-let current = rest(), target = rest(), layout, frame = null, last = null, sweeping = false;
+let current = rest(), target = rest(), layout, frame = null, last = null, sweeping = false, pouring = null;
 const model = new WaxGL(seal.querySelector('canvas'));
 
 const sealHeight = () => Math.round(Math.min(150, Math.max(64, seal.parentElement.clientWidth / 4.4)));
@@ -48,8 +50,18 @@ function update() {
 
 function draw() {
   const aspect = layout.width / layout.height;
-  const light = lampInSeal(current, aspect, settings.lift);
-  model.draw({ ...layout, light, depth: settings.depth, gloss: settings.gloss, detail: settings.detail });
+  // While it pours, the parts of the entrance; afterwards, none.
+  const entrance = pouring === null ? null : pourAt(performance.now() - pouring);
+  const room = lampInSeal(current, aspect, settings.lift);
+  const light = entrance ? mixLamp(room, glintLamp(entrance.sweep, aspect), entrance.glint) : room;
+  model.draw({ ...layout, light, depth: settings.depth, gloss: settings.gloss, detail: settings.detail,
+    pour: entrance?.pour ?? 1, molten: entrance?.molten ?? 0, press: entrance?.press ?? 1 });
+  // The label is pressed in with the middle.
+  const pressed = entrance?.label ?? 1;
+  label.style.opacity = pressed;
+  label.style.filter = pressed < 1 ? `blur(${((1 - pressed) * 1.2).toFixed(2)}px)` : '';
+  label.style.scale = pressed < 1 ? (1 + (1 - pressed) * .08).toFixed(4) : '';
+  if (entrance?.done) pouring = null;
   const shadow = waxLabelShadow({ x: clamp(current.x, -1, 1), y: clamp(current.y, -1, 1), strength: 1 }, aspect);
   for (const [name, value] of Object.entries(shadow)) seal.style.setProperty(name, value);
   label.style.setProperty('--label-fill', labelFill(light, lampInSeal(WAX_REST, aspect, settings.lift), {
@@ -67,7 +79,7 @@ function tick(now) {
   }
   current = motion.matches ? { ...target } : advanceWaxLight(current, target, elapsed);
   draw();
-  if (sweeping || Object.keys(target).some(key => current[key] !== target[key])) request();
+  if (pouring !== null || sweeping || Object.keys(target).some(key => current[key] !== target[key])) request();
   else last = null;
 }
 const request = () => { frame ??= requestAnimationFrame(tick); };
@@ -89,6 +101,12 @@ panel.addEventListener('pointerleave', () => {
   request();
 });
 
+const play = () => {
+  if (motion.matches) return;
+  pouring = performance.now();
+  request();
+};
+replay.addEventListener('click', play);
 for (const button of document.querySelectorAll('[data-label]')) button.addEventListener('click', () => {
   input.value = button.dataset.label;
   update();
@@ -118,6 +136,7 @@ const started = performance.now();
 Promise.all([model.prepare(), document.fonts.ready]).then(async () => {
   const ms = Math.round(performance.now() - started);
   update();
+  play();
   const sizes = await Promise.all(WAX_ASSETS.map(url => fetch(url).then(response => response.blob()).then(blob => blob.size)));
   status(`Ready in ${ms} ms · photo, colour and relief ${Math.round(sizes.reduce((sum, size) => sum + size, 0) / 1024)} KB`);
 }, () => status('WebGL 2 is unavailable here; the photo is shown'));

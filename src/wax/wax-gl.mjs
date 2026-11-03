@@ -20,14 +20,17 @@ precision highp float;
 in vec2 vPos;
 uniform sampler2D photo, albedo, relief;
 uniform vec3 light;
-uniform float extension, peak, depth, gloss, detail, level, sheen;
+uniform float extension, peak, depth, gloss, detail, level, sheen, pour, molten, press;
 out vec4 outColor;
 const float ASPECT = ${WAX_ASPECT};
 const float SPAN = ${WAX_ASPECT - 1};
 // Where the end caps begin, the stretch eases over three source pixels
 // (243 to 246 px from the centre), as it did on the approved mesh.
 const float EASE_FROM = 243. / 280., EASE_TO = 246. / 280.;
-float surface(vec2 uv) { return texture(relief, uv).b * peak * depth; }
+// While it forms (wax-pour.mjs), the lip rises as the wax cools and the
+// middle, the inner ridge with it, as the stamp presses it.
+float formed(float height) { return mix(press, 1. - molten, smoothstep(.24, .42, height)); }
+float surface(vec2 uv) { float b = texture(relief, uv).b; return b * peak * depth * formed(b); }
 void main() {
   float stretch = 1. + extension / SPAN, along = abs(vPos.x), x;
   float from = EASE_FROM * stretch, to = EASE_TO + extension * .5;
@@ -43,12 +46,20 @@ void main() {
   vec2 uv = vec2(sign(vPos.x) * x / ASPECT + .5, .5 - vPos.y);
   vec4 source = texture(photo, uv);
   if (source.a < .004 || any(lessThan(uv, vec2(0))) || any(greaterThan(uv, vec2(1)))) discard;
+  // The pour spreads from the middle with a wavering front, to the outline.
+  vec2 c = (uv - .5) * vec2(2);
+  float angle = atan(c.y, c.x * ASPECT);
+  float wave = (.05 * sin(angle * 5. + pour * 9.) + .03 * sin(angle * 9. - pour * 13.)) * (1. - pour);
+  float front = pour * 1.3 - length(c) + wave;
+  float reach = pour >= 1. ? 1. : smoothstep(0., .012, front);
+  if (reach <= 0.) discard;
   vec4 r = texture(relief, uv);
   vec3 base = texture(albedo, uv).rgb;
   vec2 slope = r.xy * 2. - 1.;
-  vec3 n = normalize(vec3(slope.x * depth / stretch, slope.y * depth, sqrt(max(1. - dot(slope, slope), 0.))));
-  float h = r.b * peak * depth;
-  float cavity = mix(1., r.a, clamp(depth, 0., 1.));
+  float shaped = depth * formed(r.b);
+  vec3 n = normalize(vec3(slope.x * shaped / stretch, slope.y * shaped, sqrt(max(1. - dot(slope, slope), 0.))));
+  float h = r.b * peak * shaped;
+  float cavity = mix(1., r.a, clamp(shaped, 0., 1.));
   // The rolled lip is glossy; the pressed field is satin.
   float polish = mix(.3, 1., smoothstep(.24, .42, r.b));
   vec3 l = normalize(light - vec3(vPos, h));
@@ -73,8 +84,12 @@ void main() {
     // Light carried through the wax: shaded wax stays a deep red, not grey.
     + base * base * .3 * (1. - shadow) * smoothstep(-.2, .4, facing)) * level
     + vec3(1., .95, .92) * shine * (.6 + fresnel) * cavity;
+  // Molten: the wax glows a deeper, hotter red, and a thin bright bead runs
+  // along the pour's rounded front.
+  float bead = smoothstep(.004, .02, front) * (1. - smoothstep(.02, .06, front)) * molten * (1. - pour * pour);
+  colour += base * vec3(.5, .05, .02) * molten + vec3(1., .78, .7) * bead * .6;
   colour = mix(colour, source.rgb, detail);
-  outColor = vec4(colour * source.a, source.a);
+  outColor = vec4(colour * source.a * reach, source.a * reach);
 }`;
 
 // The photo is the one the page already shows, so it costs no extra bytes.
@@ -132,7 +147,7 @@ async function createRenderer() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     image.close?.();
   });
-  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail', 'level', 'sheen']
+  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail', 'level', 'sheen', 'pour', 'molten', 'press']
     .map(name => [name, gl.getUniformLocation(program, name)]));
   gl.uniform1i(u.photo, 0); gl.uniform1i(u.albedo, 1); gl.uniform1i(u.relief, 2);
   gl.uniform1f(u.peak, WAX_RELIEF_PEAK);
@@ -152,7 +167,7 @@ async function createRenderer() {
 
 // Draws one seal at its size in the shared context, from the bottom left,
 // and returns that corner of the drawing buffer.
-function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail, level, sheen }) {
+function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail, level, sheen, pour, molten, press }) {
   // The buffer only grows, so seals of different sizes never reallocate it.
   if (canvas.width < w || canvas.height < h) {
     canvas.width = Math.max(canvas.width, w);
@@ -163,6 +178,7 @@ function render({ canvas, gl, u }, w, h, { width, height, extension, light, dept
   gl.uniform3f(u.light, ...light);
   gl.uniform1f(u.depth, depth); gl.uniform1f(u.gloss, gloss); gl.uniform1f(u.detail, detail);
   gl.uniform1f(u.level, level); gl.uniform1f(u.sheen, sheen);
+  gl.uniform1f(u.pour, pour); gl.uniform1f(u.molten, molten); gl.uniform1f(u.press, press);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   return [0, canvas.height - h, w, h];
 }
@@ -180,8 +196,11 @@ export class WaxGL {
     this.ready = true;
   }
   // `light` is the point light's position in the seal's space.
-  draw({ width = 768, height = 280, extension = 0, light = [-.8, .45, 1], depth = 1, gloss = 60, detail = 0, level = 1, sheen = 1 } = {}) {
-    this.last = { width, height, extension, light, depth, gloss, detail, level, sheen };
+  // `pour`, `molten` and `press` play the entrance (wax-pour.mjs); left out,
+  // the seal is formed.
+  draw({ width = 768, height = 280, extension = 0, light = [-.8, .45, 1], depth = 1, gloss = 60, detail = 0, level = 1, sheen = 1,
+    pour = 1, molten = 0, press = 1 } = {}) {
+    this.last = { width, height, extension, light, depth, gloss, detail, level, sheen, pour, molten, press };
     if (!this.ready || this.disposed || this.renderer.lost) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));
