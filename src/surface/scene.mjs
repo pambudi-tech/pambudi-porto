@@ -1,5 +1,8 @@
 import { GRID, surfaceSpacing, StitchModel, keyOf } from '../stitch/model.mjs';
-import { SurfaceRenderer } from '../stitch/render.mjs';
+import { SurfaceRenderer, preparedSprites, SPRITE } from '../stitch/render.mjs';
+import { ORNAMENT_COLOR } from '../stitch/dot-matrix.mjs';
+import { BIRD_COLOR } from '../bird/bird-data.mjs';
+import { offMainThread } from '../shared/prep.mjs';
 import { cornerPattern, cornerPitch, cornerPositions, surfaceOrigin, toStoredCell, toVisibleCell, cornerCellVisible, cornerEntranceGroups } from '../stitch/corners.mjs';
 import { TouchHold } from '../stitch/touch-hold.mjs';
 import { StitchWordmark } from '../stitch/wordmark.mjs';
@@ -22,6 +25,14 @@ import { settleWithin } from '../preloader/loading-progress.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { mountStitchControls } from './stitch-controls.mjs';
 import { mountSurfaceInput } from './surface-input.mjs';
+
+// Every step of the ornaments', wordmark's and dove's threads, drawn off the
+// main thread from the moment this module loads, so their entrances only
+// copy sprites. Any that are late are drawn on demand, the same way.
+const spritesReady = offMainThread('sprites', {
+  requests: [ORNAMENT_COLOR, BIRD_COLOR].flatMap(color => Array.from({ length: 8 }, (_, variation) =>
+    Array.from({ length: SPRITE.steps + 1 }, (_, step) => [color, variation, step])).flat()),
+}).then(sprites => { for (const [key, bitmap] of sprites ?? []) preparedSprites.set(key, bitmap); });
 
 // The stitch surface behind every page: cloth, embroidery, corner ornaments,
 // wordmark, bird, and on the homepage, the paper. This module owns the state
@@ -338,7 +349,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   resize();
   scene.controls.update();
 
-  await Promise.allSettled([sheet?.ready, wordmark?.ready, ...waxes.map(wax => wax.ready)].map(task => settleWithin(task)));
+  await Promise.allSettled([sheet?.ready, wordmark?.ready, spritesReady, ...waxes.map(wax => wax.ready)].map(task => settleWithin(task)));
   renderer.drawCloth(view);
   clothDirty = false;
   return {

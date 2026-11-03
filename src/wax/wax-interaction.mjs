@@ -1,6 +1,7 @@
 import { buildWaxSurface, shadeWaxSurface } from './wax-material.mjs';
 import { WaxEntrance } from './wax-entrance.mjs';
 import { clamp } from '../shared/math.mjs';
+import { offMainThread } from '../shared/prep.mjs';
 
 export const WAX_LIGHT = Object.freeze({ reach: 100, fadeMs: 240, followMs: 110 });
 const restLight = () => ({ x: 0, y: -.35, strength: 0 });
@@ -16,7 +17,8 @@ function waxSurfaceFor(image, width, height) {
     context.canvas.width = width;
     context.canvas.height = height;
     context.drawImage(image, 0, 0, width, height);
-    surfaces.set(key, buildWaxSurface(context.getImageData(0, 0, width, height).data, width, height));
+    const rgba = context.getImageData(0, 0, width, height).data;
+    surfaces.set(key, offMainThread('wax', { rgba, width, height }, () => buildWaxSurface(rgba, width, height)));
   }
   return surfaces.get(key);
 }
@@ -102,7 +104,7 @@ export class WaxInteraction {
     canvas.className = 'wax-reflection';
     canvas.setAttribute('aria-hidden', 'true');
     const context = canvas.getContext('2d');
-    this.surface = waxSurfaceFor(this.image, canvas.width, canvas.height);
+    this.surface = await waxSurfaceFor(this.image, canvas.width, canvas.height);
     this.pixels = context.createImageData(canvas.width, canvas.height);
     this.context = context;
     this.canvas = canvas;

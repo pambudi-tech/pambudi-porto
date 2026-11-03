@@ -35,7 +35,7 @@ export class PaperInteraction {
     this.element.dataset.paperReady = 'true';
     this.measure();
     const material = new PaperMaterial(this.image);
-    material.prepare();
+    await material.prepare();
     material.draw(this.current);
     this.material = material;
   }

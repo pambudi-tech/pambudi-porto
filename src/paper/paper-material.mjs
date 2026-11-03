@@ -1,4 +1,5 @@
 import { clamp } from '../shared/math.mjs';
+import { offMainThread } from '../shared/prep.mjs';
 // A matte enhancement over the approved image, not a replacement for it.
 // The image's luminance provides a subtle relief proxy; it is not a height map.
 function noise(x, y) {
@@ -12,6 +13,45 @@ function layer(width, height) {
   return canvas;
 }
 
+// The sheet's grain and its four directional relief responses, from the
+// image's pixels and a slightly blurred copy. Pure, so it can run in the
+// preparation worker (src/shared/prep-worker.mjs).
+export function paperLayers(rgba, blurred, width, height) {
+  const grainData = new Uint8ClampedArray(width * height * 4), row = width * 4;
+  const responses = Array.from({ length: 4 }, () => new Uint8ClampedArray(width * height * 4));
+  // Plain loops: this runs over a million pixels.
+  const respond = (pixels, i, slope) => {
+    // Encode a bounded luminance change directly. Soft-light blending on
+    // near-white paper attenuates this detail until it is almost invisible.
+    const delta = clamp(slope * 3.5, -14, 14);
+    const bright = delta >= 0;
+    pixels[i] = pixels[i + 1] = pixels[i + 2] = bright ? 255 : 0;
+    pixels[i + 3] = clamp(Math.abs(delta) / Math.max(4, bright ? 255 - rgba[i] : rgba[i]), 0, .65) * 255;
+  };
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const i = (y * width + x) * 4;
+    // Fine mottling plus longer fibers. Both are deterministic and fixed to the sheet.
+    const fiber = noise(x, y) * 7 + noise(Math.floor((x + y * .12) / 2), Math.floor(y / 7)) * 4;
+    grainData[i] = rgba[i] + fiber;
+    grainData[i + 1] = rgba[i + 1] + fiber;
+    grainData[i + 2] = rgba[i + 2] + fiber;
+    grainData[i + 3] = rgba[i + 3];
+    let dx = 0, dy = 0;
+    // Avoid treating the transparent silhouette as an embossed ridge.
+    if (x > 2 && x < width - 3 && y > 2 && y < height - 3
+      && rgba[i + 3] > 250 && rgba[i - 5] > 250 && rgba[i + 11] > 250
+      && rgba[i - row * 2 + 3] > 250 && rgba[i + row * 2 + 3] > 250) {
+      dx = (blurred[i + 8] - blurred[i - 8]) / 4;
+      dy = (blurred[i + width * 8] - blurred[i - width * 8]) / 4;
+    }
+    respond(responses[0], i, dx);
+    respond(responses[1], i, -dx);
+    respond(responses[2], i, dy);
+    respond(responses[3], i, -dy);
+  }
+  return { grain: grainData, responses };
+}
+
 export class PaperMaterial {
   constructor(image) {
     this.image = image;
@@ -19,7 +59,7 @@ export class PaperMaterial {
     this.canvas.className = 'paper-material';
     this.canvas.setAttribute('aria-hidden', 'true');
   }
-  prepare() {
+  async prepare() {
     // Always 896 wide, at the master's shape, whichever srcset candidate the
     // page chose: with srcset, natural sizes are divided by the chosen density.
     const width = 896;
@@ -36,41 +76,9 @@ export class PaperMaterial {
     const blurred = smooth.getImageData(0, 0, width, height).data;
     this.grain = layer(width, height);
     const grainContext = this.grain.getContext('2d');
-    const grain = grainContext.createImageData(width, height);
     this.relief = Array.from({ length: 4 }, () => layer(width, height));
-    const responses = this.relief.map(canvas => canvas.getContext('2d').createImageData(width, height).data);
-    const grainData = grain.data, row = width * 4;
-    // Plain loops: this runs over a million pixels while the welcome plays.
-    const respond = (pixels, i, slope) => {
-      // Encode a bounded luminance change directly. Soft-light blending on
-      // near-white paper attenuates this detail until it is almost invisible.
-      const delta = clamp(slope * 3.5, -14, 14);
-      const bright = delta >= 0;
-      pixels[i] = pixels[i + 1] = pixels[i + 2] = bright ? 255 : 0;
-      pixels[i + 3] = clamp(Math.abs(delta) / Math.max(4, bright ? 255 - rgba[i] : rgba[i]), 0, .65) * 255;
-    };
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      // Fine mottling plus longer fibers. Both are deterministic and fixed to the sheet.
-      const fiber = noise(x, y) * 7 + noise(Math.floor((x + y * .12) / 2), Math.floor(y / 7)) * 4;
-      grainData[i] = rgba[i] + fiber;
-      grainData[i + 1] = rgba[i + 1] + fiber;
-      grainData[i + 2] = rgba[i + 2] + fiber;
-      grainData[i + 3] = rgba[i + 3];
-      let dx = 0, dy = 0;
-      // Avoid treating the transparent silhouette as an embossed ridge.
-      if (x > 2 && x < width - 3 && y > 2 && y < height - 3
-        && rgba[i + 3] > 250 && rgba[i - 5] > 250 && rgba[i + 11] > 250
-        && rgba[i - row * 2 + 3] > 250 && rgba[i + row * 2 + 3] > 250) {
-        dx = (blurred[i + 8] - blurred[i - 8]) / 4;
-        dy = (blurred[i + width * 8] - blurred[i - width * 8]) / 4;
-      }
-      respond(responses[0], i, dx);
-      respond(responses[1], i, -dx);
-      respond(responses[2], i, dy);
-      respond(responses[3], i, -dy);
-    }
-    grainContext.putImageData(grain, 0, 0);
+    const { grain: grainPixels, responses } = await offMainThread('paper', { rgba, blurred, width, height }, () => paperLayers(rgba, blurred, width, height));
+    grainContext.putImageData(new ImageData(grainPixels, width, height), 0, 0);
     this.relief.forEach((canvas, i) => canvas.getContext('2d').putImageData(new ImageData(responses[i], width, height), 0, 0));
     this.draw({});
     this.image.after(this.canvas);
