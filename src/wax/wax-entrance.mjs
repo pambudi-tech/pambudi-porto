@@ -47,19 +47,21 @@ function liquidPath(context, points) {
   context.closePath();
 }
 
+// The feathering is sized for a 768-wide canvas and scales with it.
 export function drawWaxSpread(context, image, progress, mask) {
   const { width, height } = context.canvas;
   const front = waxSpreadAt(progress, width, height);
+  const scale = width / 768;
   const maskContext = mask.getContext('2d');
   maskContext.clearRect(0, 0, width, height);
   maskContext.save();
   // Two feathered densities form a translucent leading edge. The dense
   // core stays behind it; nothing strokes an opaque outline onto the wax.
-  maskContext.filter = `blur(${.7 + front.edge * width * .019}px)`;
+  maskContext.filter = `blur(${.7 * scale + front.edge * width * .019}px)`;
   maskContext.globalAlpha = .45;
   maskContext.fillStyle = '#fff';
   liquidPath(maskContext, front.points); maskContext.fill();
-  maskContext.filter = `blur(${.6 + front.edge * width * .0047}px)`;
+  maskContext.filter = `blur(${.6 * scale + front.edge * width * .0047}px)`;
   maskContext.globalAlpha = 1;
   const core = front.points.map(([x, y]) => [
     width / 2 + (x - width / 2) * (1 - front.edge * .06),
@@ -105,8 +107,11 @@ export class WaxEntrance {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'wax-spread';
     this.canvas.setAttribute('aria-hidden', 'true');
-    this.canvas.width = 768;
-    this.canvas.height = Math.round(768 * this.image.naturalHeight / this.image.naturalWidth);
+    // Drawn at the size the seal shows (never as wide as its 768 master):
+    // the same pixels on screen for a fraction of the work each frame.
+    const shown = Math.ceil(this.image.offsetWidth * Math.min(devicePixelRatio || 1, 3));
+    this.canvas.width = shown > 0 ? Math.min(768, shown) : 768;
+    this.canvas.height = Math.round(this.canvas.width * this.image.naturalHeight / this.image.naturalWidth);
     this.mask = document.createElement('canvas');
     this.mask.width = this.canvas.width; this.mask.height = this.canvas.height;
     const context = this.canvas.getContext('2d');
