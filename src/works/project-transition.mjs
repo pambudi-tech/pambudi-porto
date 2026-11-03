@@ -545,7 +545,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       restore();
       // The card shows as the flight lands; its print eases back in (CSS).
       entry.item.classList.add('is-landing');
-      setTimeout(() => entry.item.classList.remove('is-landing'), 500);
+      setTimeout(() => entry.item.classList.remove('is-landing'), 700);
       entry.link.focus({ preventScroll: true });
     };
     if (gallery.projectHistoryHandler) window.removeEventListener('popstate', gallery.projectHistoryHandler);

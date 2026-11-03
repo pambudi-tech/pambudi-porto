@@ -25,9 +25,12 @@ html.project-overlay { background: transparent; }
 /* Landing from a project, the stamp and its photograph are already in place
    under the flight; what is printed over and beside them settles back in. */
 .works-item.is-landing .works-text,
-.works-item.is-landing .works-number,
-.works-item.is-landing .works-protected { animation: works-landing 420ms cubic-bezier(.22, 1, .36, 1) both; }
+.works-item.is-landing .works-number { animation: works-landing 420ms cubic-bezier(.22, 1, .36, 1) both; }
 @keyframes works-landing { from { opacity: 0; translate: 0 4px; } }
+/* The passcode tag is tucked behind the stamp's lower edge: it drops out
+   from under it, top to bottom, keeping its centring. */
+.works-item.is-landing .works-protected { animation: works-tag-drop 480ms cubic-bezier(.22, 1, .36, 1) 80ms both; }
+@keyframes works-tag-drop { from { translate: -50% -100%; } to { translate: -50% 0; } }
 @media (prefers-reduced-motion: reduce) {
   .works-item.is-landing .works-text,
   .works-item.is-landing .works-number,
