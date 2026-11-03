@@ -427,12 +427,14 @@ body.is-loading .wax-gl { transition: none; }
 .wax-entering .wax-reflection,
 .wax-entering .wax-gl { visibility: hidden; }
 /* The wax lit in WebGL (wax-gl.mjs) fades in over its photograph, which
-   then steps aside so their soft edges do not double. */
+   then steps aside so their soft edges do not double. It lies over the
+   seal's box rather than in its grid: unsized for a moment, a canvas in the
+   grid would push the label off its place as its letters are pressed. */
 .wax-gl {
-  position: relative;
-  grid-area: 1 / 1;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
   z-index: 1;
   pointer-events: none;
   opacity: 0;

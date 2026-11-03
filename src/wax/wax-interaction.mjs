@@ -161,10 +161,21 @@ export class WaxInteraction {
     await view.prepare();
     this.view = view;
     this.canvas = canvas;
-    await document.fonts.ready;
+    // The letters are pressed in the label's own face: pressed before it has
+    // loaded, they would take a stand-in's shapes and places.
+    if (this.label) {
+      const font = getComputedStyle(this.label);
+      await document.fonts.load(`${font.fontWeight} ${font.fontSize} ${font.fontFamily}`).catch(() => {});
+      document.fonts.addEventListener('loadingdone', () => { this.pressLetters(); this.draw(); });
+    }
     this.letters = document.createElement('canvas');
     this.pressLetters();
-    new ResizeObserver(() => { this.measured = null; this.pressLetters(); this.draw(); }).observe(this.element);
+    // Pressed afresh whenever the seal or its label changes size, a label's
+    // font arriving after the seal is laid out included ("details" takes the
+    // homepage seal's): a stale press would sit off the label's place.
+    const resized = new ResizeObserver(() => { this.measured = null; this.pressLetters(); this.draw(); });
+    resized.observe(this.element);
+    if (this.label) resized.observe(this.label);
     // A label that changes its words ("gallery", "back") is pressed afresh.
     if (this.label) new MutationObserver(() => { this.pressLetters(); this.draw(); })
       .observe(this.label, { childList: true, characterData: true, subtree: true });
