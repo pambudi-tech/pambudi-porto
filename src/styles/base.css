@@ -69,6 +69,16 @@ body.is-loading .portfolio-clock canvas { filter: brightness(0) invert(1); }
 #surface { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; position: fixed; inset: 0; outline: none; touch-action: none; cursor: none; }
 #surface:focus-visible { box-shadow: inset 0 0 0 2px #8d7560; }
 canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events: none; }
+/* The sheet's pose, written every frame (paper-pose.mjs). Not inherited, so
+   only the sheet and its frames restyle, not everything lying on it. */
+@property --paper-placement-y { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --paper-rx { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --paper-ry { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --paper-scale { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --paper-sx { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --paper-sy { syntax: '<length>'; inherits: false; initial-value: 1.5px; }
+@property --paper-blur { syntax: '<length>'; inherits: false; initial-value: 6px; }
+@property --paper-shadow-opacity { syntax: '<number>'; inherits: false; initial-value: .016; }
 .portfolio-paper {
   --paper-text-size: 16px;
   position: absolute;
