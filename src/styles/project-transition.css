@@ -22,6 +22,17 @@ html.project-overlay { background: transparent; }
 .works-gallery.is-navigating .works-item { opacity: 0; transition: opacity 220ms ease; }
 .works-gallery.is-returning .works-item { opacity: 1; transition: opacity 320ms ease 140ms; }
 .works-gallery.is-returning .is-flight-source { visibility: hidden; }
+/* Landing from a project, the stamp and its photograph are already in place
+   under the flight; what is printed over and beside them settles back in. */
+.works-item.is-landing .works-text,
+.works-item.is-landing .works-number,
+.works-item.is-landing .works-protected { animation: works-landing 420ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes works-landing { from { opacity: 0; translate: 0 4px; } }
+@media (prefers-reduced-motion: reduce) {
+  .works-item.is-landing .works-text,
+  .works-item.is-landing .works-number,
+  .works-item.is-landing .works-protected { animation: none; }
+}
 .is-project-transition #portfolio-clock { opacity: 0; transition: opacity 200ms ease; }
 .works-project-name, .project-nav-name { display: flex; align-items: center; padding: 0; border-radius: 999px; background: var(--ink); color: #ffffff; font: 12px/1 "Syne Mono", monospace; white-space: nowrap; }
 /* The pill's parts, on the project page and in the works row's morph alike:
