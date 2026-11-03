@@ -1,6 +1,7 @@
 import { WaxGL, WAX_ASSETS } from './wax-gl.mjs';
 import { waxLayout, WAX_ASPECT } from './wax-layout.mjs';
 import { advanceWaxLight, waxLabelShadow } from './wax-interaction.mjs';
+import { WAX_REST, lampInSeal, labelFill } from './wax-light.mjs';
 import { clamp } from '../shared/math.mjs';
 
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -11,8 +12,7 @@ const input = document.querySelector('#label');
 const sweep = document.querySelector('#sweep');
 const measure = document.createElement('canvas').getContext('2d');
 const settings = { lift: 1, depth: 1, gloss: 60, detail: 0 };
-// At rest the light hangs above the seal's upper left, as in the photograph.
-const rest = () => ({ x: -.55, y: -.9 });
+const rest = () => ({ ...WAX_REST });
 let current = rest(), target = rest(), layout, frame = null, last = null, sweeping = false;
 const model = new WaxGL(seal.querySelector('canvas'));
 
@@ -46,43 +46,15 @@ function update() {
   draw();
 }
 
-// The ink is lit like the satin field it is pressed into (wax-gl.mjs): one
-// lamp, wrapped diffuse and a soft gloss, measured against the resting light
-// so that at rest the ink keeps its own red.
-const INK = [183, 26, 32];
-function fieldLight(across, lift, gloss) {
-  const facing = lift / Math.hypot(across, lift);
-  const diffuse = Math.max((facing + .25) / 1.25, 0);
-  const nh = Math.sqrt((1 + facing) / 2);
-  const shine = (nh ** (gloss * .545) * 1.7 * .3 + nh ** (gloss * .18) * .22) * Math.min(1, facing / .2) * .64;
-  return { diffuse: .36 + .9 * diffuse, shine };
-}
-function labelFill(lightX, lightY, unit) {
-  const lift = settings.lift * unit;
-  const left = layout.width / 2 + lightX * unit - label.offsetLeft;
-  const top = layout.height / 2 - lightY * unit - label.offsetTop;
-  const home = rest(), aspect = layout.width / layout.height;
-  const restAcross = Math.hypot(home.x * aspect / 2, home.y / 2) * unit;
-  const resting = fieldLight(restAcross, lift, settings.gloss);
-  const stops = [0, .25, .5, .8, 1.2, 1.8, 2.6, 4].map(step => {
-    const { diffuse, shine } = fieldLight(step * unit, lift, settings.gloss);
-    const gleam = 255 * Math.max(0, shine - resting.shine);
-    const [r, g, b] = INK.map(value => Math.round(Math.min(255, value * diffuse / resting.diffuse + gleam)));
-    return `rgb(${r} ${g} ${b}) ${Math.round(step * unit)}px`;
-  });
-  return `radial-gradient(circle at ${left.toFixed(1)}px ${top.toFixed(1)}px, ${stops.join(', ')})`;
-}
-
-// The light's x and y are measured in half-widths and half-heights of the
-// seal, y down; the seal's space has y up and its height as the unit.
 function draw() {
   const aspect = layout.width / layout.height;
-  const light = [current.x * aspect / 2, -current.y / 2];
-  model.draw({ ...layout, light: [...light, settings.lift],
-    depth: settings.depth, gloss: settings.gloss, detail: settings.detail });
+  const light = lampInSeal(current, aspect, settings.lift);
+  model.draw({ ...layout, light, depth: settings.depth, gloss: settings.gloss, detail: settings.detail });
   const shadow = waxLabelShadow({ x: clamp(current.x, -1, 1), y: clamp(current.y, -1, 1), strength: 1 }, aspect);
   for (const [name, value] of Object.entries(shadow)) seal.style.setProperty(name, value);
-  label.style.setProperty('--label-fill', labelFill(...light, layout.height));
+  label.style.setProperty('--label-fill', labelFill(light, lampInSeal(WAX_REST, aspect, settings.lift), {
+    unit: layout.height, gloss: settings.gloss,
+    centre: [layout.width / 2 - label.offsetLeft, layout.height / 2 - label.offsetTop] }));
 }
 
 function tick(now) {

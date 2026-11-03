@@ -80,15 +80,13 @@ export const WAX_ASSETS = ['/assets/works-wax-seal.webp', '/assets/wax-seal-albe
 // The relief's tallest point in seal heights, as build-wax-seal.py reports it.
 export const WAX_RELIEF_PEAK = .0577;
 
-let sharedAssets;
 const fetchOK = async url => {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Wax asset ${response.status}: ${url}`);
   return response;
 };
-const assets = () => sharedAssets ??= Promise.all(WAX_ASSETS.map(url => fetchOK(url).then(r => r.blob())
-  .then(blob => createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))))
-  .catch(error => { sharedAssets = null; throw error; });
+const assets = () => Promise.all(WAX_ASSETS.map(url => fetchOK(url).then(r => r.blob())
+  .then(blob => createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))));
 
 // Waits for the driver to finish compiling off the main thread, when it can.
 function linked(gl, program) {
@@ -100,65 +98,97 @@ function linked(gl, program) {
   });
 }
 
+// One WebGL context draws every seal on the page and each seal copies its
+// picture into its own canvas, so a gallery of seals costs the browser a
+// single context and one upload of the textures.
+let shared = null;
+const renderer = () => shared ??= createRenderer().catch(error => { shared = null; throw error; });
+async function createRenderer() {
+  const canvas = document.createElement('canvas');
+  const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
+  if (!gl) throw new Error('WebGL 2 unavailable');
+  const program = gl.createProgram();
+  const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]].map(([type, source]) => {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source); gl.compileShader(shader); gl.attachShader(program, shader);
+    return shader;
+  });
+  gl.linkProgram(program);
+  const [images] = await Promise.all([assets(), linked(gl, program)]);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+    throw new Error(shaders.map(shader => gl.getShaderInfoLog(shader)).join('') || gl.getProgramInfoLog(program));
+  shaders.forEach(shader => gl.deleteShader(shader));
+  gl.useProgram(program);
+  images.forEach((image, unit) => {
+    gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    image.close?.();
+  });
+  const u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail']
+    .map(name => [name, gl.getUniformLocation(program, name)]));
+  gl.uniform1i(u.photo, 0); gl.uniform1i(u.albedo, 1); gl.uniform1i(u.relief, 2);
+  gl.uniform1f(u.peak, WAX_RELIEF_PEAK);
+  const state = { canvas, gl, u, views: new Set(), lost: false };
+  // A lost context leaves every seal's last picture in place; a fresh
+  // renderer redraws them once the browser allows WebGL again.
+  canvas.addEventListener('webglcontextlost', event => {
+    event.preventDefault();
+    state.lost = true;
+    if (shared) shared = null;
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    for (const view of state.views) view.prepare().then(() => view.draw(view.last), () => {});
+  });
+  return state;
+}
+
+// Draws one seal at its size in the shared context, from the bottom left,
+// and returns that corner of the drawing buffer.
+function render({ canvas, gl, u }, w, h, { width, height, extension, light, depth, gloss, detail }) {
+  // The buffer only grows, so seals of different sizes never reallocate it.
+  if (canvas.width < w || canvas.height < h) {
+    canvas.width = Math.max(canvas.width, w);
+    canvas.height = Math.max(canvas.height, h);
+  }
+  gl.viewport(0, 0, w, h); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform1f(u.extension, extension); gl.uniform1f(u.aspect, width / height);
+  gl.uniform3f(u.light, ...light);
+  gl.uniform1f(u.depth, depth); gl.uniform1f(u.gloss, gloss); gl.uniform1f(u.detail, detail);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  return [0, canvas.height - h, w, h];
+}
+
+// One seal's picture, in its own canvas on the page.
 export class WaxGL {
-  constructor(canvas) { this.canvas = canvas; this.resources = []; }
+  constructor(canvas) { this.canvas = canvas; }
   async prepare() {
-    const gl = this.gl = this.canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
-    if (!gl) throw new Error('WebGL 2 unavailable');
-    const program = this.program = gl.createProgram();
-    const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]].map(([type, source]) => {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source); gl.compileShader(shader); gl.attachShader(program, shader);
-      return shader;
-    });
-    gl.linkProgram(program);
-    const [images] = await Promise.all([assets(), linked(gl, program)]);
+    const state = await renderer();
     if (this.disposed) return;
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-      throw new Error(shaders.map(shader => gl.getShaderInfoLog(shader)).join('') || gl.getProgramInfoLog(program));
-    shaders.forEach(shader => gl.deleteShader(shader));
-    gl.useProgram(program);
-    images.forEach((image, unit) => {
-      const texture = gl.createTexture(); this.resources.push(texture);
-      gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    });
-    this.u = Object.fromEntries(['extension', 'aspect', 'photo', 'albedo', 'relief', 'light', 'peak', 'depth', 'gloss', 'detail']
-      .map(name => [name, gl.getUniformLocation(program, name)]));
-    gl.uniform1i(this.u.photo, 0); gl.uniform1i(this.u.albedo, 1); gl.uniform1i(this.u.relief, 2);
-    gl.uniform1f(this.u.peak, WAX_RELIEF_PEAK);
-    this.onLost = event => { event.preventDefault(); this.ready = false; delete this.canvas.dataset.ready; };
-    this.onRestore = () => { this.prepare().then(() => this.draw(this.last)).catch(() => {}); };
-    this.canvas.addEventListener('webglcontextlost', this.onLost, { once: true });
-    this.canvas.addEventListener('webglcontextrestored', this.onRestore, { once: true });
+    this.renderer?.views.delete(this);
+    this.renderer = state;
+    state.views.add(this);
+    this.context ??= this.canvas.getContext('2d');
     this.ready = true;
   }
   // `light` is the point light's position in the seal's space.
   draw({ width = 768, height = 280, extension = 0, light = [-.8, .45, 1], depth = 1, gloss = 60, detail = 0 } = {}) {
     this.last = { width, height, extension, light, depth, gloss, detail };
-    if (!this.ready || this.disposed) return;
-    const gl = this.gl, u = this.u;
+    if (!this.ready || this.disposed || this.renderer.lost) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
-    gl.viewport(0, 0, w, h); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniform1f(u.extension, extension); gl.uniform1f(u.aspect, width / height);
-    gl.uniform3f(u.light, ...light);
-    gl.uniform1f(u.depth, depth); gl.uniform1f(u.gloss, gloss); gl.uniform1f(u.detail, detail);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    else this.context.clearRect(0, 0, w, h);
+    const source = render(this.renderer, w, h, this.last);
+    this.context.drawImage(this.renderer.canvas, ...source, 0, 0, w, h);
     this.canvas.dataset.ready = 'true';
   }
   dispose() {
     this.disposed = true; this.ready = false;
-    if (!this.gl) return;
-    this.canvas.removeEventListener('webglcontextlost', this.onLost);
-    this.canvas.removeEventListener('webglcontextrestored', this.onRestore);
-    this.resources.forEach(t => this.gl.deleteTexture(t));
-    this.gl.deleteProgram(this.program);
+    this.renderer?.views.delete(this);
   }
 }
