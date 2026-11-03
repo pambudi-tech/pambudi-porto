@@ -16,6 +16,7 @@ export default defineConfig({
     // and font URLs that public/assets serves at /assets.
     assetsDir: 'static',
     rolldownOptions: {
+      // wax.html is a study for the dev server only, so it isn't built.
       input: { home: page('index.html'), surface: page('surface.html'), work: page('work.html') },
     },
   },

@@ -1,6 +1,5 @@
 // Ocean's case study, drawn from the supplied LinkedIn description. The cover
-// comes from its card in content/works.mjs; the Unsplash gallery photos are
-// temporary layout samples.
+// comes from its card in content/works.mjs.
 //
 // A new case study is a file like this one, named after its work's id and
 // listed in content/projects/index.mjs.
@@ -18,9 +17,8 @@ export default {
   },
   cover: { width: 1200, height: 900, title: 'The homepage revamp', caption: 'Visual design & interactive prototype', alt: 'Ocean by BCA website: the homepage hero, “Kolaborasi. Inovasi. Ekspansi.”, above a photo of fishermen casting a net at sunset' },
   gallery: [
-    { id: 'gallery-ocean', src: 'https://images.unsplash.com/photo-1735300022510-9ed02ca92f39?auto=format&fit=crop&w=1600&h=1000&q=85', width: 1600, height: 1000, layout: 'wide', accent: 'curl', corner: 'top-right', alt: 'Temporary Unsplash photo of a breaking blue ocean wave' },
-    { id: 'gallery-surf', src: 'https://images.unsplash.com/photo-1651742740055-a4b4ff765225?auto=format&fit=crop&w=1200&h=900&q=85', width: 1200, height: 900, accent: 'flower', corner: 'top-left', alt: 'Temporary Unsplash photo of teal water and foamy surf' },
-    { id: 'gallery-water', src: 'https://images.unsplash.com/photo-1641994396897-d8ab8d17b24e?auto=format&fit=crop&w=1200&h=900&q=85', width: 1200, height: 900, accent: 'curl', corner: 'bottom-right', alt: 'Temporary Unsplash photo of rippling deep-blue water' },
-    { id: 'gallery-coast', src: 'https://images.unsplash.com/photo-1611794469140-f93afd4b3ed0?auto=format&fit=crop&w=1600&h=900&q=85', width: 1600, height: 900, layout: 'wide', accent: 'flower', corner: 'bottom-left', alt: 'Temporary Unsplash photo of waves reaching the shore' },
+    { id: 'gallery-why-ocean', src: '/assets/works/ocean-gallery-01.webp', width: 2000, height: 1500, alt: 'Ocean by BCA “Mengapa Ocean by BCA” section: “Membangun Ekosistem Bisnis Potensial dan Berkelanjutan” over an offshore platform at dusk, with three frosted-glass stat cards: 33 million customers, 13.8% credit growth and 99.8% digital transactions' },
+    { id: 'gallery-icons', src: '/assets/works/ocean-gallery-02.webp', width: 2000, height: 1500, alt: 'Ocean by BCA illustrated icons in deep blue and teal on a white grid: insurance, savings, smart search, OTP, application sent and wealth' },
+    { id: 'gallery-components', src: '/assets/works/ocean-gallery-03.webp', width: 2000, height: 1500, alt: 'Ocean by BCA form components on a white card over a blue gradient: an info banner, OTP digits, file-format chips, a quantity stepper, feature checkboxes, a 2FA toggle, an e-statement button, an EDC application status card, an NPWP upload area and a business-field dropdown' },
   ],
 };

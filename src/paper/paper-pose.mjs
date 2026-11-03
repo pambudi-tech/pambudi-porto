@@ -8,8 +8,11 @@ export function applyPaperPose(element, current, placement) {
   }
   element.style.setProperty('--paper-placement-y', `${(placement?.y ?? 0).toFixed(4)}px`);
   for (const key of ['rx', 'ry']) element.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}deg`);
-  for (const key of ['sx', 'sy', 'blur']) element.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}px`);
   element.style.setProperty('--paper-scale', values.scale.toFixed(5));
-  element.style.setProperty('--paper-shadow-opacity', values.opacity.toFixed(4));
+  // The shadow on the frames that cast it, as the pose doesn't pass down.
+  for (const frame of element.querySelectorAll('.portfolio-frame')) {
+    for (const key of ['sx', 'sy', 'blur']) frame.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}px`);
+    frame.style.setProperty('--paper-shadow-opacity', values.opacity.toFixed(4));
+  }
   return values;
 }

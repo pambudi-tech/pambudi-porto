@@ -1,5 +1,5 @@
 import { WORKS, EXPLORATION } from '../../content/works.mjs';
-import { PROJECTS, STAND_IN } from '../../content/projects/index.mjs';
+import { PROJECTS, STAND_IN, STAND_IN_GALLERY } from '../../content/projects/index.mjs';
 
 export { WORKS, EXPLORATION };
 
@@ -59,7 +59,7 @@ export function projectPage(id) {
     // but its address comes with the PIN (server/works-pass.mjs).
     privateSite: Boolean(work.passwordProtected && work.privateSite),
     facts: study?.facts ?? { client: work.client, role: work.role, period: yearLabel(work), scope: tags },
-    images: work.passwordProtected ? [cover] : [cover, ...(source.gallery ?? PROJECTS[STAND_IN].gallery)],
+    images: work.passwordProtected ? [cover] : [cover, ...(source.gallery ?? STAND_IN_GALLERY)],
     locked: Boolean(work.passwordProtected),
     passcode: Boolean(work.passwordProtected),
   };

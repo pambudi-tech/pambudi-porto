@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGL wax seal button</title>
+<link rel="stylesheet" href="/src/wax/wax-study.css">
+</head>
+<body>
+<header>
+  <h1>WebGL wax seal button</h1>
+  <div class="controls">
+    <div class="group" role="group" aria-label="Label">
+      <span>Label</span>
+      <button type="button" data-label="works" aria-pressed="true">works</button>
+      <button type="button" data-label="view selected works" aria-pressed="false">view selected works</button>
+      <button type="button" data-label="let’s build something together" aria-pressed="false">long label</button>
+      <input id="label" type="text" value="works" maxlength="120" aria-label="Your own label" spellcheck="false">
+    </div>
+    <div class="group"><button id="replay" type="button">Replay entrance</button><button id="sweep" type="button" aria-pressed="false">Sweep the light</button></div>
+    <label class="slider">Light height <input id="lift" type="range" min=".15" max="1.5" step=".05" value="1"><output for="lift">1.00</output></label>
+    <label class="slider">Relief <input id="depth" type="range" min="0" max="2" step=".05" value="1"><output for="depth">1.00</output></label>
+    <label class="slider">Gloss <input id="gloss" type="range" min="10" max="160" step="1" value="60"><output for="gloss">60</output></label>
+    <label class="slider">Photo detail <input id="detail" type="range" min="0" max="1" step=".05" value="0"><output for="detail">0.00</output></label>
+  </div>
+  <span class="hint">Move the pointer around the seal: the wax catches the light, and its rims cast shadows.</span>
+</header>
+<main>
+  <section class="panel" aria-label="Wax seal button">
+    <div class="stage">
+      <button class="seal" type="button" aria-label="works">
+        <img class="fallback" src="/assets/works-wax-seal.webp" width="768" height="280" alt="" draggable="false">
+        <canvas class="gl" aria-hidden="true"></canvas>
+        <span class="seal-label">works</span>
+      </button>
+    </div>
+    <p class="status" data-status>Preparing…</p>
+  </section>
+</main>
+<script type="module" src="/src/wax/wax-study.mjs"></script>
+</body>
+</html>

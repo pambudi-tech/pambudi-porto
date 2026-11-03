@@ -77,12 +77,22 @@ export function mountProjectDetail(project) {
       duration: reduced ? 0 : 900, delay: reduced ? 0 : 120, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards',
     });
   };
+  // As the cover first shows, its passcode tag drops out from under the
+  // stamp, as on a card landing in the works row.
+  let tagDropped = false;
+  const dropTag = () => {
+    const tag = cover.querySelector('.cover-protected');
+    if (!tag || tagDropped) return;
+    tagDropped = true;
+    tag.classList.add('is-dropping');
+  };
   return {
     ready: coverLayout.ready, cover, mountGallery, showSite,
     closeGallery: () => gallery?.reset(),
     reveal({ slide = true } = {}) {
       document.body.classList.remove('project-arriving');
       coverLayout.reveal();
+      dropTag();
       if (slide) slideCover();
     },
     // Taking another project's place on the same cloth: the cover and its
@@ -90,6 +100,7 @@ export function mountProjectDetail(project) {
     takePlace() {
       document.body.classList.remove('project-preview');
       coverLayout.reveal({ sewn: true });
+      dropTag();
     },
     conceal() {
       document.body.classList.add('project-arriving', 'project-preview');

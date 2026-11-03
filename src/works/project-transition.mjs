@@ -8,6 +8,9 @@ import { fillSwitch } from '../project/project-switch.mjs';
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
   easing: 'cubic-bezier(.65, 0, .25, 1)',
+  // A cover's passcode tag tucks up under its stamp, as long as it took to
+  // drop out (project-detail.css), before the stamp flies home.
+  tagTuck: 480,
 });
 
 // From one project to the next, from its pill: the next page lies over this
@@ -230,7 +233,7 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   if (seal) entry.item.classList.add('is-departing');
   // The pill names the work as its card does, as the page's pill will.
   let navMorph = createProjectNavMorph(gallery, entry.work);
-  let preview, flight, sealOut, inDetail = false, returning = false;
+  let preview, flight, sealOut, printOut = [], inDetail = false, returning = false;
   // A slow project shows it is on its way: its stamp is sewn around, then
   // the nav says so (opening-cue.mjs). Opened by its own address, the row
   // is not on show, so there is nothing to cue.
@@ -271,6 +274,11 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     gallery.root.classList.remove('is-navigating', 'is-returning');
     entry.item.classList.remove('is-flight-source', 'is-departing');
     sealOut?.cancel();
+    // The card's print is let go of here; landing, it eases back in (CSS).
+    printOut.forEach(animation => animation.cancel());
+    printOut = [];
+    // The clock, hidden while the project showed, rolls back in.
+    if (document.body.classList.contains('is-project-transition')) gallery.scene.rollClock?.();
     document.body.classList.remove('is-project-transition');
     gallery.scene.resume();
     gallery.departing = false;
@@ -405,14 +413,23 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     // Only cover the card once its photo can be painted, so it never blinks
     // to an empty window.
     await Promise.allSettled([fromImage.decode(), toImage.decode()]);
-    // The pressed seal fades off the card first; then the stamp flies.
-    if (seal) {
-      sealOut = entry.seal?.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: gallery.reduced ? 0 : 200, easing: 'ease', fill: 'forwards' });
-      await sealOut?.finished;
-    }
+    // The pressed seal fades off the card first, and the card's print leaves
+    // as it lands, in reverse: its words and number ease out, and its
+    // passcode tag tucks up under the stamp. Then the stamp flies.
+    if (seal) sealOut = entry.seal?.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: gallery.reduced ? 0 : 200, easing: 'ease', fill: 'forwards' });
+    // Opened by its own address (`arrived`), the row is not on show.
+    const leave = !gallery.reduced && !arrived;
+    const out = { easing: 'cubic-bezier(.64, 0, .78, 0)', fill: 'forwards' };
+    printOut = !leave ? [] : [
+      ...entry.item.querySelectorAll('.works-text, .works-number'),
+    ].map(element => element.animate([{ opacity: 1, translate: 'none' }, { opacity: 0, translate: '0 4px' }], { ...out, duration: 420, delay: 60 }));
+    const tag = leave ? entry.item.querySelector('.works-protected') : null;
+    if (tag) printOut.push(tag.animate([{ translate: '-50% 0' }, { translate: '-50% -100%' }], { ...out, duration: PROJECT_FLIGHT.tagTuck }));
+    await Promise.all([sealOut?.finished, ...printOut.map(animation => animation.finished)]);
     document.body.append(flight);
     gallery.root.inert = true;
     gallery.root.classList.add('is-navigating');
+    gallery.scene.rollClockOut?.();
     document.body.classList.add('is-project-transition');
     gallery.scene.unpickBranding();
     gallery.scene.unpickVisitorStitches();
@@ -508,6 +525,13 @@ export async function transitionToProject(gallery, entry, { history = true, seal
         });
         await Promise.allSettled(swapped.map(([flying]) => flying.decode()));
       }
+      // The cover's passcode tag goes first, the reverse of its arrival: it
+      // tucks back up under the stamp before the stamp flies home.
+      const coverTag = preview.contentDocument.querySelector('.cover-protected.is-dropping');
+      if (coverTag && !gallery.reduced) {
+        await coverTag.animate([{ translate: 'none' }, { translate: '0 -100%' }],
+          { duration: PROJECT_FLIGHT.tagTuck, easing: 'cubic-bezier(.64, 0, .78, 0)', fill: 'forwards' }).finished;
+      }
       const hero = targetPostage.getBoundingClientRect();
       const card = entry.frame.getBoundingClientRect();
       // Keep the same decoded image layer for the return trip.
@@ -543,6 +567,9 @@ export async function transitionToProject(gallery, entry, { history = true, seal
       finishReturningPostage();
       inDetail = false;
       restore();
+      // The card shows as the flight lands; its print eases back in (CSS).
+      entry.item.classList.add('is-landing');
+      setTimeout(() => entry.item.classList.remove('is-landing'), 700);
       entry.link.focus({ preventScroll: true });
     };
     if (gallery.projectHistoryHandler) window.removeEventListener('popstate', gallery.projectHistoryHandler);

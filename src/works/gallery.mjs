@@ -143,7 +143,7 @@ export class WorksGallery {
       element.innerHTML = '<img src="/assets/works-wax-seal.webp" width="768" height="280" alt="" draggable="false" />'
         + '<span class="works-seal-label">details</span>';
       frame.append(element);
-      seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false }) };
+      seal = { element, wax: new WaxInteraction(element, this.motionPreference, { entrance: false, relit: true }) };
     }
     link.append(frame);
     // Work behind a passcode says so on a small tag just below the frame.
@@ -247,13 +247,14 @@ export class WorksGallery {
     this.root.hidden = true;
     this.isOpen = false;
     this.paper.style.visibility = '';
+    this.scene.restPaper?.();
     this.scene.relightPaper?.();
     await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
     this.paper.dispatchEvent(new CustomEvent('paperflipend', { detail: { red: false } }));
     this.busy = false;
-    this.frontSeal.focus({ preventScroll: true });
+    this.frontSeal.focus({ preventScroll: true, focusVisible: false });
   }
 
   // Swaps the row for another collection: the cards fade out, the new ones

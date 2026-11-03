@@ -4,12 +4,17 @@ Requires Pillow with WebP support. Run after replacing a master:
 
     python3 tools/optimize-images.py
 
+or name the masters to encode only those:
+
+    python3 tools/optimize-images.py wax-seal-albedo wax-seal-relief
+
 Each image is sized to what the page needs and encoded as tightly as its use
 allows: the paper frames are lossy at a quality where the error averages
 about one level; the wax seal keeps exact pixels, since its shading is
 reconstructed from fine detail; the wordmark keeps exact pixels because it
 is traced cell by cell.
 """
+import sys
 from pathlib import Path
 from PIL import Image
 
@@ -34,6 +39,10 @@ IMAGES = {
     # Its wax material is computed at 512 and 768 pixels wide, and the seal
     # is never shown wider than about 420 device pixels.
     'works-wax-seal': ((768,), EXACT),
+    # The relit seal's colour and relief (src/wax/wax-gl.mjs), written by
+    # tools/build-wax-seal.py. Exact: any loss shows in the moving gloss.
+    'wax-seal-albedo': ((768,), EXACT),
+    'wax-seal-relief': ((768,), EXACT),
     # The paper model's baked relief (front emboss, back deboss), lit live on
     # the paper; 1024 wide covers the sheet at up to two device pixels.
     'paper-front-relief': ((1024,), RELIEF),
@@ -43,7 +52,10 @@ IMAGES = {
     'wordmark-source': ((None,), EXACT),
 }
 
+only = set(sys.argv[1:])
 for name, (widths, options) in IMAGES.items():
+    if only and name not in only:
+        continue
     master = Image.open(SOURCE / f'{name}.png')
     master.load()
     for index, width in enumerate(widths):

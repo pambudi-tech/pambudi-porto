@@ -69,6 +69,16 @@ body.is-loading .portfolio-clock canvas { filter: brightness(0) invert(1); }
 #surface { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; position: fixed; inset: 0; outline: none; touch-action: none; cursor: none; }
 #surface:focus-visible { box-shadow: inset 0 0 0 2px #8d7560; }
 canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events: none; }
+/* The sheet's pose, written every frame (paper-pose.mjs). Not inherited, so
+   only the sheet and its frames restyle, not everything lying on it. */
+@property --paper-placement-y { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --paper-rx { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --paper-ry { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --paper-scale { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --paper-sx { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --paper-sy { syntax: '<length>'; inherits: false; initial-value: 1.5px; }
+@property --paper-blur { syntax: '<length>'; inherits: false; initial-value: 6px; }
+@property --paper-shadow-opacity { syntax: '<number>'; inherits: false; initial-value: .016; }
 .portfolio-paper {
   --paper-text-size: 16px;
   position: absolute;
@@ -128,6 +138,10 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
 /* The WebGL paper (paper-gl.mjs) fades in over the photograph once drawn. */
 .paper-gl { opacity: 0; transition: opacity 600ms ease; }
 .paper-gl[data-material-ready] { opacity: 1; }
+/* Ready while the welcome still hides the page, the WebGL paper and seals are
+   simply there when it shows: a fade then would show the photograph first. */
+body.is-loading .paper-gl,
+body.is-loading .wax-gl { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .paper-gl { transition: none; }
 }
@@ -408,7 +422,8 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   touch-action: manipulation;
   cursor: pointer;
   isolation: isolate;
-  filter: drop-shadow(0 2px 2px rgb(69 0 0 / .18));
+  /* Its shadow on the paper falls away from the paper's lamp, when relit. */
+  filter: drop-shadow(var(--wax-shadow-x, 0px) var(--wax-shadow-y, 2px) 2px rgb(69 0 0 / .18));
   transition: transform .16s ease, filter .16s ease;
 }
 .works-seal img {
@@ -419,7 +434,28 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   pointer-events: none;
 }
 .works-seal.wax-entering > img { opacity: 0; }
-.wax-entering .wax-reflection { visibility: hidden; }
+.wax-entering .wax-reflection,
+.wax-entering .wax-gl { visibility: hidden; }
+/* The wax lit in WebGL (wax-gl.mjs) fades in over its photograph, which
+   then steps aside so their soft edges do not double. It lies over the
+   seal's box rather than in its grid: unsized for a moment, a canvas in the
+   grid would push the label off its place as its letters are pressed. */
+.wax-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.works-seal[data-wax-relit] .wax-gl { opacity: 1; }
+.works-seal[data-wax-relit="settled"] > img { visibility: hidden; }
+/* Pouring, the wax is all there is: no photograph under the puddle, and no
+   fade still running on the canvas. */
+.works-seal[data-wax-pour] > img { visibility: hidden; }
+.works-seal[data-wax-pour] .wax-gl { opacity: 1; transition: none; }
 .wax-entering .works-seal-label {
   opacity: var(--wax-label-reveal, 0);
   filter: blur(var(--wax-label-softness, .7px));
@@ -462,12 +498,38 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
     var(--wax-label-ax, 1.4px) var(--wax-label-ay, 2px) 1.6px rgb(74 0 0 / .6);
   pointer-events: none;
 }
+/* Pressed into the relit wax, the label is drawn by WebGL (wax-letters.mjs);
+   its text stays for screen readers. */
+.works-seal[data-wax-letters] .works-seal-label { color: transparent; text-shadow: none; }
+.works-seal[data-wax-letters] .works-seal-label::after { content: none; }
+/* Relit, the ink takes the same lamp: the letters again, filled with its
+   falloff and gloss, over the lettering and its shadows. */
+.works-seal-label[data-text]::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  background: var(--label-fill, transparent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
 .works-seal:hover {
-  filter: drop-shadow(0 3px 3px rgb(69 0 0 / .23));
+  filter: drop-shadow(calc(var(--wax-shadow-x, 0px) * 1.5) calc(var(--wax-shadow-y, 2px) * 1.5) 3px rgb(69 0 0 / .23));
+}
+/* While its face is turned away (wax-interaction.mjs), the seal keeps its
+   resting look, so a click that turned the paper is not still pressing it
+   when the paper comes back. */
+.works-seal[data-wax-away],
+.works-seal[data-wax-away]:hover,
+.works-seal[data-wax-away]:active {
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(var(--wax-shadow-x, 0px) var(--wax-shadow-y, 2px) 2px rgb(69 0 0 / .18));
+  transition: none;
 }
 .works-seal:active {
   transform: translate(-50%, calc(-50% + 1px)) scale(.98);
-  filter: brightness(.74) drop-shadow(0 1px 1px rgb(69 0 0 / .18));
+  filter: brightness(.74) drop-shadow(calc(var(--wax-shadow-x, 0px) * .5) calc(var(--wax-shadow-y, 2px) * .5) 1px rgb(69 0 0 / .18));
 }
 .works-seal:focus-visible {
   outline: 2px solid var(--accent);

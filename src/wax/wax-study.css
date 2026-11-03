@@ -1,0 +1,70 @@
+@font-face { font-family: "Syne Mono"; src: url("/assets/fonts/syne-mono-latin.woff2") format("woff2"); font-display: swap; }
+:root { --bg: #f3f2ee; --ink: #1d1c1a; --muted: #77736c; --line: #dcd9d2; --chip: #fff; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+h1 { font-size: 15px; margin: 0; font-weight: 600; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.group > span { color: var(--muted); margin-right: 2px; }
+header button, #label { font: inherit; border: 1px solid var(--line); background: var(--chip); color: var(--ink); padding: 5px 11px; border-radius: 999px; }
+header button { cursor: pointer; }
+header button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+#label { width: 190px; }
+label.slider { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+input[type=range] { width: 110px; }
+output { color: var(--ink); min-width: 2.6em; font-variant-numeric: tabular-nums; }
+.hint { color: var(--muted); }
+:focus-visible { outline: 2px solid #921820; outline-offset: 3px; }
+.panel { position: relative; display: grid; place-items: center; margin: 0; padding: 48px 24px; min-height: calc(100dvh - 64px); touch-action: pan-y; }
+.stage { display: grid; place-items: center; width: 100%; min-height: 200px; }
+.status { position: absolute; bottom: 12px; left: 20px; margin: 0; color: var(--muted); font-size: 12px; }
+
+/* The button keeps the site's seal press and label (base.css .works-seal). */
+.seal { position: relative; display: grid; place-items: center; max-width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; isolation: isolate; touch-action: manipulation; filter: drop-shadow(0 3px 3px rgb(69 0 0 / .18)); transition: transform .16s ease, filter .16s ease; }
+.seal:hover { filter: drop-shadow(0 4px 4px rgb(69 0 0 / .23)); }
+.seal:active { transform: translateY(1px) scale(.98); filter: brightness(.74) drop-shadow(0 1px 1px rgb(69 0 0 / .18)); }
+.seal:focus-visible { outline-offset: 6px; border-radius: 50%; }
+.seal-label {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 2;
+  padding-bottom: .07em;
+  color: #b71a20;
+  font-family: "Syne Mono", monospace;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: .025em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  text-shadow:
+    var(--wax-label-hx, -.6px) var(--wax-label-hy, -.8px) .5px rgb(255 164 143 / .8),
+    var(--wax-label-sx, .8px) var(--wax-label-sy, 1.2px) .7px rgb(63 0 0 / .95),
+    var(--wax-label-ax, 1.4px) var(--wax-label-ay, 2px) 1.6px rgb(74 0 0 / .6);
+  pointer-events: none;
+}
+/* The ink takes the seal's light: the same letters again, filled with the
+   lamp's falloff and gloss, over the lettering and its shadows. */
+.seal-label::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  background: var(--label-fill, transparent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+/* Pressed into the wax, the label is drawn by the WebGL seal; the text stays
+   for screen readers. */
+.seal[data-letters] .seal-label { color: transparent; text-shadow: none; }
+.seal[data-letters] .seal-label::after { content: none; }
+/* The WebGL seal draws over its photo, which stays until the model is ready. */
+.seal > .gl, .seal > .fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
+.seal:has(.gl[data-ready]) > .fallback { visibility: hidden; }
+
+@media (max-width: 760px) {
+  header { padding: 14px 16px; }
+  #label { flex: 1 1 100%; }
+  .panel { min-height: 60dvh; padding: 40px 16px; }
+}

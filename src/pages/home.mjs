@@ -49,15 +49,15 @@ const framePainted = () => new Promise(resolve => {
 });
 
 async function boot() {
-  const application = track(import('../surface/scene.mjs'));
-  // The works gallery is only needed after the reveal; fetch it alongside.
-  const gallery = import('../works/gallery.mjs');
-  // The welcome's frame first, painted; then the page's images behind it,
-  // well within the welcome's own time.
+  // The welcome's frame first, painted; then the page's code and images
+  // behind it, well within the welcome's own time.
   if (welcome) {
     await welcome.frameShown;
     await framePainted();
   }
+  const application = track(import('../surface/scene.mjs'));
+  // The works gallery is only needed after the reveal; fetch it alongside.
+  const gallery = import('../works/gallery.mjs');
   loadImages(surface);
   // Fetch the traced artwork too; it is not an <img> in the page itself.
   const artwork = new Image();
@@ -70,7 +70,7 @@ async function boot() {
   const app = await application;
   if (!app) throw new Error('The portfolio could not start.');
   const scene = await app.preparePortfolio({ clock });
-  scene.start();
+  scene.placePaper();
   const makeWorks = async () => {
     const { WorksGallery } = await gallery;
     return new WorksGallery(document.getElementById('works'), {
@@ -85,7 +85,12 @@ async function boot() {
   let pageShown;
   const showing = new Promise(resolve => { pageShown = resolve; });
   if (works) await new Promise(resolve => works.openProject(opened, () => { resolve(); return showing; }));
-  const show = () => document.body.classList.remove('is-loading');
+  // The entrances (the stitches, the wordmark, the seal's pour) begin as the
+  // page shows, not behind the welcome; the paper has settled already.
+  const show = () => {
+    document.body.classList.remove('is-loading');
+    scene.start();
+  };
   if (welcome) {
     welcome.ready();
     await welcome.finish(show);

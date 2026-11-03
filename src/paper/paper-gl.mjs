@@ -183,6 +183,13 @@ export class PaperGL {
     reliefImage.close?.();
     // A lost context leaves the photograph showing, as before WebGL started.
     this.canvas.addEventListener('webglcontextlost', () => { this.lost = true; delete this.canvas.dataset.materialReady; });
+    // Its displayed size, read once now and again as layout settles, never in
+    // a draw: there it would force the pose just written through layout again.
+    this.size = [this.image.offsetWidth, this.image.offsetHeight];
+    new ResizeObserver(() => {
+      this.size = [this.image.offsetWidth, this.image.offsetHeight];
+      this.draw(this.last ?? {});
+    }).observe(this.image);
     this.ready = true;
     this.draw(this.last ?? {});
     this.image.after(this.canvas);
@@ -207,7 +214,7 @@ export class PaperGL {
     if (!this.ready || this.lost) return;
     // Drawn at the sheet's displayed size, up to two device pixels per CSS pixel.
     const ratio = Math.min(devicePixelRatio || 1, 2);
-    const width = Math.round(this.image.offsetWidth * ratio), height = Math.round(this.image.offsetHeight * ratio);
+    const width = Math.round(this.size[0] * ratio), height = Math.round(this.size[1] * ratio);
     if (!width || !height) return;
     const position = lightPosition(values, this.aspect);
     const key = [...position, width].map(n => n.toFixed(4)).join(',');
