@@ -87,6 +87,12 @@ export function clockTextLayout(text, { width, height, view, safeBottom = 0 }) {
   return { lines, glyphs, cells: clockGlyphCells(glyphs) };
 }
 
+// Local time as 24-hour HH:MM:SS, as Intl.DateTimeFormat('en-GB', h23) writes
+// it; that formatter takes ~15 ms to make, in the welcome's first moments.
+const LOCAL_TIME = Object.freeze({
+  format: date => [date.getHours(), date.getMinutes(), date.getSeconds()].map(n => String(n).padStart(2, '0')).join(':'),
+});
+
 export class DotClock {
   constructor(element) {
     this.element = element;
@@ -97,9 +103,7 @@ export class DotClock {
     this.motionPreference.addEventListener('change', () => {
       if (this.motionPreference.matches) this.settle();
     });
-    this.formatter = new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-    });
+    this.formatter = LOCAL_TIME;
     document.addEventListener('visibilitychange', () => {
       clearTimeout(this.timer);
       if (document.hidden) this.settle();
