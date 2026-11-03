@@ -19,8 +19,8 @@ export function fillSwitch(pill, { title }, { interactive = true } = {}) {
   return { name };
 }
 
-// `go(id)` moves to another project, `prepare(id)` readies it ahead of a
-// likely choice.
+// `go(id)` moves to another project, `prepare(id, { now })` readies it ahead
+// of a likely choice: after a lingering hover, or `now` for a touch.
 export function mountProjectSwitch(pill, { id, title, go, prepare, motionPreference }) {
   const works = switchWorks();
   const { name } = fillSwitch(pill, { title });
@@ -58,6 +58,8 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
     item.append(stamp, text);
     item.addEventListener('click', () => choose(work));
     item.addEventListener('pointerenter', () => work.id !== id && prepare(work.id));
+    // A finger has no hover: it readies the project as it touches down.
+    item.addEventListener('pointerdown', () => work.id !== id && prepare(work.id, { now: true }));
     item.addEventListener('focus', () => work.id !== id && prepare(work.id));
     list.append(item);
     return item;

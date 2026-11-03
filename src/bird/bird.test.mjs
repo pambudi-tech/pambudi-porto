@@ -4,7 +4,8 @@ import { BirdFlight, StitchTransitions, projectPose } from './bird.mjs';
 import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR } from './bird-data.mjs';
 import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, bodyMotionAt, moveBirdPoint } from './bird-motion.mjs';
-import { WING_POSES, wingPoint } from './wing-motion.mjs';
+import { buildWingPoses, wingPoint } from './wing-motion.mjs';
+import { WING_POSES } from './wing-poses.mjs';
 
 test('refined wings retain the raised figure, head and tail on the same bounded stitch grid', () => {
   assert.deepEqual(WING_POSES[0], BIRD_POSES[0]);
@@ -325,4 +326,8 @@ test('resting, the dove holds its perched figure at the perch and stops asking f
   bird.update(time += 20);
   for (let end = time + 400; time < end; time += 20) bird.update(time);
   assert.ok(!bird.flight.resting && bird.flight.y < perch.y, 'it is climbing away');
+});
+
+test('the poses built ahead are the poses the wings make', () => {
+  assert.deepEqual(WING_POSES, buildWingPoses(), 'run node tools/build-wing-poses.mjs');
 });

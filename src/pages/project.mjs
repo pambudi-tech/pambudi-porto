@@ -79,17 +79,49 @@ function cuePreparing() {
   return { stop() { timers.forEach(clearTimeout); ring?.stop(); words?.remove(); } };
 }
 window.projectLeaving = () => { preparing?.stop(); preparing = null; };
+// The next project lies over this one at its own top, so a page scrolled
+// down glides back up first, and holds still there until it has gone.
+let leaving = false;
+const holdStill = event => { if (leaving) event.preventDefault(); };
+addEventListener('wheel', holdStill, { passive: false });
+addEventListener('touchmove', holdStill, { passive: false });
+const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+function scrollHome() {
+  const from = scrollY;
+  if (from <= 0 || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    scrollTo(0, 0);
+    return Promise.resolve();
+  }
+  const duration = Math.min(720, 320 + from * .4), started = performance.now();
+  return new Promise(resolve => {
+    const step = now => {
+      const t = Math.min(1, (now - started) / duration);
+      scrollTo(0, from * (1 - easeInOut(t)));
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    };
+    requestAnimationFrame(step);
+  });
+}
 const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch'), {
   id, title: project.name, motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
   go: next => {
     if (preview) {
+      // This project's words leave at once, not when the next has loaded:
+      // a tap gives no hover to have readied it ahead.
+      document.body.classList.add('project-switching', 'project-arriving');
+      leaving = true;
       preparing = cuePreparing();
-      toParent('project-route-switch', { id: next });
+      scrollHome().then(() => toParent('project-route-switch', { id: next }));
     } else location.assign(workHref(WORKS.find(work => work.id === next)));
   },
-  prepare: next => { if (preview) toParent('project-route-prepare', { id: next }); },
+  prepare: (next, { now = false } = {}) => { if (preview) toParent('project-route-prepare', { id: next, now }); },
 });
-window.addEventListener('project-route-switch-failed', () => projectSwitch.settle());
+window.addEventListener('project-route-switch-failed', () => {
+  leaving = false;
+  document.body.classList.remove('project-switching', 'project-arriving');
+  projectSwitch.settle();
+});
 // The right PIN brings the gallery and the live site, and the seal settles in with its wax-flow
 // entrance where the panel was.
 const pin = !locked ? null : mountPinPanel({

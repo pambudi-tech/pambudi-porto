@@ -2,7 +2,7 @@ import { BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR, BIRD_FRAME_MS } from './bird-data.
 import { GRID, surfaceSpacing, keyOf } from '../stitch/model.mjs';
 import { StitchEntrance, ENTRANCE, flameEntranceOrder } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, BODY_FRAME_MS } from './bird-motion.mjs';
-import { WING_POSES } from './wing-motion.mjs';
+import { WING_POSES } from './wing-poses.mjs';
 import { FlightPath, FLIGHT } from './flight-path.mjs';
 import { PERCH_POSE, toesOf } from './perch.mjs';
 

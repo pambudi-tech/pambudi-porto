@@ -97,7 +97,10 @@ function rasterize(wing, frame, distant, coverage) {
   }
 }
 
-export const WING_POSES = BIRD_POSES.map((pose, frame) => {
+// Every flap's cells, worked out from the raised pose. Fixed data, so it is
+// built ahead (tools/build-wing-poses.mjs into wing-poses.mjs) rather than as
+// the page starts.
+export const buildWingPoses = () => BIRD_POSES.map((pose, frame) => {
   if (frame === 0) return pose;
   const nearCoverage = new Map(), farCoverage = new Map();
   rasterize(near, frame, false, nearCoverage);
