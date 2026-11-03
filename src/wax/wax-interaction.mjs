@@ -13,6 +13,9 @@ const restLight = () => ({ x: 0, y: -.35, strength: 0 });
 const REST_SHADE = `${(0).toFixed(3)},${(-.35).toFixed(3)}`;
 const idle = () => new Promise(resolve => (window.requestIdleCallback
   ? requestIdleCallback(resolve, { timeout: 2000 }) : setTimeout(resolve, 200)));
+// Only a pointer that hovers moves the paper's lamp; on a touch screen it
+// would only ever rest, so the seal takes the default light, as elsewhere.
+const hovering = globalThis.matchMedia?.('(hover: hover)');
 
 // The front and back seals share one image, so they share its relief and
 // its resting light rather than each building them.
@@ -116,6 +119,7 @@ export class WaxInteraction {
     });
     element.addEventListener('blur', () => this.resetLight());
     motionPreference.addEventListener('change', () => this.resetLight(element.matches(':focus-visible')));
+    hovering?.addEventListener('change', () => { if (this.view && !this.suspended) this.draw(); });
     this.ready = Promise.all([
       this.entrance?.ready,
       this.prepare().catch(error => console.warn('Wax material:', error)),
@@ -289,7 +293,7 @@ export class WaxInteraction {
     const { width, height, paper } = this.measured ?? this.measure();
     if (!width || !height) return;
     const aspect = width / height, strength = this.current.strength;
-    const onPaper = this.paperLight && paper;
+    const onPaper = this.paperLight && paper && hovering?.matches !== false;
     // Turned away, it is drawn as it rests, so it always comes round looking
     // as it did when the page opened, not as it was when the paper turned.
     const room = onPaper ? paperLampInSeal(this.suspended ? this.paperLight.rest : this.paperLight.lamp, paper)
