@@ -70,7 +70,6 @@ async function boot() {
   const app = await application;
   if (!app) throw new Error('The portfolio could not start.');
   const scene = await app.preparePortfolio({ clock });
-  scene.start();
   const makeWorks = async () => {
     const { WorksGallery } = await gallery;
     return new WorksGallery(document.getElementById('works'), {
@@ -85,7 +84,12 @@ async function boot() {
   let pageShown;
   const showing = new Promise(resolve => { pageShown = resolve; });
   if (works) await new Promise(resolve => works.openProject(opened, () => { resolve(); return showing; }));
-  const show = () => document.body.classList.remove('is-loading');
+  // The entrances (the paper settling, the stitches, the wordmark, the seal's
+  // pour) begin as the page shows, not behind the welcome.
+  const show = () => {
+    document.body.classList.remove('is-loading');
+    scene.start();
+  };
   if (welcome) {
     welcome.ready();
     await welcome.finish(show);
