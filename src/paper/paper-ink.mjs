@@ -30,7 +30,7 @@ export async function paperInkEntrance(copy, {
     const image = copy.closest('.portfolio-paper')?.querySelector('img');
     await Promise.all([waitForFonts ? document.fonts.ready : null, image?.decode().catch(() => {})]);
     if (copy.dataset.inkState === 'complete') return;
-    if (createLayers) layers.push(...createLayers());
+    if (createLayers) layers.push(...await createLayers());
     else for (const paragraph of copy.querySelectorAll('p')) layers.push(createInkLayer(paragraph, { shapeText }));
     const start = () => {
       if (copy.dataset.inkState === 'complete') return;

@@ -5,7 +5,7 @@ import { PRELOADER, LoadingCounter, loadingProgress, minimumElapsed, settleWithi
 import { paperInkEntrance } from '../paper/paper-ink.mjs';
 import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
 import { applyPaperPose } from '../paper/paper-pose.mjs';
-import { createImageInkLayer } from '../ink/ink-growth.mjs';
+import { createImageInkLayer, imageInkDensity } from '../ink/ink-growth.mjs';
 import { preloaderFrameRegion } from '../paper/frame-registration.mjs';
 
 // The welcome loader (src/partials/preloader.html): the frame and "Welcome to
@@ -98,10 +98,12 @@ export function startWelcome({ count, preference, clock: clockElement = document
   // images behind it from then on (home.mjs).
   let frameShown;
   const frameShowing = new Promise(resolve => { frameShown = resolve; });
+  // The frame's ink field is worked out while the frame itself loads.
+  const frameInk = preference.matches ? null : imageInkDensity(framePreview, preloaderFrameRegion());
   track(framePreview.decode().then(async () => {
     await paperInkEntrance(paperPreview, {
       motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
-      waitForFonts: false, createLayers: () => [createImageInkLayer(framePreview, preloaderFrameRegion())],
+      waitForFonts: false, createLayers: async () => [await createImageInkLayer(framePreview, preloaderFrameRegion(), frameInk ?? undefined)],
       onComplete: finishPaper,
     });
     paperPreview.classList.add('is-ready');
