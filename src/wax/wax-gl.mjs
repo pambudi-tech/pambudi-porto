@@ -34,7 +34,7 @@ float surface(vec2 uv) { float b = texture(relief, uv).b; return b * peak * dept
 // The label's letters, raised from the field as an engraved stamp leaves
 // them, from a height map of the seal's own size (wax-letters.mjs): firm
 // shoulders and a flat top, standing well clear of the field.
-const float LETTER = .016;
+const float LETTER = .024;
 const vec3 INK = vec3(.718, .102, .125);
 vec4 lettersAt(vec2 pos) { return texture(letters, vec2(pos.x / aspect + .5, .5 - pos.y)); }
 float letterAt(vec2 pos) { return smoothstep(.06, .62, lettersAt(pos).r) * LETTER * lettered * form; }
@@ -94,21 +94,23 @@ void main() {
   vec3 n = normalize(mix(poolNormal, stamped, form));
   float h = mix(poolHeight, r.b * peak * shaped, form);
   float cavity = mix(1., mix(1., r.a, clamp(shaped, 0., 1.)), form);
+  float on = 0.;
   if (lettered > 0.) {
     vec2 rise = vec2(letterAt(vPos + vec2(pixel, 0)) - letterAt(vPos - vec2(pixel, 0)),
       letterAt(vPos + vec2(0, pixel)) - letterAt(vPos - vec2(0, pixel))) / (2. * pixel);
     n = normalize(vec3(n.xy / max(n.z, .2) - rise, 1.));
     h += letterAt(vPos);
-    // The field is shaded where the letters stand on it, and a touch of the
-    // ink's brighter red keeps the label legible.
+    // The field is shaded where the letters stand on it, and the ink's
+    // brighter red on their tops keeps the label legible at rest.
     vec4 map = lettersAt(vPos);
-    float on = smoothstep(.15, .5, map.r);
-    cavity *= 1. - .38 * map.g * (1. - on) * form;
-    base = mix(base, INK, on * .22 * form);
+    on = smoothstep(.15, .5, map.r) * form;
+    cavity *= 1. - .65 * map.g * (1. - on) * form;
+    base = mix(base, INK * 1.08, on * .7);
   }
   // The rolled lip is glossy and the pressed field satin; melted, all of it
   // is wet.
-  float polish = mix(mix(.3, 1., smoothstep(.24, .42, r.b)), 1., wet);
+  // The stamp smooths what it raises: the letters are as glossy as the lip.
+  float polish = mix(max(mix(.3, 1., smoothstep(.24, .42, r.b)), on), 1., wet);
   vec3 l = normalize(light - vec3(vPos, h));
   float shadow = 1.;
   vec2 step = vec2(l.x / (ASPECT * stretch), -l.y);

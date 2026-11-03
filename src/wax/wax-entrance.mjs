@@ -82,11 +82,13 @@ export function drawWaxSpread(context, image, progress, mask) {
 }
 
 export class WaxEntrance {
-  // `source` gives what to spread when it is not the seal's photograph.
-  constructor(element, motionPreference, { startWhen, source } = {}) {
+  // `source` gives what to spread when it is not the seal's photograph;
+  // `instead`, when it returns true, has played its own entrance.
+  constructor(element, motionPreference, { startWhen, source, instead } = {}) {
     this.element = element;
     this.image = element.querySelector('img');
     this.source = source;
+    this.instead = instead;
     this.frame = null;
     this.done = false;
     this.startWhen = startWhen;
@@ -120,6 +122,7 @@ export class WaxEntrance {
     this.image.after(this.canvas);
     const start = () => {
       if (this.done) return;
+      if (this.instead?.()) { this.finish(); return; }
       window.addEventListener('resize', this.finish, this.resizeOptions);
       const started = performance.now() + WAX_ENTRANCE.delay;
       const tick = now => {

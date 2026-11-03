@@ -128,6 +128,10 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
 /* The WebGL paper (paper-gl.mjs) fades in over the photograph once drawn. */
 .paper-gl { opacity: 0; transition: opacity 600ms ease; }
 .paper-gl[data-material-ready] { opacity: 1; }
+/* Ready while the welcome still hides the page, the WebGL paper and seals are
+   simply there when it shows: a fade then would show the photograph first. */
+body.is-loading .paper-gl,
+body.is-loading .wax-gl { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .paper-gl { transition: none; }
 }
@@ -436,6 +440,10 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
 }
 .works-seal[data-wax-relit] .wax-gl { opacity: 1; }
 .works-seal[data-wax-relit="settled"] > img { visibility: hidden; }
+/* Pouring, the wax is all there is: no photograph under the puddle, and no
+   fade still running on the canvas. */
+.works-seal[data-wax-pour] > img { visibility: hidden; }
+.works-seal[data-wax-pour] .wax-gl { opacity: 1; transition: none; }
 .wax-entering .works-seal-label {
   opacity: var(--wax-label-reveal, 0);
   filter: blur(var(--wax-label-softness, .7px));
@@ -478,6 +486,10 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
     var(--wax-label-ax, 1.4px) var(--wax-label-ay, 2px) 1.6px rgb(74 0 0 / .6);
   pointer-events: none;
 }
+/* Pressed into the relit wax, the label is drawn by WebGL (wax-letters.mjs);
+   its text stays for screen readers. */
+.works-seal[data-wax-letters] .works-seal-label { color: transparent; text-shadow: none; }
+.works-seal[data-wax-letters] .works-seal-label::after { content: none; }
 /* Relit, the ink takes the same lamp: the letters again, filled with its
    falloff and gloss, over the lettering and its shadows. */
 .works-seal-label[data-text]::after {
