@@ -43,7 +43,7 @@ const spritesReady = offMainThread('sprites', {
 // `stitching: false` leaves the cloth to look at: no motifs, free stitch or
 // stitch controls, by pointer or keyboard.
 export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavigation = true, stitching = true } = {}) {
-  let running = false, releaseEntrance;
+  let running = false, placed = false, releaseEntrance;
   const startWhen = new Promise(resolve => { releaseEntrance = resolve; });
   const lifetime = new AbortController();
   const { signal } = lifetime;
@@ -363,12 +363,23 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   renderer.drawCloth(view);
   clothDirty = false;
   return {
+    // The paper settles behind the welcome, mirrored on its dark paper, as it
+    // always has: settled before the page shows, it is no larger then than
+    // the welcome's frame, which stays the page's largest paint. The other
+    // entrances wait for the page to show (start).
+    placePaper() {
+      if (placed || !sheet) return;
+      placed = true;
+      sheet.place(performance.now());
+      const settle = now => { if (!running && sheet.update(now)) requestAnimationFrame(settle); };
+      requestAnimationFrame(settle);
+    },
     start() {
       if (running) return;
       const now = performance.now();
       cornerEntrance.started = now;
       if (wordmark?.entrance) wordmark.entrance.started = now;
-      sheet?.place(now);
+      if (!placed) { placed = true; sheet?.place(now); }
       if (!surfaceOnly) bird = new BirdFlight(renderer.width, renderer.height, view, {
         paused: motionPreference.matches, seed: Math.floor(Math.random() * 2 ** 32), sky: birdSky(),
       });
