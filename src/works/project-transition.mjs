@@ -346,6 +346,10 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     nextNav.style.visibility = 'hidden';
     renameNav(page, nextPage.querySelector('.project-switch').getBoundingClientRect().width, next.work.title, time);
     fade(page.querySelector('.project-pin'), true);
+    // The next cover and its stitched frame lie over this one's, its dither
+    // starting from this photo; where the two differ in size, this one's
+    // would show around it until the page goes, so it fades beneath.
+    fade(page.querySelector('.project-cover'), true);
     const tagBefore = page.querySelector('.cover-protected'), tagAfter = nextPage.querySelector('.cover-protected');
     if (tagBefore && !tagAfter) fade(tagBefore, true);
     if (!tagBefore && tagAfter) fade(tagAfter, false);
