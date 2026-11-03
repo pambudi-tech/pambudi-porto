@@ -505,6 +505,16 @@ body.is-loading .wax-gl { transition: none; }
 .works-seal:hover {
   filter: drop-shadow(calc(var(--wax-shadow-x, 0px) * 1.5) calc(var(--wax-shadow-y, 2px) * 1.5) 3px rgb(69 0 0 / .23));
 }
+/* While its face is turned away (wax-interaction.mjs), the seal keeps its
+   resting look, so a click that turned the paper is not still pressing it
+   when the paper comes back. */
+.works-seal[data-wax-away],
+.works-seal[data-wax-away]:hover,
+.works-seal[data-wax-away]:active {
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(var(--wax-shadow-x, 0px) var(--wax-shadow-y, 2px) 2px rgb(69 0 0 / .18));
+  transition: none;
+}
 .works-seal:active {
   transform: translate(-50%, calc(-50% + 1px)) scale(.98);
   filter: brightness(.74) drop-shadow(calc(var(--wax-shadow-x, 0px) * .5) calc(var(--wax-shadow-y, 2px) * .5) 1px rgb(69 0 0 / .18));

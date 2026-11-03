@@ -252,9 +252,12 @@ export class WaxInteraction {
       else this.lastTime = null;
     });
   }
+  // Turned away or turning, the seal rests as at first: no hover or press
+  // shows on it (base.css), so none is there as the paper comes back.
   setSuspended(suspended) {
     if (this.suspended === suspended) return;
     this.suspended = suspended;
+    this.element.toggleAttribute('data-wax-away', suspended);
     if (suspended) {
       cancelAnimationFrame(this.frame);
       this.frame = null;

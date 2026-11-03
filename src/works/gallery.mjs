@@ -253,7 +253,7 @@ export class WorksGallery {
     this.scene.setPaperPresent(true);
     this.paper.dispatchEvent(new CustomEvent('paperflipend', { detail: { red: false } }));
     this.busy = false;
-    this.frontSeal.focus({ preventScroll: true });
+    this.frontSeal.focus({ preventScroll: true, focusVisible: false });
   }
 
   // Swaps the row for another collection: the cards fade out, the new ones
