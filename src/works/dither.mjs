@@ -1,3 +1,5 @@
+import { offMainThread } from '../shared/prep.mjs';
+
 // Dithers the works photos in their own colours. Each cell of the photo keeps
 // its hue; only its brightness steps between a few levels through an 8×8
 // Bayer pattern, darkening toward black or lightening toward white, so the
@@ -107,8 +109,8 @@ void main() {
 
 let ditherer;
 
-function createDitherer(fragment = FRAGMENT, extra = []) {
-  const canvas = document.createElement('canvas');
+// `canvas` is an OffscreenCanvas in the preparation worker.
+function createDitherer(fragment = FRAGMENT, extra = [], canvas = document.createElement('canvas')) {
   const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: false, antialias: false, preserveDrawingBuffer: true });
   if (!gl) throw new Error('WebGL is unavailable');
   const program = gl.createProgram();
@@ -146,20 +148,52 @@ function createTexture(gl) {
 // `object-fit: cover` would, with DITHER's dots unless told otherwise.
 // Returns a canvas holding the result, or null where WebGL or the photo's
 // pixels are unavailable.
+// Draws the dither of `source` (an image or ImageBitmap of `imageWidth` ×
+// `imageHeight`) into the ditherer's canvas, `w` × `h` device pixels.
+function drawDither({ canvas, gl, uniforms }, source, imageWidth, imageHeight, w, h, cell, levels) {
+  canvas.width = w;
+  canvas.height = h;
+  gl.viewport(0, 0, w, h);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  gl.uniform2f(uniforms.box, w, h);
+  gl.uniform2f(uniforms.imageSize, imageWidth, imageHeight);
+  gl.uniform1f(uniforms.cell, cell);
+  gl.uniform1f(uniforms.levels, levels);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// The same dither in the preparation worker (src/shared/prep-worker.mjs),
+// encoded as a PNG as the page's own canvas would be.
+let workerDitherer;
+export function ditherBitmap({ bitmap, imageWidth, imageHeight, w, h, cell, levels }) {
+  workerDitherer ??= createDitherer(FRAGMENT, [], new OffscreenCanvas(1, 1));
+  drawDither(workerDitherer, bitmap, imageWidth, imageHeight, w, h, cell, levels);
+  bitmap.close();
+  return workerDitherer.canvas.convertToBlob({ type: 'image/png' });
+}
+
+// A card's dither as a PNG: drawn in the preparation worker where it can be,
+// else here. Resolves to null where WebGL or the photo's pixels are unavailable.
+export async function ditherPhotoBlob(photo, width, height, dpr, { cell = DITHER.cell, levels = DITHER.levels } = {}) {
+  const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));
+  const here = () => {
+    const result = ditherPhoto(photo, width, height, dpr, { cell, levels });
+    return result && new Promise(resolve => result.toBlob(resolve));
+  };
+  let bitmap;
+  try { bitmap = await createImageBitmap(photo); } catch { return here(); }
+  return offMainThread('dither', {
+    bitmap, imageWidth: photo.naturalWidth, imageHeight: photo.naturalHeight,
+    w, h, cell: Math.max(1, Math.round(cell * dpr)), levels,
+  }, here, [bitmap]);
+}
+
 export function ditherPhoto(photo, width, height, dpr, { cell = DITHER.cell, levels = DITHER.levels } = {}) {
   try {
     ditherer ??= createDitherer();
-    const { canvas, gl, uniforms } = ditherer;
+    const { canvas } = ditherer;
     const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));
-    canvas.width = w;
-    canvas.height = h;
-    gl.viewport(0, 0, w, h);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, photo);
-    gl.uniform2f(uniforms.box, w, h);
-    gl.uniform2f(uniforms.imageSize, photo.naturalWidth, photo.naturalHeight);
-    gl.uniform1f(uniforms.cell, Math.max(1, Math.round(cell * dpr)));
-    gl.uniform1f(uniforms.levels, levels);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    drawDither(ditherer, photo, photo.naturalWidth, photo.naturalHeight, w, h, Math.max(1, Math.round(cell * dpr)), levels);
     const result = document.createElement('canvas');
     result.width = w;
     result.height = h;

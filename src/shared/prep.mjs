@@ -28,12 +28,12 @@ function connect() {
   return worker;
 }
 
-export function offMainThread(type, payload, fallback = () => undefined) {
+export function offMainThread(type, payload, fallback = () => undefined, transfer = []) {
   const target = connect();
   if (!target) return Promise.resolve().then(fallback);
   return new Promise(resolve => {
     const id = ++sequence;
     pending.set(id, { resolve, fail: () => resolve(Promise.resolve().then(fallback)) });
-    target.postMessage({ id, type, payload });
+    target.postMessage({ id, type, payload }, transfer);
   });
 }
