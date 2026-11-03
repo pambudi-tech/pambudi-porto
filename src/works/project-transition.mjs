@@ -299,7 +299,9 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   function prepareSoon(event) {
     clearTimeout(readyTimer);
     if (!inDetail || switching || returning) return;
-    readyTimer = setTimeout(() => prepareNext(event.detail.id), PROJECT_SWITCH.ready);
+    // A touch readies it at once; a hover only once it lingers.
+    if (event.detail.now) prepareNext(event.detail.id);
+    else readyTimer = setTimeout(() => prepareNext(event.detail.id), PROJECT_SWITCH.ready);
   }
 
   // Another project, chosen on this one's pill: it takes this one's place,
@@ -307,7 +309,11 @@ export async function transitionToProject(gallery, entry, { history = true, seal
   // home to.
   async function switchTo(event) {
     const next = gallery.items.find(item => item.work.id === event.detail.id && item.link.href);
-    if (!next || next === entry || !inDetail || switching || returning) return;
+    if (!next || next === entry || !inDetail || switching || returning) {
+      // The page asking has begun to leave; it comes back as it was.
+      if (!switching) preview?.contentWindow?.dispatchEvent(new Event('project-route-switch-failed'));
+      return;
+    }
     switching = true;
     clearTimeout(readyTimer);
     const time = length => gallery.reduced ? 0 : length;

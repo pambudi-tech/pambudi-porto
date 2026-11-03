@@ -83,13 +83,19 @@ const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch
   id, title: project.name, motionPreference: matchMedia('(prefers-reduced-motion: reduce)'),
   go: next => {
     if (preview) {
+      // This project's words leave at once, not when the next has loaded:
+      // a tap gives no hover to have readied it ahead.
+      document.body.classList.add('project-switching', 'project-arriving');
       preparing = cuePreparing();
       toParent('project-route-switch', { id: next });
     } else location.assign(workHref(WORKS.find(work => work.id === next)));
   },
-  prepare: next => { if (preview) toParent('project-route-prepare', { id: next }); },
+  prepare: (next, { now = false } = {}) => { if (preview) toParent('project-route-prepare', { id: next, now }); },
 });
-window.addEventListener('project-route-switch-failed', () => projectSwitch.settle());
+window.addEventListener('project-route-switch-failed', () => {
+  document.body.classList.remove('project-switching', 'project-arriving');
+  projectSwitch.settle();
+});
 // The right PIN brings the gallery and the live site, and the seal settles in with its wax-flow
 // entrance where the panel was.
 const pin = !locked ? null : mountPinPanel({
