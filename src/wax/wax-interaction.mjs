@@ -7,6 +7,7 @@ import { WAX_REST, WAX_ROOM, WAX_HOVER, lampInSeal, mixLamp, waxFinish, paperLam
 const relitModules = () => Promise.all([import('./wax-gl.mjs'), import('./wax-pour.mjs'), import('./wax-letters.mjs')]);
 import { clamp } from '../shared/math.mjs';
 import { offMainThread } from '../shared/prep.mjs';
+import { bitmapOf } from '../shared/bitmap.mjs';
 
 export const WAX_LIGHT = Object.freeze({ reach: 100, fadeMs: 240, followMs: 110 });
 const restLight = () => ({ x: 0, y: -.35, strength: 0 });
@@ -22,14 +23,15 @@ const hovering = globalThis.matchMedia?.('(hover: hover)');
 const surfaces = new Map();
 function waxSurfaceFor(image, width, height) {
   const key = `${image.currentSrc || image.src} ${width}x${height}`;
-  if (!surfaces.has(key)) {
+  if (!surfaces.has(key)) surfaces.set(key, bitmapOf(image).then(source => {
     const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
     context.canvas.width = width;
     context.canvas.height = height;
-    context.drawImage(image, 0, 0, width, height);
+    context.drawImage(source, 0, 0, width, height);
+    source.close?.();
     const rgba = context.getImageData(0, 0, width, height).data;
-    surfaces.set(key, offMainThread('wax', { rgba, width, height }, () => buildWaxSurface(rgba, width, height)));
-  }
+    return offMainThread('wax', { rgba, width, height }, () => buildWaxSurface(rgba, width, height));
+  }));
   return surfaces.get(key);
 }
 

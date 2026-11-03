@@ -7,11 +7,16 @@ export function isSoftwareRenderer(name) {
   return SOFTWARE.test(name ?? '');
 }
 
+// Found once: without a graphics card the page stays without one, and each
+// try at a context costs the main thread tens of milliseconds in software.
+let software = false;
 export function hardwareWebGL2(canvas, options) {
+  if (software) return null;
   const gl = canvas.getContext('webgl2', { ...options, failIfMajorPerformanceCaveat: true });
-  if (!gl) return null;
+  if (!gl) { software = true; return null; }
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   if (!isSoftwareRenderer(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER))) return gl;
   gl.getExtension('WEBGL_lose_context')?.loseContext();
+  software = true;
   return null;
 }

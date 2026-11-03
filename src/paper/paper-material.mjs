@@ -1,5 +1,6 @@
 import { clamp } from '../shared/math.mjs';
 import { offMainThread } from '../shared/prep.mjs';
+import { bitmapOf, yieldToMain } from '../shared/bitmap.mjs';
 // A matte enhancement over the approved image, not a replacement for it.
 // The image's luminance provides a subtle relief proxy; it is not a height map.
 function noise(x, y) {
@@ -68,18 +69,27 @@ export class PaperMaterial {
     this.context = this.canvas.getContext('2d');
     this.mask = layer(width, height);
     const source = this.mask.getContext('2d', { willReadFrequently: true });
-    source.drawImage(this.image, 0, 0, width, height);
+    const picture = await bitmapOf(this.image);
+    source.drawImage(picture, 0, 0, width, height);
+    picture.close?.();
     const rgba = source.getImageData(0, 0, width, height).data;
+    // In steps, each its own task: together they would hold up the page.
+    await yieldToMain();
     const smooth = layer(width, height).getContext('2d', { willReadFrequently: true });
     smooth.filter = 'blur(1.4px)';
     smooth.drawImage(this.mask, 0, 0);
     const blurred = smooth.getImageData(0, 0, width, height).data;
+    await yieldToMain();
     this.grain = layer(width, height);
     const grainContext = this.grain.getContext('2d');
     this.relief = Array.from({ length: 4 }, () => layer(width, height));
     const { grain: grainPixels, responses } = await offMainThread('paper', { rgba, blurred, width, height }, () => paperLayers(rgba, blurred, width, height));
     grainContext.putImageData(new ImageData(grainPixels, width, height), 0, 0);
-    this.relief.forEach((canvas, i) => canvas.getContext('2d').putImageData(new ImageData(responses[i], width, height), 0, 0));
+    for (const [i, canvas] of this.relief.entries()) {
+      await yieldToMain();
+      canvas.getContext('2d').putImageData(new ImageData(responses[i], width, height), 0, 0);
+    }
+    await yieldToMain();
     this.draw({});
     this.image.after(this.canvas);
     this.canvas.dataset.materialReady = 'true';
