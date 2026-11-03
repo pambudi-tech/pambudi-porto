@@ -1,4 +1,5 @@
 import { WAX_ASPECT } from './wax-layout.mjs';
+import { hardwareWebGL2 } from '../shared/gpu.mjs';
 
 // One flat card, no mesh: the seal is only seen from the front, its outline
 // comes from the image's alpha and its depth from the baked relief. The
@@ -168,12 +169,15 @@ function linked(gl, program) {
 // One WebGL context draws every seal on the page and each seal copies its
 // picture into its own canvas, so a gallery of seals costs the browser a
 // single context and one upload of the textures.
+// Without a graphics card it stays without one, so every seal hears that from
+// one attempt; anything else is tried afresh.
 let shared = null;
-const renderer = () => shared ??= createRenderer().catch(error => { shared = null; throw error; });
+const renderer = () => shared ??= createRenderer().catch(error => { if (!error.lasting) shared = null; throw error; });
 async function createRenderer() {
   const canvas = document.createElement('canvas');
-  const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
-  if (!gl) throw new Error('WebGL 2 unavailable');
+  // Only on a graphics card; otherwise the seal keeps its photograph's relief.
+  const gl = hardwareWebGL2(canvas, { alpha: true, premultipliedAlpha: true, antialias: false });
+  if (!gl) throw Object.assign(new Error('WebGL 2 on a graphics card unavailable'), { lasting: true });
   const program = gl.createProgram();
   const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]].map(([type, source]) => {
     const shader = gl.createShader(type);
