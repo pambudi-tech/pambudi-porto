@@ -24,8 +24,7 @@ export const clockLabel = (work, short = false) => {
 // object-position: a little above the centre unless the work sets its own.
 export const coverFocus = work => work.coverFocus ?? '50% 84%';
 
-// The id in a project page's address, /work/<id>.
-export const projectId = pathname => pathname.match(/^\/work\/([^/]+)\/?$/)?.[1] ?? null;
+export { projectId } from './routes.mjs';
 
 // A work's full cover. For protected work it is private, served only to a
 // visitor with the PIN's pass (server/works-pass.mjs); its card's `image` is

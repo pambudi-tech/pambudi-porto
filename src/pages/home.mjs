@@ -1,7 +1,7 @@
 import { DotClock } from '../clock/clock.mjs';
 import { settleWithin } from '../preloader/loading-progress.mjs';
 import { fitClock, startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
-import { projectId } from '../content/works.mjs';
+import { projectId } from '../content/routes.mjs';
 import { mountPress } from '../shared/press.mjs';
 
 // The index, and every project's own address, /work/<id>: there the project
