@@ -125,6 +125,12 @@ canvas { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events
   .preloader-paper { transition: none; }
 }
 .paper-material { pointer-events: none; }
+/* The WebGL paper (paper-gl.mjs) fades in over the photograph once drawn. */
+.paper-gl { opacity: 0; transition: opacity 600ms ease; }
+.paper-gl[data-material-ready] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .paper-gl { transition: none; }
+}
 .portfolio-frame {
   display: block;
   width: 100%;

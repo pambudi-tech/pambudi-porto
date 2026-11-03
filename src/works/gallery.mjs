@@ -247,6 +247,7 @@ export class WorksGallery {
     this.root.hidden = true;
     this.isOpen = false;
     this.paper.style.visibility = '';
+    this.scene.relightPaper?.();
     await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);

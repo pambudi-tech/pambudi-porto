@@ -428,6 +428,8 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       bird?.setVisible(true, { immediate: !animate || motionPreference.matches });
       requestFrame({ stitches: true });
     },
+    // Before the sheet turns back into view, so it arrives already lit.
+    relightPaper() { sheet?.relight(); },
     setPaperPresent(present) {
       sheet?.reset();
       // Pause the paper's pointer lighting while it is turned away.

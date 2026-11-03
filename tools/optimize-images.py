@@ -18,6 +18,9 @@ SOURCE = ROOT / 'tools' / 'source-images'
 OUTPUT = ROOT / 'public' / 'assets'
 
 LOSSY = dict(quality=95, method=6, alpha_quality=100)
+# Surface normals for the WebGL paper (src/paper/paper-gl.mjs): lighting
+# reads their slopes, so a little loss shows only as faint shading noise.
+RELIEF = dict(quality=90, method=6)
 EXACT = dict(lossless=True, exact=True, quality=100, method=6)
 
 # name: (sizes in pixels wide, encoding). The first is the image's own URL
@@ -31,6 +34,10 @@ IMAGES = {
     # Its wax material is computed at 512 and 768 pixels wide, and the seal
     # is never shown wider than about 420 device pixels.
     'works-wax-seal': ((768,), EXACT),
+    # The paper model's baked relief (front emboss, back deboss), lit live on
+    # the paper; 1024 wide covers the sheet at up to two device pixels.
+    'paper-front-relief': ((1024,), RELIEF),
+    'paper-back-relief': ((1024,), RELIEF),
     # Shown at most 160 CSS pixels wide.
     'ivan-signature': ((640, 320), EXACT),
     'wordmark-source': ((None,), EXACT),
