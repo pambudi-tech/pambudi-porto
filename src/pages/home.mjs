@@ -49,15 +49,15 @@ const framePainted = () => new Promise(resolve => {
 });
 
 async function boot() {
-  const application = track(import('../surface/scene.mjs'));
-  // The works gallery is only needed after the reveal; fetch it alongside.
-  const gallery = import('../works/gallery.mjs');
-  // The welcome's frame first, painted; then the page's images behind it,
-  // well within the welcome's own time.
+  // The welcome's frame first, painted; then the page's code and images
+  // behind it, well within the welcome's own time.
   if (welcome) {
     await welcome.frameShown;
     await framePainted();
   }
+  const application = track(import('../surface/scene.mjs'));
+  // The works gallery is only needed after the reveal; fetch it alongside.
+  const gallery = import('../works/gallery.mjs');
   loadImages(surface);
   // Fetch the traced artwork too; it is not an <img> in the page itself.
   const artwork = new Image();
