@@ -24,7 +24,8 @@ export function paperCopy() {
   const link = `<a class="intro-link" href="#about-me" aria-controls="about-me" aria-expanded="false" aria-label="${escape(firstName)}, about me" data-tooltip="about me">${escape(firstName)}</a>`;
   const paragraphs = SITE.intro.map(text => `<p>${escape(text).replace('{about}', link)}</p>`);
   const contacts = SITE.contacts.map(({ id, label, tooltip, icon, href }) => {
-    const image = `  <img src="/assets/contact/${icon}" width="20" height="20" alt="" aria-hidden="true" draggable="false" />`;
+    // Loaded behind the welcome, as the paper's other images (home.mjs).
+    const image = `  <img data-src="/assets/contact/${icon}" width="20" height="20" alt="" aria-hidden="true" draggable="false" />`;
     return id === 'email'
       ? `<button class="contact-link" type="button" aria-label="${escape(label)}" data-email="${escape(SITE.email)}" data-tooltip="${escape(tooltip)}">\n${image}\n</button>`
       : `<a class="contact-link" href="${escape(href)}" target="_blank" rel="noopener noreferrer" aria-label="${escape(label)}" data-tooltip="${escape(tooltip)}">\n${image}\n</a>`;
