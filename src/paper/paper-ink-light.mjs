@@ -46,8 +46,12 @@ export class PaperInkLight {
     if (!frame?.height) return [];
     return [...pick(face)].map(element => {
       const box = element.getBoundingClientRect();
-      return { element, at: [(box.left + box.width / 2 - frame.left - frame.width / 2) / frame.height,
-        (box.top + box.height / 2 - frame.top - frame.height / 2) / frame.height], brightness: 1 };
+      // Its own filter stays first (the signature's white, say); the light
+      // goes on top of it.
+      const own = getComputedStyle(element).filter;
+      return { element, own: own === 'none' ? '' : `${own} `,
+        at: [(box.left + box.width / 2 - frame.left - frame.width / 2) / frame.height,
+          (box.top + box.height / 2 - frame.top - frame.height / 2) / frame.height], brightness: 1 };
     });
   }
   // Lights the face that shows with the paper's lamp, now and at rest.
@@ -63,7 +67,7 @@ export class PaperInkLight {
       // Small changes wait for a larger one, except the return to rest.
       if (brightness === word.brightness || (brightness !== 1 && Math.abs(brightness - word.brightness) < .004)) continue;
       word.brightness = brightness;
-      word.element.style.filter = brightness === 1 ? '' : `brightness(${brightness.toFixed(3)})`;
+      word.element.style.filter = brightness === 1 ? '' : `${word.own}brightness(${brightness.toFixed(3)})`;
     }
   }
 }

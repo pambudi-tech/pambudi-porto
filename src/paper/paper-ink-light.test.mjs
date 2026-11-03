@@ -23,7 +23,9 @@ test('nearer the lamp is lighter than farther from it', () => {
   assert.ok(inkBrightness([.25, 0], lamp, rest) > inkBrightness([.4, .2], lamp, rest));
 });
 
-// A sheet with a few words, enough for PaperInkLight without a browser.
+// A sheet with a few words, enough for PaperInkLight without a browser; a
+// word's `own` filter is the one its stylesheet gives it.
+globalThis.getComputedStyle = element => ({ filter: element.own ?? 'none' });
 function fakePaper(count) {
   const box = (left, top, width, height) => ({ left, top, width, height });
   const words = Array.from({ length: count }, (_, i) => ({ style: { filter: '' }, getBoundingClientRect: () => box(40 + i * 30, 120 + i * 10, 20, 8) }));
@@ -56,4 +58,16 @@ test('at rest it neither measures nor lights a page it has never lit', async () 
   new PaperInkLight(paper).update(rest, rest);
   assert.equal(measured, 0);
   assert.deepEqual(words.map(word => word.style.filter), ['', '', '']);
+});
+
+test('a word with a filter of its own keeps it under the light', async () => {
+  const { PaperInkLight } = await import('./paper-ink-light.mjs');
+  const { paper, words } = fakePaper(2);
+  words[0].own = 'url("#signature-white")';
+  const light = new PaperInkLight(paper);
+  light.update([.3, .2, .6], rest);
+  assert.match(words[0].style.filter, /^url\("#signature-white"\) brightness\(/);
+  assert.match(words[1].style.filter, /^brightness\(/);
+  light.update(rest, rest);
+  assert.deepEqual(words.map(word => word.style.filter), ['', '']);
 });
