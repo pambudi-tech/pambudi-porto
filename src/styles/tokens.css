@@ -7,4 +7,7 @@
   --line: #deded6;
   --accent: #952e40;
   --mono: "Syne Mono", monospace;
+  /* Things coming or going start fast and settle: EASE_OUT in
+     src/shared/motion.mjs is the same curve. */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
 }
