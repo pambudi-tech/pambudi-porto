@@ -196,8 +196,10 @@ export class PaperInteraction {
   }
   write() {
     const values = applyPaperPose(this.element, this.current, this.placement);
-    if (this.mirrorActive && this.placementMirror?.isConnected) {
-      applyPaperPose(this.placementMirror, this.current, this.placement);
+    // The welcome's frame plays its own placement (welcome.mjs); once it
+    // has been placed, it follows the sheet's pose, not its placement again.
+    if (this.mirrorActive && this.placementMirror?.isConnected && this.placementMirror.dataset.placement === 'complete') {
+      applyPaperPose(this.placementMirror, this.current, null);
     }
     // Light only the face showing, and neither while it turns in 3D.
     if (!this.flipping) (this.element.dataset.paperSide === 'red' ? this.backMaterial : this.material)?.draw(values);
