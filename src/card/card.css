@@ -173,6 +173,23 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .card-name { font-weight: 500; }
 .card-who span:not(.card-name) { color: #7f7e74; }
 
+/* The wordmark on the red side: its own shape (white on transparent, 4096 ×
+   1038) filled with a deeper red, tone on tone, turned a quarter clockwise
+   to run down the card's length inside the frame. */
+.card-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 84cqw;
+  aspect-ratio: 4096 / 1038;
+  background: #9a1a20;
+  -webkit-mask: url("/assets/wordmark-source.webp") center / contain no-repeat;
+  mask: url("/assets/wordmark-source.webp") center / contain no-repeat;
+  transform: translate(-50%, -50%) rotate(90deg);
+  pointer-events: none;
+}
+
 /* The WebGL paper (paper-gl.mjs) fades in over its photograph once drawn. */
 .paper-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 600ms ease; }
 .paper-gl[data-material-ready] { opacity: 1; }

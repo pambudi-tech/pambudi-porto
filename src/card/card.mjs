@@ -32,26 +32,27 @@ const measure = () => { rect = paper.getBoundingClientRect(); };
 // a touch lighter as it comes over a line, with a faint sheen right beneath
 // it, a touch darker as it moves away, and their own colour at rest. Where
 // each line sits on the sheet is read once, after a resize or the font's
-// arrival, never while lighting.
+// arrival, never while lighting, and only for the face showing.
 const PAPER_ASPECT = 1122 / 1402;
 const REST_LAMP = lightPosition({}, PAPER_ASPECT);
-const inkLines = [...paper.querySelectorAll('.card-copy span')];
-let ink = null;
-function measureInk() {
-  const frame = sheets[0].getBoundingClientRect();
+// Each face's ink: the front's lines, and the wordmark printed on the back.
+const inkOn = [[...paper.querySelectorAll('.card-copy span')], [...paper.querySelectorAll('.card-mark')]];
+let ink = [null, null];
+function measureInk(i) {
+  const frame = sheets[i].getBoundingClientRect();
   if (!frame.height) return null;
-  return inkLines.map(element => {
+  return inkOn[i].map(element => {
     const box = element.getBoundingClientRect();
     return { element, brightness: 1, at: [(box.left + box.width / 2 - frame.left - frame.width / 2) / frame.height,
       (box.top + box.height / 2 - frame.top - frame.height / 2) / frame.height] };
   });
 }
 function lightInk() {
-  if (showing() !== 0) return;
-  ink ??= measureInk();
-  if (!ink) return;
+  const i = showing();
+  ink[i] ??= measureInk(i);
+  if (!ink[i]) return;
   const lamp = lightPosition(pose, PAPER_ASPECT);
-  for (const line of ink) {
+  for (const line of ink[i]) {
     const brightness = inkBrightness(line.at, lamp, REST_LAMP);
     // Small changes wait for a larger one, except the return to rest.
     if (brightness === line.brightness || (brightness !== 1 && Math.abs(brightness - line.brightness) < .004)) continue;
@@ -59,7 +60,7 @@ function lightInk() {
     line.element.style.filter = brightness === 1 ? '' : `brightness(${brightness.toFixed(3)})`;
   }
 }
-document.fonts.ready.then(() => { ink = null; request(); });
+document.fonts.ready.then(() => { ink = [null, null]; request(); });
 
 // The face showing: the front at 0°, the back at 180°.
 const showing = () => (angle === 180 ? 1 : 0);
@@ -236,7 +237,7 @@ for (const [name, value] of Object.entries(CARD_MM))
 document.querySelector('[data-dim-summary]').textContent =
   `The card measures ${millimetres(CARD_MM.width)} wide by ${millimetres(CARD_MM.height)} high.`;
 
-new ResizeObserver(() => { measure(); ink = null; request(); }).observe(paper);
+new ResizeObserver(() => { measure(); ink = [null, null]; request(); }).observe(paper);
 addEventListener('scroll', measure, { passive: true });
 measure();
 write();
