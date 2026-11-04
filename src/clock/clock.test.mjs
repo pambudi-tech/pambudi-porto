@@ -115,3 +115,13 @@ test('the dot matrix draws without throwing when the page loads at zero width', 
   }
   assert.ok(calls.length > 0);
 });
+
+test('without the welcome, the clock rows fade in from the bottom up', async () => {
+  const { rowFade, CLOCK_ROWS_IN } = await import('./clock.mjs');
+  const cells = [[0, 10], [0, 11], [0, 12], [0, 13], [0, 14]];
+  const at = elapsed => cells.map(([, row]) => rowFade(cells, elapsed)(row));
+  assert.deepEqual(at(0), [0, 0, 0, 0, 0]);
+  const early = at(CLOCK_ROWS_IN.stagger * 1.5);
+  assert.ok(early[4] > early[3] && early[3] > 0 && early[2] === 0, 'bottom row leads, top rows wait');
+  assert.deepEqual(at(CLOCK_ROWS_IN.row + 4 * CLOCK_ROWS_IN.stagger), [1, 1, 1, 1, 1]);
+});
