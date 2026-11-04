@@ -35,8 +35,8 @@ const measure = () => { rect = paper.getBoundingClientRect(); };
 // arrival, never while lighting, and only for the face showing.
 const PAPER_ASPECT = 1122 / 1402;
 const REST_LAMP = lightPosition({}, PAPER_ASPECT);
-// Each face's ink: the front's lines, and the wordmark printed on the back.
-const inkOn = [[...paper.querySelectorAll('.card-copy span')], [...paper.querySelectorAll('.card-mark')]];
+// Each face's ink: the front's lines; the back is bare.
+const inkOn = [[...paper.querySelectorAll('.card-copy span')], []];
 let ink = [null, null];
 function measureInk(i) {
   const frame = sheets[i].getBoundingClientRect();
