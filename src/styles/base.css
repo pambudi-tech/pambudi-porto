@@ -65,8 +65,8 @@ body.is-revealing .portfolio-clock { z-index: 61; }
 .portfolio-clock canvas { transition: filter 320ms ease; }
 body.is-loading .portfolio-clock canvas { filter: brightness(0) invert(1); }
 /* Without the welcome (the head check's is-welcomed), the clock waits
-   unseen, already in its own ink; its rows fade in as the page shows
-   (DotClock.fadeInRows). */
+   unseen, already in its own ink; its dots fade in as the page shows
+   (DotClock.fadeInDots). */
 .is-welcomed body.is-loading .portfolio-clock { opacity: 0; }
 .is-welcomed body.is-loading .portfolio-clock canvas { filter: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -364,15 +364,28 @@ body.is-loading .wax-gl { transition: none; }
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transform: translate(-50%, 3px);
-  transition: opacity 150ms ease, transform 150ms ease;
+  /* Grows out of the control it names, never from nothing. */
+  transform: translate(-50%, 3px) scale(.97);
+  transform-origin: 50% 100%;
+  transition: opacity 125ms var(--ease-out), transform 125ms var(--ease-out);
 }
-.intro-link:is(:hover, :focus-visible)::after,
-.contact-link:is(:hover, :focus-visible)::after,
+/* Hovered, it waits a moment first (tooltip.mjs); focused or answering a
+   click, it shows at once. Left, it fades without waiting. */
+.intro-link:hover::after,
+.contact-link:hover::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: var(--tooltip-delay, 300ms);
+}
+.intro-link:focus-visible::after,
+.contact-link:focus-visible::after,
 .contact-link[data-feedback="true"]::after {
   opacity: 1;
   transform: translate(-50%, 0);
+  transition-delay: 0ms;
 }
+/* Moving on from one showing (tooltip.mjs): no wait, no fade. */
+:is(.intro-link, .contact-link, .project-visit)[data-tooltip-instant]::after { transition: none; }
 .intro-link:focus-visible,
 .contact-link:focus-visible { outline: 1px solid #c6434b; outline-offset: 3px; }
 .ink-linked-word { color: #c6434b; }

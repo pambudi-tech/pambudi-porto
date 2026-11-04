@@ -1,9 +1,19 @@
 import { WORKS, workHref, yearLabel } from '../content/works.mjs';
+import { EASE_OUT } from '../shared/motion.mjs';
 
 // The top bar's pill names the project, and opens a list of every project
 // to move to. The works row's own pill, as it morphs into this one, is drawn
 // from the same parts, so the two meet at one size.
-export const SWITCH = Object.freeze({ open: 260, close: 180, stagger: 28 });
+// The list opens in `open` ms; its rows follow it in, `lead` ms behind and
+// `stagger` ms apart, each taking `row` ms, and however many there are, the
+// last has settled `within` ms of the click.
+export const SWITCH = Object.freeze({ open: 260, close: 180, row: 180, lead: 30, stagger: 16, within: 290 });
+
+// When the `index`th of `count` rows starts to come in.
+export function rowDelay(index, count, { lead, stagger, row, within } = SWITCH) {
+  const gap = count > 1 ? Math.min(stagger, (within - lead - row) / (count - 1)) : 0;
+  return lead + index * Math.max(0, gap);
+}
 
 export const switchWorks = () => WORKS.filter(work => workHref(work));
 
@@ -71,7 +81,10 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
   const place = () => {
     const box = pill.getBoundingClientRect(), width = list.offsetWidth;
     list.style.top = `${box.bottom + 8}px`;
-    list.style.left = `${Math.max(12, Math.min(innerWidth - width - 12, box.left + box.width / 2 - width / 2))}px`;
+    const left = Math.max(12, Math.min(innerWidth - width - 12, box.left + box.width / 2 - width / 2));
+    list.style.left = `${left}px`;
+    // It grows from under the pill, even when kept from the screen's edge.
+    list.style.transformOrigin = `${(box.left + box.width / 2 - left).toFixed(1)}px 0`;
   };
   function open() {
     if (shown || moving || document.body.classList.contains('gallery-open')) return;
@@ -81,9 +94,9 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
     name.setAttribute('aria-expanded', 'true');
     pill.classList.add('is-open');
     animation?.cancel();
-    animation = list.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: time(SWITCH.open), easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    animation = list.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: time(SWITCH.open), easing: EASE_OUT });
     items.forEach((item, index) => item.animate([{ opacity: 0, translate: '0 -4px' }, { opacity: 1, translate: '0 0' }], {
-      duration: time(SWITCH.open), delay: time(60 + index * SWITCH.stagger), easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'backwards',
+      duration: time(SWITCH.row), delay: time(rowDelay(index, items.length)), easing: EASE_OUT, fill: 'backwards',
     }));
     (items.find(item => item.hasAttribute('aria-current')) ?? items[0]).focus({ preventScroll: true });
   }
@@ -93,7 +106,7 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
     name.setAttribute('aria-expanded', 'false');
     pill.classList.remove('is-open');
     animation?.cancel();
-    animation = list.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px) scale(.98)' }], { duration: time(quick ? 120 : SWITCH.close), easing: 'ease', fill: 'forwards' });
+    animation = list.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px) scale(.98)' }], { duration: time(quick ? 120 : SWITCH.close), easing: EASE_OUT, fill: 'forwards' });
     animation.finished.then(() => { if (!shown) list.hidden = true; }, () => {});
     if (refocus) name.focus({ preventScroll: true });
   }

@@ -2,6 +2,7 @@ import { GRID } from '../stitch/model.mjs';
 import { CORNER_SIZE } from '../stitch/corners.mjs';
 import { drawActiveDots } from '../stitch/dot-matrix.mjs';
 import { DepartureBoard } from './departure-board.mjs';
+import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 
 // One matrix point corresponds to one perforation in the cloth.
@@ -48,16 +49,21 @@ const DIGITS = {
   Z: ['111', '001', '010', '100', '111'],
 };
 
-// The clock's entrance without the welcome: its dot rows fade in one by
-// one, from the bottom row up.
-export const CLOCK_ROWS_IN = Object.freeze({ row: 280, stagger: 90 });
-const inOutSine = t => (1 - Math.cos(Math.PI * t)) / 2;
+// The clock's entrance without the welcome: each dot fades in on its own,
+// at a random moment within `spread` ms after `delay`, over `dot` ms; in
+// time with the corner ornaments stitching in around it (ENTRANCE).
+export const CLOCK_DOTS_IN = Object.freeze({ delay: ENTRANCE.delay, dot: ENTRANCE.stitch, spread: ENTRANCE.corners });
+// Each dot starts showing at once and settles, rather than easing in slowly.
+const outCubic = t => 1 - (1 - t) ** 3;
+// A dot's random start, fixed for the entrance (`seed`) so it never flickers.
+const dotDelay = (col, row, seed) => {
+  const n = Math.sin(col * 127.1 + row * 311.7 + seed * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+};
 
-// How far each row of `cells` has faded in, `elapsed` ms into the entrance:
-// the lowest row first, each next row up `stagger` ms later.
-export function rowFade(cells, elapsed, { row: duration, stagger } = CLOCK_ROWS_IN) {
-  const bottom = cells.reduce((lowest, [, row]) => Math.max(lowest, row), -Infinity);
-  return row => inOutSine(Math.max(0, Math.min(1, (elapsed - (bottom - row) * stagger) / duration)));
+// How far the dot at (col, row) has faded in, `elapsed` ms into the entrance.
+export function dotFade(col, row, elapsed, seed = 0, { delay = 0, dot, spread } = CLOCK_DOTS_IN) {
+  return outCubic(Math.max(0, Math.min(1, (elapsed - delay - dotDelay(col, row, seed) * spread) / dot)));
 }
 
 const textWidth = text => [...text].reduce((width, char) => width + (DIGITS[char] ?? DIGITS[' '])[0].length + 1, -1);
@@ -171,10 +177,10 @@ export class DotClock {
     if (this.view) this.board.transitionTo(this.layout().glyphs, performance.now(), immediate || this.motionPreference.matches || document.hidden);
     this.paint();
   }
-  // Fades the clock's rows in, bottom first (CLOCK_ROWS_IN).
-  fadeInRows() {
+  // Fades the clock's dots in, each at its own random moment (CLOCK_DOTS_IN).
+  fadeInDots() {
     if (this.motionPreference.matches || document.hidden) return;
-    this.rowsIn = performance.now();
+    this.dotsIn = { start: performance.now(), seed: Math.random() * 1000 };
     this.paint();
   }
   // Leaves as a departure board does: its text rolling out letter by letter
@@ -210,23 +216,19 @@ export class DotClock {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cells = clockGlyphCells(this.board.sample(now));
-    const rowsIn = this.rowsIn == null ? null : now - this.rowsIn;
-    const rows = Math.max(1, new Set(cells.map(([, row]) => row)).size);
-    if (rowsIn != null && rowsIn >= CLOCK_ROWS_IN.row + (rows - 1) * CLOCK_ROWS_IN.stagger) this.rowsIn = null;
-    if (this.rowsIn == null) drawActiveDots(ctx, cells, view);
+    const dotsIn = this.dotsIn && now - this.dotsIn.start;
+    if (this.dotsIn && dotsIn >= CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot) this.dotsIn = null;
+    if (!this.dotsIn) drawActiveDots(ctx, cells, view);
     else {
-      const fade = rowFade(cells, rowsIn);
-      const byRow = new Map();
-      for (const cell of cells) byRow.set(cell[1], [...(byRow.get(cell[1]) ?? []), cell]);
-      for (const [row, rowCells] of byRow) {
-        ctx.globalAlpha = fade(row);
-        if (ctx.globalAlpha > 0) drawActiveDots(ctx, rowCells, view);
+      for (const cell of cells) {
+        ctx.globalAlpha = dotFade(cell[0], cell[1], dotsIn, this.dotsIn.seed);
+        if (ctx.globalAlpha > 0) drawActiveDots(ctx, [cell], view);
       }
       ctx.globalAlpha = 1;
     }
     this.element.dataset.departure = this.board.active ? 'cycling' : 'settled';
-    this.element.dataset.rows = this.rowsIn == null ? 'in' : 'fading';
-    if ((this.board.active || this.rowsIn != null) && !this.frame && !document.hidden) {
+    this.element.dataset.dots = this.dotsIn ? 'fading' : 'in';
+    if ((this.board.active || this.dotsIn) && !this.frame && !document.hidden) {
       this.frame = requestAnimationFrame(time => {
         this.frame = null;
         this.paint(time);

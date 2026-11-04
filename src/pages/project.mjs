@@ -9,6 +9,7 @@ import { mountSwipeBack } from '../project/swipe-back.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
 import { mountPress } from '../shared/press.mjs';
+import { mountTooltips } from '../shared/tooltip.mjs';
 import { mountProjectSwitch } from '../project/project-switch.mjs';
 import { coverDither } from '../project/cover-dither.mjs';
 import { mountTitleMarquee } from '../project/title-marquee.mjs';
@@ -18,6 +19,7 @@ import { OPENING, sewAround } from '../works/opening-cue.mjs';
 // without one yet, its card's details over the stand-in gallery. The index
 // shows it at /work/<id>, over its works row (home.mjs).
 mountPress();
+mountTooltips();
 const id = projectId(location.pathname) ?? new URLSearchParams(location.search).get('work');
 const project = projectPage(id);
 if (!project) {
