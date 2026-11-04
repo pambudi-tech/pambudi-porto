@@ -4,6 +4,7 @@ import { STAMP, createPostageStamp, drawPostageStamp, stampOutline } from './pos
 import { coverFocus, projectPageHref } from '../content/works.mjs';
 import { OPENING, sewAround } from './opening-cue.mjs';
 import { fillSwitch } from '../project/project-switch.mjs';
+import { EASE_OUT } from '../shared/motion.mjs';
 
 export const PROJECT_FLIGHT = Object.freeze({
   duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH + 120,
@@ -27,7 +28,7 @@ export const PROJECT_SWITCH = Object.freeze({
 const PROJECT_NAV_MORPH = Object.freeze({
   duration: 640,
   easing: 'cubic-bezier(.64, 0, .78, 0)',
-  reverseEasing: 'cubic-bezier(.22, 1, .36, 1)',
+  reverseEasing: EASE_OUT,
 });
 
 // Keep the collection controls and their selected pill through the handoff.
@@ -113,11 +114,12 @@ function renameNav(page, width, title, time) {
   if (!pill || !label) return;
   const from = pill.getBoundingClientRect().width, half = time(PROJECT_SWITCH.cross / 2);
   pill.style.overflow = 'hidden';
-  pill.animate([{ width: `${from}px` }, { width: `${width}px` }], { duration: time(PROJECT_SWITCH.cross), easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' });
-  label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: half, easing: 'ease', fill: 'forwards' }).finished.then(() => {
+  pill.animate([{ width: `${from}px` }, { width: `${width}px` }], { duration: time(PROJECT_SWITCH.cross), easing: EASE_OUT, fill: 'forwards' });
+  // A little blur as the names cross, so they read as one label changing.
+  label.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(2px)' }], { duration: half, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => {
     label.textContent = title;
     label.getAnimations().forEach(animation => animation.cancel());
-    label.animate([{ opacity: 0 }, { opacity: 1 }], { duration: half, easing: 'ease' });
+    label.animate([{ opacity: 0, filter: 'blur(2px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: half, easing: EASE_OUT });
   }, () => {});
 }
 
