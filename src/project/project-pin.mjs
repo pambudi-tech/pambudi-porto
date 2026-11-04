@@ -124,5 +124,15 @@ export function mountPinPanel({ title, onUnlock }) {
         stitches.reveal();
       }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : delay);
     },
+    // Already there, its stitches sewn: taking the place of another
+    // project's panel that was there (project-transition.mjs), it stays put
+    // as the gallery seal does, rather than arriving again.
+    settle() {
+      root.style.transition = 'none';
+      root.classList.remove('is-waiting');
+      root.getBoundingClientRect();
+      root.style.removeProperty('transition');
+      stitches.reveal({ sewn: true });
+    },
   };
 }
