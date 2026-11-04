@@ -137,7 +137,7 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 /* The card's printed lines, centred inside the embossed frame, in Syne
    Mono, the site's own type, at 0 tracking with open leading. Sized in cqw, a share of the
    card's width, so they keep their size on the card at any size on screen:
-   about 2.2 mm type on an 85 mm card. */
+   about 2.6 mm (7.4 pt) type on an 85 mm card. */
 .card-copy {
   position: absolute;
   inset: 25% 26% 24%;
@@ -148,7 +148,7 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
   justify-content: space-between;
   /* The site's warm dark ink, not black. */
   color: var(--ink);
-  font: 400 3.2cqw/1.8 "Syne Mono", ui-monospace, monospace;
+  font: 400 3.8cqw/1.8 "Syne Mono", ui-monospace, monospace;
   letter-spacing: 0;
   text-align: center;
   white-space: nowrap;
