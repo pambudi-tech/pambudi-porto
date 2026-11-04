@@ -51,7 +51,8 @@ async function boot() {
   const app = await application;
   if (!app) throw new Error('The portfolio could not start.');
   const scene = await app.preparePortfolio({ clock });
-  scene.placePaper();
+  // From where the welcome's frame began settling, if it has.
+  scene.placePaper(welcome?.frameSettling() ?? undefined);
   const makeWorks = async () => {
     const { WorksGallery } = await gallery;
     return new WorksGallery(document.getElementById('works'), {

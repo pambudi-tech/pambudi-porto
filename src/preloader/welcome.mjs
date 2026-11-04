@@ -1,12 +1,9 @@
 import { DotClock } from '../clock/clock.mjs';
 import { GRID } from '../stitch/model.mjs';
 import { cornerPitch, surfaceOrigin } from '../stitch/corners.mjs';
-import { PRELOADER, LoadingCounter, loadingProgress, minimumElapsed, settleWithin } from './loading-progress.mjs';
-import { paperInkEntrance } from '../paper/paper-ink.mjs';
-import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
+import { PRELOADER, LoadingCounter, loadingProgress, settleWithin } from './loading-progress.mjs';
+import { paperTarget, paperPlacementAt, PAPER_PLACEMENT } from '../paper/paper-motion.mjs';
 import { applyPaperPose } from '../paper/paper-pose.mjs';
-import { createArtInkLayer, createImageInkLayer, imageInkDensity } from '../ink/ink-growth.mjs';
-import { preloaderFrameRegion } from '../paper/frame-registration.mjs';
 
 // The welcome loader (src/partials/preloader.html): the frame and "Welcome to
 // House of Pambudi" inked in, the dot clock counting up as the page loads,
@@ -50,16 +47,14 @@ export function startWelcome({ count, preference, clock: clockElement = document
   const loader = document.getElementById('preloader');
   const title = loader.querySelector('.preloader-title');
   loader.style.setProperty('--preloader-exit', `${PRELOADER.exit}ms`);
+  loader.style.setProperty('--preloader-fade-in', `${PRELOADER.fadeIn}ms`);
   const paperPreview = loader.querySelector('.preloader-paper');
   const framePreview = paperPreview.querySelector('img');
   applyPaperPose(paperPreview, paperTarget(), paperPlacementAt(0, preference.matches));
   const clock = new DotClock(clockElement);
-  const started = performance.now();
-  const counter = new LoadingCounter(started);
-  let finishCounter, finishTitle, finishPaper;
-  const counterFinished = new Promise(resolve => { finishCounter = resolve; });
-  const titleFinished = new Promise(resolve => { finishTitle = resolve; });
-  const paperFinished = new Promise(resolve => { finishPaper = resolve; });
+  const counter = new LoadingCounter(performance.now());
+  let finishLoading;
+  const loaded = new Promise(resolve => { finishLoading = resolve; });
   // The page's own loads, its scene, the title and the frame.
   const total = count + 1 + 2;
   let completed = 0, sceneReady = false, failed = false, frame;
@@ -71,11 +66,11 @@ export function startWelcome({ count, preference, clock: clockElement = document
 
   const track = task => settleWithin(task).then(value => { completed++; return value; });
   const progress = now => {
-    const loaded = Math.min(sceneReady ? 100 : 99, loadingProgress(completed, total));
-    const percent = counter.update(loaded, now);
+    const done = Math.min(sceneReady ? 100 : 99, loadingProgress(completed, total));
+    const percent = counter.update(done, now);
     clock.setLoading(percent);
     loader.dataset.progress = String(percent);
-    if (percent === 100) finishCounter();
+    if (done === 100) finishLoading();
     if (!failed && percent < 100) frame = requestAnimationFrame(progress);
   };
   frame = requestAnimationFrame(progress);
@@ -84,34 +79,30 @@ export function startWelcome({ count, preference, clock: clockElement = document
   // images behind it from then on (home.mjs).
   let frameShown;
   const frameShowing = new Promise(resolve => { frameShown = resolve; });
-  // The frame's ink field is worked out while the frame itself loads.
-  const frameInk = preference.matches ? null : imageInkDensity(framePreview, preloaderFrameRegion());
-  track(framePreview.decode().then(async () => {
-    await paperInkEntrance(paperPreview, {
-      motionPreference: preference, duration: PRELOADER.paperDuration, delay: 0,
-      waitForFonts: false, createLayers: async () => [await createImageInkLayer(framePreview, preloaderFrameRegion(), frameInk ?? undefined)],
-      onComplete: finishPaper,
-    });
+  // The frame eases in once decoded (base.css), settling into place as it
+  // does; the page's paper, behind, takes up the settling where it has got
+  // to (scene.placePaper), so it never shows larger than the frame.
+  let settlingFrom = null;
+  const settle = now => {
+    const progress = (now - settlingFrom) / PAPER_PLACEMENT.duration;
+    applyPaperPose(paperPreview, paperTarget(), paperPlacementAt(progress, preference.matches));
+    if (progress < 1 && !preference.matches) requestAnimationFrame(settle);
+  };
+  track(framePreview.decode().then(() => {
+    settlingFrom = performance.now();
     paperPreview.classList.add('is-ready');
-  }).catch(() => finishPaper()).finally(frameShown));
+    requestAnimationFrame(settle);
+  }).finally(frameShown));
   // Nothing else is fetched before the frame has painted: on a slow line it
   // would hold the frame, the page's largest paint, up (home.mjs waits too).
   const framePainting = frameShowing.then(framePainted);
   // The title, outlined (title-art.mjs): fetched once the frame has painted,
-  // then inked in letter by letter as text was.
+  // then eased in as the frame is. Unshown, it still counts as done.
   track(framePainting.then(() => import('./title-art.mjs')).then(({ TITLE_VIEWBOX, TITLE_LETTERS }) => {
     title.innerHTML = `<svg class="preloader-title-art" viewBox="${TITLE_VIEWBOX}" aria-hidden="true" focusable="false">${
       TITLE_LETTERS.map(d => `<path d="${d}"/>`).join('')}</svg>`;
     title.classList.add('is-ready');
-    return paperInkEntrance(title, {
-      motionPreference: preference, duration: PRELOADER.welcomeDuration, delay: 0,
-      waitForFonts: false, createLayers: () => [createArtInkLayer(title.firstElementChild)], onComplete: finishTitle,
-    });
-  }).catch(error => {
-    // Unshown, the title still counts as done, and the page still opens.
-    console.warn('Welcome title:', error);
-    finishTitle();
-  }));
+  }).catch(error => console.warn('Welcome title:', error)));
 
   const fadeOut = () => new Promise(resolve => {
     if (preference.matches) { loader.classList.add('is-leaving'); resolve(); return; }
@@ -131,19 +122,16 @@ export function startWelcome({ count, preference, clock: clockElement = document
     track,
     frameShown: frameShowing,
     framePainted: framePainting,
+    // When the frame began settling into place, or null if it has not.
+    frameSettling: () => settlingFrom,
     ready() { completed++; sceneReady = true; },
-    // Resolves once the count has reached 100, the entrances have finished and
-    // the welcome has shown for its minimum; `reveal` then runs as it fades.
+    // Resolves as soon as everything has loaded, the count jumping to 100;
+    // `reveal` then runs as the welcome fades.
     async finish(reveal) {
-      await Promise.all([titleFinished, paperFinished, counterFinished, new Promise(resolve => {
-        const check = now => (minimumElapsed(now - started) ? resolve() : requestAnimationFrame(check));
-        requestAnimationFrame(check);
-      })]);
+      await loaded;
       cancelAnimationFrame(frame);
       clock.setLoading(100);
       loader.dataset.progress = '100';
-      // Hold the completed value briefly before clearing the backdrop.
-      if (!preference.matches) await new Promise(resolve => setTimeout(resolve, PRELOADER.completeHold));
       removeEventListener('resize', resizeClock);
       document.body.classList.add('is-revealing');
       reveal?.();
