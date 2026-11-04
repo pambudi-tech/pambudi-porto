@@ -235,13 +235,16 @@ paper.addEventListener('keydown', event => {
 // A page can't learn a screen's physical size: CSS millimetres assume 96
 // CSS px to the inch, and most laptops and phones are denser, so they come
 // out short. Matching a bank card on screen gives this screen's own scale,
-// kept in this browser; until then the card shows at CSS size.
+// kept in this browser. Until then the card shows at the scale calibrated
+// against a real bank card on Ivan's 16-inch MacBook Pro (default scaling,
+// about 127 CSS px to the inch), the screen it was designed on.
 const SCALE_KEY = 'card.pambudi.xyz/scale';
+const SOURCE_SCALE = 1.326;
 const readScale = () => {
   try {
     const value = parseFloat(localStorage.getItem(SCALE_KEY));
-    return value >= .5 && value <= 2.5 ? value : 1;
-  } catch { return 1; }
+    return value >= .5 && value <= 2.5 ? value : SOURCE_SCALE;
+  } catch { return SOURCE_SCALE; }
 };
 const showAtScale = scale => paper.style.setProperty('--card-height', `${(CARD_HEIGHT_MM * scale).toFixed(3)}mm`);
 let scale = readScale();
@@ -262,7 +265,7 @@ for (const button of dialog.querySelectorAll('[data-step]')) button.addEventList
   const next = Number(slider.value) + Number(button.dataset.step) * .002;
   preview(Math.min(2.5, Math.max(.5, next)).toFixed(3));
 });
-dialog.querySelector('[data-reset]').addEventListener('click', () => preview(1));
+dialog.querySelector('[data-reset]').addEventListener('click', () => preview(SOURCE_SCALE));
 dialog.querySelector('[data-done]').addEventListener('click', () => {
   scale = Number(slider.value);
   try { localStorage.setItem(SCALE_KEY, String(scale)); } catch { /* kept for this visit only */ }
