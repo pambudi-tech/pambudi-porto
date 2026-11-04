@@ -137,7 +137,7 @@ void main() {
   // The stamp overhead shades the wax, its shadow a little away from the lamp.
   vec2 away = -normalize(light.xy + 1e-5) * .1;
   float under = 1. - smoothstep(.45, 1.1, length((uv - .5) * 2. - vec2(away.x / ASPECT, -away.y)));
-  colour *= 1. - stamp * .5 * under;
+  colour *= 1. - stamp * .25 * under;
   colour = mix(colour, source.rgb, detail);
   outColor = vec4(colour * alpha, alpha);
 }`;

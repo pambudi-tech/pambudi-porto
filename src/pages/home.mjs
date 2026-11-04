@@ -75,9 +75,15 @@ async function boot() {
   if (welcome) {
     welcome.ready();
     await welcome.finish(show);
-  } else show();
+  } else {
+    // With no welcome counter to roll over, the clock's rows fade in, from
+    // the bottom up, as the page shows.
+    clock.finishLoading({ immediate: true });
+    clock.fadeInRows();
+    show();
+  }
   pageShown();
-  clock.finishLoading();
+  if (welcome) clock.finishLoading();
   surface.inert = false;
   surface.removeAttribute('aria-busy');
   document.body.dataset.ready = 'true';

@@ -64,6 +64,11 @@ body.is-loading .portfolio-clock,
 body.is-revealing .portfolio-clock { z-index: 61; }
 .portfolio-clock canvas { transition: filter 320ms ease; }
 body.is-loading .portfolio-clock canvas { filter: brightness(0) invert(1); }
+/* Without the welcome (the head check's is-welcomed), the clock waits
+   unseen, already in its own ink; its rows fade in as the page shows
+   (DotClock.fadeInRows). */
+.is-welcomed body.is-loading .portfolio-clock { opacity: 0; }
+.is-welcomed body.is-loading .portfolio-clock canvas { filter: none; }
 @media (prefers-reduced-motion: reduce) {
   .preloader, .preloader-title, .portfolio-clock canvas { transition: none; }
 }

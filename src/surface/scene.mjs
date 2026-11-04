@@ -373,9 +373,16 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     placePaper() {
       if (placed || !sheet) return;
       placed = true;
-      sheet.place(performance.now());
       const settle = now => { if (!running && sheet.update(now)) requestAnimationFrame(settle); };
-      requestAnimationFrame(settle);
+      const place = started => { sheet.place(started); requestAnimationFrame(settle); };
+      // In step with the welcome's frame: placed when it is, on its clock.
+      const frame = document.querySelector('.preloader-paper');
+      if (frame?.isConnected && frame.dataset.placement === 'pending') {
+        frame.addEventListener('paperplacement', event => place(event.detail.started), { once: true });
+      } else {
+        const started = Number(frame?.dataset.placementStart);
+        place(Number.isFinite(started) ? started : performance.now());
+      }
     },
     start() {
       if (running) return;

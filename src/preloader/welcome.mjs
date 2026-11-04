@@ -3,7 +3,7 @@ import { GRID } from '../stitch/model.mjs';
 import { cornerPitch, surfaceOrigin } from '../stitch/corners.mjs';
 import { PRELOADER, LoadingCounter, loadingProgress, minimumElapsed, settleWithin } from './loading-progress.mjs';
 import { paperInkEntrance } from '../paper/paper-ink.mjs';
-import { paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
+import { PAPER_PLACEMENT, paperTarget, paperPlacementAt } from '../paper/paper-motion.mjs';
 import { applyPaperPose } from '../paper/paper-pose.mjs';
 import { createArtInkLayer, createImageInkLayer, imageInkDensity } from '../ink/ink-growth.mjs';
 import { preloaderFrameRegion } from '../paper/frame-registration.mjs';
@@ -52,7 +52,37 @@ export function startWelcome({ count, preference, clock: clockElement = document
   loader.style.setProperty('--preloader-exit', `${PRELOADER.exit}ms`);
   const paperPreview = loader.querySelector('.preloader-paper');
   const framePreview = paperPreview.querySelector('img');
-  applyPaperPose(paperPreview, paperTarget(), paperPlacementAt(0, preference.matches));
+  // The title rides on the frame: lifted with it, and placed with it.
+  const poseWelcome = placement => {
+    applyPaperPose(paperPreview, paperTarget(), placement);
+    title.style.translate = `0 ${(placement?.y ?? 0).toFixed(4)}px`;
+  };
+  poseWelcome(paperPlacementAt(0, preference.matches));
+  // The frame waits lifted, as the paper does before it is placed, until the
+  // welcome is about to leave. Then it is placed with the paper's own
+  // placement (PAPER_PLACEMENT), timed so the motion is half done midway
+  // through the fade: half is seen on the welcome, half on the page. The
+  // real sheet behind is placed on the same clock (scene.mjs,
+  // 'paperplacement') and carries it on. Until the frame is placed, the
+  // sheet's pose isn't mirrored on it.
+  paperPreview.dataset.placement = preference.matches ? 'complete' : 'pending';
+  const placeFrame = started => {
+    if (paperPreview.dataset.placement !== 'pending') return;
+    paperPreview.dataset.placement = 'placing';
+    paperPreview.dataset.placementStart = String(started);
+    paperPreview.dispatchEvent(new CustomEvent('paperplacement', { detail: { started } }));
+    const step = now => {
+      const progress = Math.max(0, (now - started) / PAPER_PLACEMENT.duration);
+      if (progress >= 1 || preference.matches || !paperPreview.isConnected) {
+        poseWelcome(null);
+        paperPreview.dataset.placement = 'complete';
+        return;
+      }
+      poseWelcome(paperPlacementAt(progress));
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
   const clock = new DotClock(clockElement);
   const started = performance.now();
   const counter = new LoadingCounter(started);
@@ -142,8 +172,15 @@ export function startWelcome({ count, preference, clock: clockElement = document
       cancelAnimationFrame(frame);
       clock.setLoading(100);
       loader.dataset.progress = '100';
-      // Hold the completed value briefly before clearing the backdrop.
-      if (!preference.matches) await new Promise(resolve => setTimeout(resolve, PRELOADER.completeHold));
+      // Hold the completed value briefly before clearing the backdrop. The
+      // placement's lift eases out as (1 - t)³, so it is half done at
+      // t = 1 - ∛½; that moment lands where the fade (CSS `ease`, at 29.3%
+      // of its time) has the welcome half gone.
+      if (!preference.matches) {
+        const halfDone = PAPER_PLACEMENT.duration * (1 - Math.cbrt(.5));
+        placeFrame(performance.now() + PRELOADER.completeHold + PRELOADER.exit * .293 - halfDone);
+        await new Promise(resolve => setTimeout(resolve, PRELOADER.completeHold));
+      }
       removeEventListener('resize', resizeClock);
       document.body.classList.add('is-revealing');
       reveal?.();

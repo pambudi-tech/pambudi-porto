@@ -48,6 +48,18 @@ const DIGITS = {
   Z: ['111', '001', '010', '100', '111'],
 };
 
+// The clock's entrance without the welcome: its dot rows fade in one by
+// one, from the bottom row up.
+export const CLOCK_ROWS_IN = Object.freeze({ row: 280, stagger: 90 });
+const inOutSine = t => (1 - Math.cos(Math.PI * t)) / 2;
+
+// How far each row of `cells` has faded in, `elapsed` ms into the entrance:
+// the lowest row first, each next row up `stagger` ms later.
+export function rowFade(cells, elapsed, { row: duration, stagger } = CLOCK_ROWS_IN) {
+  const bottom = cells.reduce((lowest, [, row]) => Math.max(lowest, row), -Infinity);
+  return row => inOutSine(Math.max(0, Math.min(1, (elapsed - (bottom - row) * stagger) / duration)));
+}
+
 const textWidth = text => [...text].reduce((width, char) => width + (DIGITS[char] ?? DIGITS[' '])[0].length + 1, -1);
 
 export function clockGlyphCells(slots) {
@@ -149,12 +161,20 @@ export class DotClock {
     if (this.view) this.board.finish(this.layout().glyphs);
     this.paint();
   }
-  finishLoading() {
+  // The welcome's counter rolls over to the time; with no counter shown
+  // (`immediate`), the time is simply there.
+  finishLoading({ immediate = false } = {}) {
     this.tick();
     delete this.loading;
     this.element.dataset.mode = 'clock';
     this.element.setAttribute('aria-label', `Local time ${this.time}`);
-    if (this.view) this.board.transitionTo(this.layout().glyphs, performance.now(), this.motionPreference.matches || document.hidden);
+    if (this.view) this.board.transitionTo(this.layout().glyphs, performance.now(), immediate || this.motionPreference.matches || document.hidden);
+    this.paint();
+  }
+  // Fades the clock's rows in, bottom first (CLOCK_ROWS_IN).
+  fadeInRows() {
+    if (this.motionPreference.matches || document.hidden) return;
+    this.rowsIn = performance.now();
     this.paint();
   }
   // Leaves as a departure board does: its text rolling out letter by letter
@@ -190,9 +210,23 @@ export class DotClock {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cells = clockGlyphCells(this.board.sample(now));
-    drawActiveDots(ctx, cells, view);
+    const rowsIn = this.rowsIn == null ? null : now - this.rowsIn;
+    const rows = Math.max(1, new Set(cells.map(([, row]) => row)).size);
+    if (rowsIn != null && rowsIn >= CLOCK_ROWS_IN.row + (rows - 1) * CLOCK_ROWS_IN.stagger) this.rowsIn = null;
+    if (this.rowsIn == null) drawActiveDots(ctx, cells, view);
+    else {
+      const fade = rowFade(cells, rowsIn);
+      const byRow = new Map();
+      for (const cell of cells) byRow.set(cell[1], [...(byRow.get(cell[1]) ?? []), cell]);
+      for (const [row, rowCells] of byRow) {
+        ctx.globalAlpha = fade(row);
+        if (ctx.globalAlpha > 0) drawActiveDots(ctx, rowCells, view);
+      }
+      ctx.globalAlpha = 1;
+    }
     this.element.dataset.departure = this.board.active ? 'cycling' : 'settled';
-    if (this.board.active && !this.frame && !document.hidden) {
+    this.element.dataset.rows = this.rowsIn == null ? 'in' : 'fading';
+    if ((this.board.active || this.rowsIn != null) && !this.frame && !document.hidden) {
       this.frame = requestAnimationFrame(time => {
         this.frame = null;
         this.paint(time);
