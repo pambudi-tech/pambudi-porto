@@ -1,21 +1,24 @@
-// The welcome is a true loader: it shows only while the page loads, its
-// frame and title easing in (`fadeIn`, base.css), and leaves once loaded.
 export const PRELOADER = Object.freeze({
-  counterCatchup: 360, fadeIn: 600, exit: 320, resourceTimeout: 20000, longestFrame: 100,
+  minimum: 2000, counterCatchup: 360,
+  finalSteps: Object.freeze({ 97: 100, 98: 180, 99: 300 }),
+  completeHold: 120, exit: 320, welcomeDuration: 1000, paperDuration: 1400, resourceTimeout: 20000, longestFrame: 100,
 });
 
 // Count settled resources rather than bytes: images must be decoded, fonts
-// loaded, and scene preparation finished.
+// loaded, and scene preparation finished. The minimum display time never
+// changes this percentage; it is a separate gate before revealing the page.
 export function loadingProgress(completed, total) {
   const resources = Math.max(0, Math.min(1, completed / Math.max(1, total)));
   return Math.floor(resources * 100);
 }
 
-// Ease the display toward completed work, never ahead of it: no progress is
-// invented while requests are pending, and none is held back once done.
+export const minimumElapsed = elapsed => elapsed >= PRELOADER.minimum;
+
+// Animate the display toward completed work. Never invent new progress when
+// requests are pending; cached work still gets a deliberate 0–100 entrance.
 export class LoadingCounter {
   constructor(started) {
-    this.started = started;
+    this.origin = this.started = started;
     this.from = this.target = this.value = 0;
     this.displayed = 0;
     this.duration = 0;
@@ -33,9 +36,17 @@ export class LoadingCounter {
       this.from = this.value;
       this.target = next;
       this.started = now;
-      this.duration = PRELOADER.counterCatchup;
+      this.duration = Math.max(PRELOADER.counterCatchup, this.origin + PRELOADER.minimum - now);
     }
-    this.displayed = Math.max(this.displayed, Math.floor(this.sample(now)));
+    const value = Math.floor(this.sample(now));
+    if (value < 97) this.displayed = Math.max(this.displayed, value);
+    else if (this.displayed < 97) {
+      this.displayed = 97;
+      this.finalStepAt = now;
+    } else if (value > this.displayed && now - this.finalStepAt >= PRELOADER.finalSteps[this.displayed]) {
+      this.displayed++;
+      this.finalStepAt = now;
+    }
     return this.displayed;
   }
 }
