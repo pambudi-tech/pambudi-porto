@@ -17,11 +17,6 @@
     },
     {
       "source": "/",
-      "has": [{ "type": "query", "key": "subdomain-test" }],
-      "destination": "/card.html"
-    },
-    {
-      "source": "/",
       "destination": "/home.html"
     },
     {
