@@ -79,6 +79,17 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .gallery-active .project-fade { opacity: 0; }
 .project-gallery-seal .works-seal-label { font-size: 19px; }
 .project-route-leaving .project-gallery-seal { opacity: 0; }
+/* With no gallery images yet (project-detail.mjs), the seal is faded and
+   does not press; its tooltip says why, above it. */
+:root:not(.project-route-leaving) .project-gallery-seal[aria-disabled="true"] { opacity: .45; }
+.project-gallery-seal[aria-disabled="true"] { cursor: not-allowed; }
+.project-gallery-seal[aria-disabled="true"]:is(:hover, :active) { transform: translate(-50%, -50%); filter: drop-shadow(var(--wax-shadow-x, 0px) var(--wax-shadow-y, 2px) 2px rgb(69 0 0 / .18)); }
+.project-gallery-seal[aria-disabled="true"]::after { z-index: 3; font: 12px/1 "Syne Mono", monospace; }
+@media (hover: hover) {
+  .project-gallery-seal[data-tooltip]:hover::after { opacity: 1; transform: translate(-50%, 0); transition-delay: var(--tooltip-delay, 300ms); }
+}
+.project-gallery-seal[data-tooltip]:focus-visible::after,
+.project-gallery-seal[data-tooltip][data-feedback="true"]::after { opacity: 1; transform: translate(-50%, 0); transition-delay: 0ms; }
 /* The homepage paper's ink bleed on the project's words, each in its own colour. */
 .project-opening :is(h1, p, dt, dd) { position: relative; }
 .project-opening .ink-bleed { color: inherit; }

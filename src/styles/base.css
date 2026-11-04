@@ -350,7 +350,8 @@ body.is-loading .wax-gl { transition: none; }
 .about-profile:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
 .intro-link::after,
 .contact-link::after,
-.project-visit[data-tooltip]::after {
+.project-visit[data-tooltip]::after,
+.project-gallery-seal[data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
   bottom: calc(100% + 8px);
@@ -385,7 +386,7 @@ body.is-loading .wax-gl { transition: none; }
   transition-delay: 0ms;
 }
 /* Moving on from one showing (tooltip.mjs): no wait, no fade. */
-:is(.intro-link, .contact-link, .project-visit)[data-tooltip-instant]::after { transition: none; }
+:is(.intro-link, .contact-link, .project-visit, .project-gallery-seal)[data-tooltip-instant]::after { transition: none; }
 .intro-link:focus-visible,
 .contact-link:focus-visible { outline: 1px solid #c6434b; outline-offset: 3px; }
 .ink-linked-word { color: #c6434b; }

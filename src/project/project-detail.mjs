@@ -61,7 +61,9 @@ export function mountProjectDetail(project) {
   // A locked project's gallery waits for its PIN (mountGallery, below).
   let gallery = null;
   // Its photos wait for `after`, the cover the page is waiting on.
+  // With no images of its own yet, the seal stays, disabled, and says so.
   const mountGallery = (images, after = image.decode()) => {
+    if (!images.length) { disableSeal(document.querySelector('.project-gallery-seal')); return; }
     gallery = mountProjectGallery({
       images, title: project.title, after,
       seal: document.querySelector('.project-gallery-seal'),
@@ -131,6 +133,21 @@ function mountVisit(project) {
   }
   document.querySelector('.project-overview').append(visit);
   return visit;
+}
+
+// The gallery seal of a project with no gallery images yet: it keeps its
+// wax but does not press, and says why: on hover where there is one, on
+// focus, and for a moment after a tap.
+function disableSeal(seal) {
+  for (const [name, value] of Object.entries({
+    'aria-disabled': 'true', 'aria-label': 'gallery, coming soon', 'data-tooltip': 'gallery coming soon',
+  })) seal.setAttribute(name, value);
+  let hide;
+  seal.addEventListener('click', () => {
+    clearTimeout(hide);
+    seal.dataset.feedback = 'true';
+    hide = setTimeout(() => delete seal.dataset.feedback, 1600);
+  });
 }
 
 function alignCoverToSurface(container, figure) {

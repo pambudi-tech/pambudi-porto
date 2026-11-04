@@ -1,5 +1,5 @@
 import { WORKS, EXPLORATION } from '../../content/works.mjs';
-import { PROJECTS, STAND_IN, STAND_IN_GALLERY } from '../../content/projects/index.mjs';
+import { PROJECTS, STAND_IN } from '../../content/projects/index.mjs';
 
 export { WORKS, EXPLORATION };
 
@@ -36,7 +36,8 @@ export const fullCover = work => (work.passwordProtected
 export const projectPageHref = id => `/work.html?work=${encodeURIComponent(id)}`;
 
 // Everything a project page shows. A work without its own case study takes
-// its card's details and the stand-in's gallery. A password-protected work is
+// its card's details; one without gallery images of its own yet has its
+// cover alone, and its gallery seal waits, disabled. A password-protected work is
 // `locked`: its page has the cover alone, and its gallery comes from the
 // server once a visitor has the PIN (server/works-pass.mjs).
 export function projectPage(id) {
@@ -58,7 +59,7 @@ export function projectPage(id) {
     // but its address comes with the PIN (server/works-pass.mjs).
     privateSite: Boolean(work.passwordProtected && work.privateSite),
     facts: study?.facts ?? { client: work.client, role: work.role, period: yearLabel(work), scope: tags },
-    images: work.passwordProtected ? [cover] : [cover, ...(source.gallery ?? STAND_IN_GALLERY)],
+    images: work.passwordProtected ? [cover] : [cover, ...(study?.gallery ?? [])],
     locked: Boolean(work.passwordProtected),
     passcode: Boolean(work.passwordProtected),
   };

@@ -1,11 +1,11 @@
 // The small labels over the contact icons, the intro's links and a locked
-// "visit site" (the ::after of their [data-tooltip], base.css). The first
+// "visit site" or gallery seal (the ::after of their [data-tooltip], base.css). The first
 // waits `delay` ms, so passing over a control shows nothing; once one is
 // showing, its neighbours show at once and without a fade, and so do any
 // for `skip` ms after the last one hid.
 export const TOOLTIP = Object.freeze({ delay: 300, skip: 300 });
 
-const TRIGGER = '.intro-link, .contact-link, .project-visit[data-tooltip]';
+const TRIGGER = '.intro-link, .contact-link, .project-visit[data-tooltip], .project-gallery-seal[data-tooltip]';
 
 // The timing alone, apart from the page: `enter` says whether a trigger's
 // label shows at once, `leave` notes when a shown one hid.

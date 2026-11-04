@@ -11,7 +11,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join, normalize, sep } from 'node:path';
 import { WORKS } from '../content/works.mjs';
-import { STAND_IN_GALLERY } from '../content/projects/index.mjs';
 
 export const PASS = Object.freeze({ cookie: 'works_pass', seconds: 24 * 60 * 60, digits: 6 });
 
@@ -54,14 +53,14 @@ export const hasPass = request => passLeft(request) > 0;
 export const privateCaching = left => `private, max-age=${left}, must-revalidate`;
 
 // The gallery a pass opens: the project's private one, or until it has one,
-// the stand-in gallery.
+// none (its seal then waits, disabled).
 export async function galleryOf(id) {
   try {
     const items = JSON.parse(await readFile(join(PRIVATE, id, 'gallery.json'), 'utf8'));
     return items.map(item => ({ ...item, src: `/api/work-asset?path=${encodeURIComponent(`${id}/${item.src}`)}` }));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    return STAND_IN_GALLERY;
+    return [];
   }
 }
 

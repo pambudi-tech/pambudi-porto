@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WORKS, EXPLORATION, clockLabel, projectId, projectPage, workHref, yearLabel } from './works.mjs';
-import { STAND_IN_GALLERY } from '../../content/projects/index.mjs';
 
 test('every work has a unique id, readable months, and a cover with alt text', () => {
   const all = [...WORKS, ...EXPLORATION];
@@ -32,7 +31,7 @@ test('project pages live at /work/<id>, and only works with a page get one', () 
   assert.equal(projectPage('missing'), null);
 });
 
-test('a case study keeps its own text; one without a gallery borrows the stand-in\'s under its own cover', () => {
+test('a case study keeps its own text; one without gallery images has its cover alone', () => {
   const ocean = projectPage('ocean');
   assert.equal(ocean.title, 'Ocean by BCA');
   assert.equal(ocean.images[0].src, WORKS.find(entry => entry.id === 'ocean').image);
@@ -42,7 +41,7 @@ test('a case study keeps its own text; one without a gallery borrows the stand-i
   assert.equal(mandalika.title, 'Mandalika GP Website');
   assert.equal(mandalika.name, work.title);
   assert.equal(mandalika.images[0].src, work.image);
-  assert.deepEqual(mandalika.images.slice(1), STAND_IN_GALLERY);
+  assert.equal(mandalika.images.length, 1);
 });
 
 test('a password-protected work is locked: its page has the cover alone', () => {
