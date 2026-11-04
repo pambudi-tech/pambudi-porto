@@ -6,6 +6,21 @@
   "regions": ["sin1"],
   "rewrites": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "card.pambudi.xyz" }],
+      "destination": "/card.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "wax.pambudi.xyz" }],
+      "destination": "/seal.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "subdomain-test" }],
+      "destination": "/card.html"
+    },
+    {
       "source": "/work/:id",
       "destination": "/index.html"
     }

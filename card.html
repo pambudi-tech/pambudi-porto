@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Ivan Pambudi's card: the embossed paper from pambudi.xyz, lit live. Tap it to turn it over.">
+<title>Ivan Pambudi - Card</title>
+<!-- partial:icons -->
+<link rel="stylesheet" href="/src/card/card.css">
+</head>
+<body>
+<h1 class="sr-only">Ivan Pambudi</h1>
+<main class="space">
+  <div class="paper" tabindex="0" role="button" aria-label="Turn the card to its back">
+    <div class="paper-turn">
+      <div class="paper-face paper-front">
+        <img class="sheet" src="/assets/embossed-paper-frame.webp" srcset="/assets/embossed-paper-frame-800w.webp 800w, /assets/embossed-paper-frame.webp 1122w" sizes="min(560px, calc(100vw - 32px), calc((100dvh - 64px) * .8))" width="1122" height="1402" alt="" draggable="false" fetchpriority="high">
+      </div>
+      <div class="paper-face paper-back">
+        <img class="sheet" src="/assets/debossed-red-paper-frame.webp" srcset="/assets/debossed-red-paper-frame-800w.webp 800w, /assets/debossed-red-paper-frame.webp 1122w" sizes="min(560px, calc(100vw - 32px), calc((100dvh - 64px) * .8))" width="1122" height="1402" alt="" draggable="false">
+      </div>
+    </div>
+  </div>
+</main>
+<script type="module" src="/src/card/card.mjs"></script>
+</body>
+</html>

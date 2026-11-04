@@ -1,0 +1,45 @@
+@import "../styles/tokens.css";
+
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.space { display: grid; place-items: center; height: 100dvh; padding: 16px; }
+
+/* The card, as the homepage's paper: the pose on the outer element, the
+   turn inside it carrying both faces. */
+.paper {
+  width: min(560px, calc(100vw - 32px), calc((100dvh - 64px) * 1122 / 1402));
+  perspective: 1400px;
+  cursor: pointer;
+  outline: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform;
+}
+.paper:focus-visible .paper-turn { outline: 2px solid var(--accent); outline-offset: 12px; border-radius: 4px; }
+.paper-turn { position: relative; aspect-ratio: 1122 / 1402; transform-style: preserve-3d; will-change: transform; }
+.paper-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.paper-back { transform: rotateY(180deg); }
+.sheet {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  filter:
+    drop-shadow(calc(var(--sx, 0px) * .15) calc(var(--sy, 1.5px) * .2) calc(var(--blur, 6px) * .15) rgb(58 55 50 / calc(var(--shadow, .016) * 2)))
+    drop-shadow(calc(var(--sx, 0px) * .5) calc(var(--sy, 1.5px) * .65) calc(var(--blur, 6px) * .65) rgb(58 55 50 / calc(var(--shadow, .016) * 3)))
+    drop-shadow(var(--sx, 0px) var(--sy, 1.5px) var(--blur, 6px) rgb(58 55 50 / calc(var(--shadow, .016) * 4)));
+}
+/* The WebGL paper (paper-gl.mjs) fades in over its photograph once drawn. */
+.paper-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 600ms ease; }
+.paper-gl[data-material-ready] { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-gl { transition: none; }
+}
