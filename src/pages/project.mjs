@@ -177,10 +177,13 @@ if (preview) {
     detail.takePlace();
     await dither.ready;
   };
-  window.projectArrive = () => {
+  // `pinStays`: the project left had a PIN panel too, so this one's is
+  // simply there in its place.
+  window.projectArrive = ({ pinStays = false } = {}) => {
     dither?.run();
     detail.reveal({ slide: false });
-    pin?.arrive(ARRIVAL * .9);
+    if (pinStays) pin?.settle();
+    else pin?.arrive(ARRIVAL * .9);
   };
   window.projectSettle = () => {
     document.documentElement.classList.remove('project-overlay');

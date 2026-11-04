@@ -339,13 +339,15 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     const has = (doc, selector) => Boolean(doc.querySelector(selector)) && !doc.body.classList.contains('project-locked');
     // The top bar stays, its pill easing to the next name's width as the
     // name changes in it; the next page's own bar, the same, waits hidden
-    // until it takes over. A PIN panel leaves (the next page's own arrives
-    // as ever); the passcode tag and the seal change only where one of the
-    // two has them and the other has not.
+    // until it takes over. The PIN panel, the passcode tag and the seal
+    // change only where one of the two has them and the other has not;
+    // from one protected project to another, the panel stays put.
     const nextNav = nextPage.querySelector('.project-nav');
     nextNav.style.visibility = 'hidden';
     renameNav(page, nextPage.querySelector('.project-switch').getBoundingClientRect().width, next.work.title, time);
-    fade(page.querySelector('.project-pin'), true);
+    const pinBefore = page.querySelector('.project-pin:not(.is-leaving)'), pinAfter = nextPage.querySelector('.project-pin');
+    const pinStays = Boolean(pinBefore && pinAfter);
+    if (pinBefore && !pinStays) fade(pinBefore, true);
     // The next cover and its stitched frame lie over this one's, its dither
     // starting from this photo; where the two differ in size, this one's
     // would show around it until the page goes, so it fades beneath.
@@ -362,7 +364,10 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     frame.title = `${next.work.title} project detail`;
     // The words leave and arrive together, as the cover dithers.
     page.body.classList.add('project-switching', 'project-arriving');
-    frame.contentWindow.projectArrive();
+    frame.contentWindow.projectArrive({ pinStays });
+    // The next panel now lies exactly over this one: one panel, not two
+    // layered, so its glass stays as clear as ever.
+    if (pinStays) pinBefore.style.visibility = 'hidden';
     await new Promise(resolve => setTimeout(resolve, time(PROJECT_SWITCH.settle)));
     nextNav.style.removeProperty('visibility');
     preview.remove();
