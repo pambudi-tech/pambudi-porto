@@ -35,7 +35,7 @@ const measure = () => { rect = paper.getBoundingClientRect(); };
 // arrival, never while lighting.
 const PAPER_ASPECT = 1122 / 1402;
 const REST_LAMP = lightPosition({}, PAPER_ASPECT);
-const inkLines = [...paper.querySelectorAll('.card-copy span, .card-place')];
+const inkLines = [...paper.querySelectorAll('.card-copy span')];
 let ink = null;
 function measureInk() {
   const frame = sheets[0].getBoundingClientRect();
