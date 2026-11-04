@@ -13,7 +13,7 @@
 <h1 class="sr-only">Ivan Pambudi</h1>
 <main class="space">
   <div class="card">
-  <div class="paper" tabindex="0" role="button" aria-label="Turn the card to its back">
+  <div class="paper" tabindex="0" role="button" aria-label="Turn the card to its back" aria-describedby="card-help">
     <div class="paper-turn">
       <div class="paper-face paper-front">
         <img class="sheet" src="/assets/embossed-paper-frame.webp" srcset="/assets/embossed-paper-frame-800w.webp 800w, /assets/embossed-paper-frame.webp 1122w" sizes="min(560px, calc(100vw - 32px), calc((100dvh - 64px) * .8))" width="1122" height="1402" alt="" draggable="false" fetchpriority="high">
@@ -28,6 +28,7 @@
     <div class="dim dim-height"><span class="dim-label"><span class="sr-only">height </span><span data-dim="height"></span></span></div>
   </div>
   </div>
+  <p id="card-help" class="sr-only">Drag across the card to spin it; it settles on its front or back. The arrow keys turn it over either way.</p>
   <label class="measure"><input id="measure" type="checkbox"><span>dimensions</span></label>
 </main>
 <script type="module" src="/src/card/card.mjs"></script>

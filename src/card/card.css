@@ -16,15 +16,17 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 
 .space { display: grid; place-items: center; height: 100dvh; padding: 16px; }
 .card { position: relative; }
+.paper.spinning { cursor: grabbing; }
 
 /* The card, as the homepage's paper: the pose on the outer element, the
    turn inside it carrying both faces. */
 .paper {
   width: min(560px, calc(100vw - 32px), calc((100dvh - 120px) * 1122 / 1402));
   perspective: 1400px;
-  cursor: pointer;
+  cursor: grab;
   outline: none;
-  touch-action: manipulation;
+  /* Spun by touch too: the page itself never scrolls. */
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
   will-change: transform;
 }
