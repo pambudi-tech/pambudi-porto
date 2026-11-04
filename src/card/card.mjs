@@ -231,6 +231,8 @@ paper.addEventListener('keydown', event => {
 });
 
 // —— Dimensions ——
+// The card is shown at this size too (card.css), as far as the screen reports it.
+paper.style.setProperty('--card-height', `${CARD_HEIGHT_MM}mm`);
 const millimetres = value => `${Number(value.toFixed(2))} mm`;
 for (const [name, value] of Object.entries(CARD_MM))
   for (const label of document.querySelectorAll(`[data-dim="${name}"]`)) label.textContent = millimetres(value);

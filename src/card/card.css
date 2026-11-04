@@ -21,8 +21,13 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 /* The card, as the homepage's paper: the pose on the outer element, the
    turn inside it carrying both faces. */
 .paper {
-  /* Room around it for its dimension lines. */
-  width: min(560px, calc(100vw - 132px), calc((100dvh - 120px) * 1122 / 1402));
+  /* At its printed size: the cut card is 85 mm tall, and is 1330 of the
+     image's 1402 px (its outline's height), so the image is 85 mm × 1122 /
+     1330 wide. CSS millimetres follow the display's settings (96 CSS px to
+     the inch), so this is real size as far as the screen reports it, on a
+     phone as on a monitor: it never shrinks to fit. */
+  --card-height: 85mm;
+  width: calc(var(--card-height) * 1122 / 1330);
   perspective: 1400px;
   cursor: grab;
   outline: none;
