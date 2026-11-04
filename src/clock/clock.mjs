@@ -2,6 +2,7 @@ import { GRID } from '../stitch/model.mjs';
 import { CORNER_SIZE } from '../stitch/corners.mjs';
 import { drawActiveDots } from '../stitch/dot-matrix.mjs';
 import { DepartureBoard } from './departure-board.mjs';
+import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 
 // One matrix point corresponds to one perforation in the cloth.
@@ -49,8 +50,9 @@ const DIGITS = {
 };
 
 // The clock's entrance without the welcome: each dot fades in on its own,
-// at a random moment within `spread` ms, over `dot` ms.
-export const CLOCK_DOTS_IN = Object.freeze({ dot: 260, spread: 400 });
+// at a random moment within `spread` ms after `delay`, over `dot` ms; in
+// time with the corner ornaments stitching in around it (ENTRANCE).
+export const CLOCK_DOTS_IN = Object.freeze({ delay: ENTRANCE.delay, dot: ENTRANCE.stitch, spread: ENTRANCE.corners });
 // Each dot starts showing at once and settles, rather than easing in slowly.
 const outCubic = t => 1 - (1 - t) ** 3;
 // A dot's random start, fixed for the entrance (`seed`) so it never flickers.
@@ -60,8 +62,8 @@ const dotDelay = (col, row, seed) => {
 };
 
 // How far the dot at (col, row) has faded in, `elapsed` ms into the entrance.
-export function dotFade(col, row, elapsed, seed = 0, { dot, spread } = CLOCK_DOTS_IN) {
-  return outCubic(Math.max(0, Math.min(1, (elapsed - dotDelay(col, row, seed) * spread) / dot)));
+export function dotFade(col, row, elapsed, seed = 0, { delay = 0, dot, spread } = CLOCK_DOTS_IN) {
+  return outCubic(Math.max(0, Math.min(1, (elapsed - delay - dotDelay(col, row, seed) * spread) / dot)));
 }
 
 const textWidth = text => [...text].reduce((width, char) => width + (DIGITS[char] ?? DIGITS[' '])[0].length + 1, -1);
@@ -215,7 +217,7 @@ export class DotClock {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cells = clockGlyphCells(this.board.sample(now));
     const dotsIn = this.dotsIn && now - this.dotsIn.start;
-    if (this.dotsIn && dotsIn >= CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot) this.dotsIn = null;
+    if (this.dotsIn && dotsIn >= CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot) this.dotsIn = null;
     if (!this.dotsIn) drawActiveDots(ctx, cells, view);
     else {
       for (const cell of cells) {

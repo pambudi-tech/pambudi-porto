@@ -122,9 +122,11 @@ test('without the welcome, the clock dots fade in each at its own random moment'
   for (let col = 0; col < 12; col++) for (let row = 0; row < 5; row++) cells.push([col, row]);
   const at = (elapsed, seed = 3) => cells.map(([col, row]) => dotFade(col, row, elapsed, seed));
   assert.ok(at(0).every(alpha => alpha === 0));
-  const middle = at(CLOCK_DOTS_IN.spread / 2);
+  const middle = at(CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread / 2);
   assert.ok(middle.some(alpha => alpha > .5) && middle.some(alpha => alpha === 0), 'some dots in, others still waiting');
-  assert.deepEqual(at(CLOCK_DOTS_IN.spread / 2), middle, 'a dot keeps its moment between frames');
-  assert.notDeepEqual(at(CLOCK_DOTS_IN.spread / 2, 9), middle, 'another entrance, another pattern');
-  assert.ok(at(CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot).every(alpha => alpha === 1));
+  assert.deepEqual(at(CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread / 2), middle, 'a dot keeps its moment between frames');
+  assert.notDeepEqual(at(CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread / 2, 9), middle, 'another entrance, another pattern');
+  assert.ok(at(CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot).every(alpha => alpha === 1));
+  const { ENTRANCE } = await import('../stitch/stitch-entrance.mjs');
+  assert.equal(CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot, ENTRANCE.delay + ENTRANCE.corners + ENTRANCE.stitch, 'in time with the corners');
 });
