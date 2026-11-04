@@ -9,7 +9,7 @@ import { paperFlipKeyframes, paperFlipDirection, PAPER_FLIP } from '../paper/pap
 
 // The card's cut size: its height is set, its width follows the sheet's
 // own proportion, as drawn (its outline is 1030 × 1330 px of the image).
-const CARD_HEIGHT_MM = 850;
+const CARD_HEIGHT_MM = 85;
 const SHEET = Object.freeze({ width: 1030, height: 1330 });
 const CARD_MM = Object.freeze({ width: CARD_HEIGHT_MM * SHEET.width / SHEET.height, height: CARD_HEIGHT_MM });
 
