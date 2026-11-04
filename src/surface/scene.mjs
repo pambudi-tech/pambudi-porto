@@ -370,10 +370,10 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     // always has: settled before the page shows, it is no larger then than
     // the welcome's frame, which stays the page's largest paint. The other
     // entrances wait for the page to show (start).
-    placePaper(startedAt = performance.now()) {
+    placePaper() {
       if (placed || !sheet) return;
       placed = true;
-      sheet.place(startedAt);
+      sheet.place(performance.now());
       const settle = now => { if (!running && sheet.update(now)) requestAnimationFrame(settle); };
       requestAnimationFrame(settle);
     },

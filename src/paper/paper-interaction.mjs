@@ -141,15 +141,11 @@ export class PaperInteraction {
     }
     this.retarget();
   }
-  // Settles the sheet into place as from `startedAt`: the welcome's frame
-  // begins settling as it eases in, so by now the sheet may be well on its
-  // way, or there already.
-  place(startedAt = performance.now()) {
+  place(now = performance.now()) {
     this.mirrorActive = true;
-    const progress = this.state.reduced ? 1 : (performance.now() - startedAt) / PAPER_PLACEMENT.duration;
-    this.placementStarted = progress < 1 ? startedAt : null;
-    this.placement = progress < 1 ? paperPlacementAt(progress) : null;
-    this.element.dataset.placement = progress < 1 ? 'placing' : 'complete';
+    this.placementStarted = this.state.reduced ? null : now;
+    this.placement = paperPlacementAt(0, this.state.reduced);
+    this.element.dataset.placement = this.state.reduced ? 'complete' : 'placing';
     this.write();
     this.requestFrame?.();
   }
