@@ -116,12 +116,15 @@ test('the dot matrix draws without throwing when the page loads at zero width', 
   assert.ok(calls.length > 0);
 });
 
-test('without the welcome, the clock rows fade in from the bottom up', async () => {
-  const { rowFade, CLOCK_ROWS_IN } = await import('./clock.mjs');
-  const cells = [[0, 10], [0, 11], [0, 12], [0, 13], [0, 14]];
-  const at = elapsed => cells.map(([, row]) => rowFade(cells, elapsed)(row));
-  assert.deepEqual(at(0), [0, 0, 0, 0, 0]);
-  const early = at(CLOCK_ROWS_IN.stagger * 1.5);
-  assert.ok(early[4] > early[3] && early[3] > 0 && early[2] === 0, 'bottom row leads, top rows wait');
-  assert.deepEqual(at(CLOCK_ROWS_IN.row + 4 * CLOCK_ROWS_IN.stagger), [1, 1, 1, 1, 1]);
+test('without the welcome, the clock dots fade in each at its own random moment', async () => {
+  const { dotFade, CLOCK_DOTS_IN } = await import('./clock.mjs');
+  const cells = [];
+  for (let col = 0; col < 12; col++) for (let row = 0; row < 5; row++) cells.push([col, row]);
+  const at = (elapsed, seed = 3) => cells.map(([col, row]) => dotFade(col, row, elapsed, seed));
+  assert.ok(at(0).every(alpha => alpha === 0));
+  const middle = at(CLOCK_DOTS_IN.spread / 2);
+  assert.ok(middle.some(alpha => alpha > .5) && middle.some(alpha => alpha === 0), 'some dots in, others still waiting');
+  assert.deepEqual(at(CLOCK_DOTS_IN.spread / 2), middle, 'a dot keeps its moment between frames');
+  assert.notDeepEqual(at(CLOCK_DOTS_IN.spread / 2, 9), middle, 'another entrance, another pattern');
+  assert.ok(at(CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot).every(alpha => alpha === 1));
 });

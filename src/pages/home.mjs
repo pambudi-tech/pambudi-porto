@@ -78,10 +78,10 @@ async function boot() {
     welcome.ready();
     await welcome.finish(show);
   } else {
-    // With no welcome counter to roll over, the clock's rows fade in, from
-    // the bottom up, as the page shows.
+    // With no welcome counter to roll over, the clock's dots fade in, each
+    // at its own random moment, as the page shows.
     clock.finishLoading({ immediate: true });
-    clock.fadeInRows();
+    clock.fadeInDots();
     show();
   }
   pageShown();
