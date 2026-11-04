@@ -1,16 +1,35 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && mv dist/index.html dist/home.html",
   "outputDirectory": "dist",
   "regions": ["sin1"],
   "rewrites": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "card.pambudi.xyz" }],
+      "destination": "/card.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "wax.pambudi.xyz" }],
+      "destination": "/seal.html"
+    },
+    {
+      "source": "/",
+      "destination": "/home.html"
+    },
+    {
       "source": "/work/:id",
-      "destination": "/index.html"
+      "destination": "/home.html"
     }
   ],
   "redirects": [
+    {
+      "source": "/home.html",
+      "destination": "/",
+      "permanent": true
+    },
     {
       "source": "/ocean.html",
       "destination": "/work/ocean",
