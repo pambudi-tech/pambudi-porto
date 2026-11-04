@@ -26,7 +26,7 @@
   position: absolute;
   opacity: 0;
   translate: 0 var(--arrive, -8px);
-  transition: opacity 420ms ease calc(var(--i) * 80ms), translate 620ms cubic-bezier(.22, 1, .36, 1) calc(var(--i) * 80ms);
+  transition: opacity 420ms ease calc(var(--i) * 80ms), translate 620ms var(--ease-out) calc(var(--i) * 80ms);
 }
 .works-item[data-shelf="bottom"] { --arrive: 8px; }
 .works-gallery.is-open .works-item { opacity: 1; translate: 0 0; }
@@ -107,7 +107,7 @@
   pointer-events: none;
   scale: .88;
   opacity: 0;
-  transition: opacity 200ms ease, scale 360ms cubic-bezier(.22, 1, .36, 1), transform .16s ease, filter .16s ease;
+  transition: opacity 200ms ease, scale 360ms var(--ease-out), transform .16s ease, filter .16s ease;
 }
 .works-details .works-seal-label { font-size: var(--seal-label-size, 16px); }
 .works-item.is-active .works-details { opacity: 1; scale: 1; }
@@ -211,7 +211,7 @@
   font: 12px/1 "Syne Mono", monospace;
   white-space: nowrap;
   pointer-events: none;
-  animation: works-status-in 320ms ease both;
+  animation: works-status-in 320ms var(--ease-out) both;
 }
 @keyframes works-status-in { from { opacity: 0; translate: -50% -4px; } }
 

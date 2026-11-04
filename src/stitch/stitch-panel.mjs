@@ -1,5 +1,7 @@
+import { EASE_OUT } from '../shared/motion.mjs';
+
 // Shared by entry, exit, mode changes and expanding free-stitch controls.
-export const STITCH_PANEL_MOTION = { duration: 240, easing: 'cubic-bezier(.22, 1, .36, 1)' };
+export const STITCH_PANEL_MOTION = { duration: 240, easing: EASE_OUT };
 
 export class StitchPanel {
   constructor(element, motionPreference) {

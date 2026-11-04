@@ -4,6 +4,7 @@ import { mountProjectGallery } from './project-gallery.mjs';
 import { heroSize, snapToCloth } from './hero-layout.mjs';
 import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { FRAME_SWEEP } from './project-stitches.mjs';
+import { EASE_OUT } from '../shared/motion.mjs';
 
 // How long the hero takes to arrive once revealed, in ms: its stitched frame,
 // the slowest part.
@@ -74,7 +75,7 @@ export function mountProjectDetail(project) {
     if (!item.focus) return;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     image.animate([{ objectPosition: '50% 50%' }, { objectPosition: item.focus }], {
-      duration: reduced ? 0 : 900, delay: reduced ? 0 : 120, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards',
+      duration: reduced ? 0 : 900, delay: reduced ? 0 : 120, easing: EASE_OUT, fill: 'forwards',
     });
   };
   // As the cover first shows, its passcode tag drops out from under the

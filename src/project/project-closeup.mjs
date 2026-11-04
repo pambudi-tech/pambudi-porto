@@ -1,4 +1,5 @@
 import { clamp } from '../shared/math.mjs';
+import { EASE_OUT } from '../shared/motion.mjs';
 
 // A gallery image seen up close, as under a loupe: it grows out of its stamp
 // to fill the screen, and shrinks back into it. A click zooms in where it
@@ -7,14 +8,14 @@ import { clamp } from '../shared/math.mjs';
 // or "back" returns to the gallery.
 export const CLOSEUP = Object.freeze({
   duration: 640, // ms the image takes to grow out of its stamp, or back
-  swap: 420,     // ms one image takes to give way to the next
+  swap: 280,     // ms one image takes to give way to the next
   zoom: 2.5,     // the furthest a click zooms in
   most: 4,       // the furthest a pinch or the wheel zooms in
   swipe: 60,     // px a swipe travels to go to the next image
   drag: 4,       // px a press travels before it is a drag, not a click
 });
 
-const EASE = 'cubic-bezier(.22, 1, .36, 1)';
+const EASE = EASE_OUT;
 // Growing out of its stamp and back, as gently as the gallery's own flights.
 const GROW = 'cubic-bezier(.65, 0, .35, 1)';
 
@@ -164,9 +165,10 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     place();
     const duration = time(CLOSEUP.swap);
     frame.animate([px(from), px(box)], { duration, easing: EASE });
-    old.animate([{ translate: '0 0', opacity: 1 }, { translate: `${-direction * 8}% 0`, opacity: 0 }], { duration, easing: EASE, fill: 'forwards' })
+    // A little blur as they cross, so the two read as one image changing.
+    old.animate([{ translate: '0 0', opacity: 1, filter: 'blur(0)' }, { translate: `${-direction * 8}% 0`, opacity: 0, filter: 'blur(2px)' }], { duration, easing: EASE, fill: 'forwards' })
       .finished.catch(() => {}).then(() => old.remove());
-    image.animate([{ translate: `${direction * 8}% 0`, opacity: 0 }, { translate: '0 0', opacity: 1 }], { duration, easing: EASE });
+    image.animate([{ translate: `${direction * 8}% 0`, opacity: 0, filter: 'blur(2px)' }, { translate: '0 0', opacity: 1, filter: 'blur(0)' }], { duration, easing: EASE });
   }
 
   const pointIn = event => {
