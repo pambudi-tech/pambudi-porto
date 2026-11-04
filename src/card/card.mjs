@@ -4,6 +4,14 @@ import { paperFlipKeyframes, paperFlipDirection, PAPER_FLIP } from '../paper/pap
 
 // The card: the homepage's paper on its own. A mouse anywhere on the page
 // brings the lamp to it; over the sheet it tilts; a tap turns it over.
+// One checkbox shows its dimensions, for a printer; ?dimensions in the
+// address opens the page with them showing.
+
+// The card's cut size: its height is set, its width follows the sheet's
+// own proportion, as drawn (its outline is 1030 × 1330 px of the image).
+const CARD_HEIGHT_MM = 850;
+const SHEET = Object.freeze({ width: 1030, height: 1330 });
+const CARD_MM = Object.freeze({ width: CARD_HEIGHT_MM * SHEET.width / SHEET.height, height: CARD_HEIGHT_MM });
 
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
 const paper = document.querySelector('.paper');
@@ -86,6 +94,21 @@ paper.addEventListener('keydown', event => {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
   turnOver(1);
+});
+
+// —— Dimensions ——
+const millimetres = value => `${Number(value.toFixed(2))} mm`;
+for (const [name, value] of Object.entries(CARD_MM)) document.querySelector(`[data-dim="${name}"]`).textContent = millimetres(value);
+const measuring = document.querySelector('#measure');
+const showDimensions = on => document.body.classList.toggle('measuring', on);
+measuring.checked = new URLSearchParams(location.search).has('dimensions');
+showDimensions(measuring.checked);
+measuring.addEventListener('change', () => {
+  showDimensions(measuring.checked);
+  const url = new URL(location.href);
+  if (measuring.checked) url.searchParams.set('dimensions', '');
+  else url.searchParams.delete('dimensions');
+  history.replaceState(null, '', url.href.replace('dimensions=', 'dimensions'));
 });
 
 new ResizeObserver(() => { measure(); request(); }).observe(paper);

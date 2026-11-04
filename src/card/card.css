@@ -1,5 +1,13 @@
 @import "../styles/tokens.css";
 
+@font-face {
+  font-family: "Syne Mono";
+  src: url("/assets/fonts/syne-mono-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -7,11 +15,12 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .space { display: grid; place-items: center; height: 100dvh; padding: 16px; }
+.card { position: relative; }
 
 /* The card, as the homepage's paper: the pose on the outer element, the
    turn inside it carrying both faces. */
 .paper {
-  width: min(560px, calc(100vw - 32px), calc((100dvh - 64px) * 1122 / 1402));
+  width: min(560px, calc(100vw - 32px), calc((100dvh - 120px) * 1122 / 1402));
   perspective: 1400px;
   cursor: pointer;
   outline: none;
@@ -36,10 +45,93 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
     drop-shadow(calc(var(--sx, 0px) * .5) calc(var(--sy, 1.5px) * .65) calc(var(--blur, 6px) * .65) rgb(58 55 50 / calc(var(--shadow, .016) * 3)))
     drop-shadow(var(--sx, 0px) var(--sy, 1.5px) var(--blur, 6px) rgb(58 55 50 / calc(var(--shadow, .016) * 4)));
 }
+/* Measuring, the card makes room for its dimension lines. */
+.measuring .paper { width: min(560px, calc(100vw - 132px), calc((100dvh - 200px) * 1122 / 1402)); }
+
+/* Dimension lines, drawn to the sheet's cut outline within its image
+   (its alpha's bounds: 45–1075 × 37–1367 of 1122 × 1402). They stay level
+   while the card tilts and turns. */
+.dims {
+  --left: 4.011%;
+  --right: 4.189%;
+  --top: 2.639%;
+  --bottom: 2.496%;
+  --offset: 30px;
+  --gap: 6px;
+  position: absolute;
+  inset: 0;
+  color: var(--ink);
+  font: 12px/1 var(--mono);
+  letter-spacing: .02em;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .25s ease, visibility 0s .25s;
+}
+.measuring .dims { opacity: 1; visibility: visible; transition: opacity .25s ease; }
+.dim { position: absolute; }
+.dim::before, .dim::after { content: ""; position: absolute; }
+/* Width: a line above the card, extension lines down to its outline. */
+.dim-width {
+  left: var(--left);
+  right: var(--right);
+  top: calc(var(--top) - var(--offset));
+  border-top: 1px solid currentColor;
+}
+.dim-width::before, .dim-width::after {
+  top: -6px;
+  height: calc(var(--offset) + 6px - var(--gap));
+  border-left: 1px solid currentColor;
+}
+.dim-width::before { left: 0; }
+.dim-width::after { right: 0; }
+/* Height: a line to the card's right, extension lines across to its outline. */
+.dim-height {
+  top: var(--top);
+  bottom: var(--bottom);
+  right: calc(var(--right) - var(--offset));
+  border-right: 1px solid currentColor;
+}
+.dim-height::before, .dim-height::after {
+  right: -6px;
+  width: calc(var(--offset) + 6px - var(--gap));
+  border-top: 1px solid currentColor;
+}
+.dim-height::before { top: 0; }
+.dim-height::after { bottom: 0; }
+.dim-label {
+  position: absolute;
+  padding: 2px 6px;
+  background: var(--paper);
+  white-space: nowrap;
+}
+.dim-width .dim-label { left: 50%; top: 0; transform: translate(-50%, -50%); }
+.dim-height .dim-label { right: 0; top: 50%; transform: translate(50%, -50%) rotate(90deg); }
+
+/* The one control: show the dimensions. */
+.measure {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  transform: translateX(-50%);
+  color: var(--ink);
+  font: 13px/1 var(--mono);
+  text-transform: lowercase;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.measure input { width: 15px; height: 15px; margin: 0; accent-color: var(--ink); cursor: pointer; }
+.measure input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 /* The WebGL paper (paper-gl.mjs) fades in over its photograph once drawn. */
 .paper-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 600ms ease; }
 .paper-gl[data-material-ready] { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-  .paper-gl { transition: none; }
+  .paper-gl, .dims, .measuring .dims { transition: none; }
 }
