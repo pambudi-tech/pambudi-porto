@@ -5,8 +5,7 @@ import { paperFlipKeyframes, paperFlipDirection, PAPER_FLIP } from '../paper/pap
 // The card: the homepage's paper on its own. A mouse anywhere on the page
 // brings the lamp to it; over the sheet it tilts; a tap turns it over, and
 // a drag spins it in place.
-// One checkbox shows its dimensions, for a printer; ?dimensions in the
-// address opens the page with them showing.
+// Its dimensions, for a printer, are always drawn on it.
 
 // The card's cut size: its height is set, its width follows the sheet's
 // own proportion, as drawn (its outline is 1030 × 1330 px of the image).
@@ -196,18 +195,10 @@ paper.addEventListener('keydown', event => {
 
 // —— Dimensions ——
 const millimetres = value => `${Number(value.toFixed(2))} mm`;
-for (const [name, value] of Object.entries(CARD_MM)) document.querySelector(`[data-dim="${name}"]`).textContent = millimetres(value);
-const measuring = document.querySelector('#measure');
-const showDimensions = on => document.body.classList.toggle('measuring', on);
-measuring.checked = new URLSearchParams(location.search).has('dimensions');
-showDimensions(measuring.checked);
-measuring.addEventListener('change', () => {
-  showDimensions(measuring.checked);
-  const url = new URL(location.href);
-  if (measuring.checked) url.searchParams.set('dimensions', '');
-  else url.searchParams.delete('dimensions');
-  history.replaceState(null, '', url.href.replace('dimensions=', 'dimensions'));
-});
+for (const [name, value] of Object.entries(CARD_MM))
+  for (const label of document.querySelectorAll(`[data-dim="${name}"]`)) label.textContent = millimetres(value);
+document.querySelector('[data-dim-summary]').textContent =
+  `The card measures ${millimetres(CARD_MM.width)} wide by ${millimetres(CARD_MM.height)} high.`;
 
 new ResizeObserver(() => { measure(); request(); }).observe(paper);
 addEventListener('scroll', measure, { passive: true });
