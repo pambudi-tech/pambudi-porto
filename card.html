@@ -7,6 +7,8 @@
 <meta name="description" content="Ivan Pambudi's card: the embossed paper from pambudi.xyz, lit live. Tap it to turn it over.">
 <title>Ivan Pambudi - Card</title>
 <!-- partial:icons -->
+<link rel="preload" href="/assets/fonts/geist-regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/geist-medium.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/src/card/card.css">
 </head>
 <body>
@@ -18,6 +20,12 @@
       <div class="paper-edge" aria-hidden="true"><i class="edge" style="--i: 0"></i><i class="edge" style="--i: 1"></i><i class="edge" style="--i: 2"></i><i class="edge" style="--i: 3"></i><i class="edge" style="--i: 4"></i><i class="edge" style="--i: 5"></i><i class="edge" style="--i: 6"></i><i class="edge" style="--i: 7"></i></div>
       <div class="paper-face paper-front">
         <img class="sheet" src="/assets/embossed-paper-frame.webp" srcset="/assets/embossed-paper-frame-800w.webp 800w, /assets/embossed-paper-frame.webp 1122w" sizes="min(560px, calc(100vw - 132px), calc((100dvh - 120px) * .8))" width="1122" height="1402" alt="" draggable="false" fetchpriority="high">
+        <!-- Printed on the white side; read aloud from the address below. -->
+        <div class="card-copy" aria-hidden="true">
+          <p class="card-who"><span class="card-name">ivan pambudi</span><span>ui &amp; brand designer</span></p>
+          <p class="card-contact"><span>pambudi.xyz</span><span>ivan@pambudi.xyz</span><span>+62 878-4000-9811</span><span>@____pambudi</span></p>
+          <p class="card-place">surakarta, idn</p>
+        </div>
         <div class="dims" aria-hidden="true">
           <div class="dim dim-width"><span class="dim-label" data-dim="width"></span></div>
           <div class="dim dim-height"><span class="dim-label" data-dim="height"></span></div>
@@ -33,6 +41,7 @@
     </div>
   </div>
   </div>
+  <address class="sr-only">Ivan Pambudi, UI and brand designer. pambudi.xyz. ivan@pambudi.xyz. +62 878-4000-9811. @____pambudi on X. Surakarta, Indonesia.</address>
   <p id="card-help" class="sr-only">Drag across the card to spin it; it settles on its front or back. The arrow keys turn it over either way. <span data-dim-summary></span></p>
 </main>
 <script type="module" src="/src/card/card.mjs"></script>
