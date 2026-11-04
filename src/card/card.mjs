@@ -231,8 +231,44 @@ paper.addEventListener('keydown', event => {
 });
 
 // —— Dimensions ——
-// The card is shown at this size too (card.css), as far as the screen reports it.
-paper.style.setProperty('--card-height', `${CARD_HEIGHT_MM}mm`);
+// —— Real size ——
+// A page can't learn a screen's physical size: CSS millimetres assume 96
+// CSS px to the inch, and most laptops and phones are denser, so they come
+// out short. Matching a bank card on screen gives this screen's own scale,
+// kept in this browser; until then the card shows at CSS size.
+const SCALE_KEY = 'card.pambudi.xyz/scale';
+const readScale = () => {
+  try {
+    const value = parseFloat(localStorage.getItem(SCALE_KEY));
+    return value >= .5 && value <= 2.5 ? value : 1;
+  } catch { return 1; }
+};
+const showAtScale = scale => paper.style.setProperty('--card-height', `${(CARD_HEIGHT_MM * scale).toFixed(3)}mm`);
+let scale = readScale();
+showAtScale(scale);
+
+const dialog = document.querySelector('.calibrate');
+const slider = dialog.querySelector('input[type="range"]');
+const preview = value => {
+  slider.value = value;
+  dialog.style.setProperty('--scale', String(value));
+};
+document.querySelector('.calibrate-open').addEventListener('click', () => {
+  preview(scale);
+  dialog.showModal();
+});
+slider.addEventListener('input', () => preview(Number(slider.value)));
+for (const button of dialog.querySelectorAll('[data-step]')) button.addEventListener('click', () => {
+  const next = Number(slider.value) + Number(button.dataset.step) * .002;
+  preview(Math.min(2.5, Math.max(.5, next)).toFixed(3));
+});
+dialog.querySelector('[data-reset]').addEventListener('click', () => preview(1));
+dialog.querySelector('[data-done]').addEventListener('click', () => {
+  scale = Number(slider.value);
+  try { localStorage.setItem(SCALE_KEY, String(scale)); } catch { /* kept for this visit only */ }
+  showAtScale(scale);
+  dialog.close();
+});
 const millimetres = value => `${Number(value.toFixed(2))} mm`;
 for (const [name, value] of Object.entries(CARD_MM))
   for (const label of document.querySelectorAll(`[data-dim="${name}"]`)) label.textContent = millimetres(value);

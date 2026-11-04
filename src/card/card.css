@@ -159,6 +159,65 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .card-copy p { display: flex; flex-direction: column; align-items: center; margin: 0; }
 .card-who span:not(.card-name) { color: #7f7e74; }
 
+/* —— Calibration: matching a bank card, so the card shows at true size —— */
+.calibrate-open {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: 12px/1 var(--mono);
+  cursor: pointer;
+}
+.calibrate-open:hover { color: var(--ink); }
+.calibrate-open:focus-visible, .calibrate button:focus-visible, .calibrate input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.calibrate {
+  --scale: 1;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 22px 20px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 13px/1.5 var(--mono);
+  text-align: center;
+  box-shadow: 0 12px 40px rgb(58 55 50 / .12);
+}
+.calibrate::backdrop { background: rgb(255 255 255 / .82); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.calibrate h2 { margin: 0 0 6px; font-size: 15px; font-weight: 400; }
+.calibrate p { margin: 0 auto 16px; max-width: 30ch; color: var(--muted); }
+/* A bank card upright (53.98 × 85.60 mm, 3.18 mm corners), so it fits a
+   phone's width as well as a monitor's. */
+.bank-card {
+  width: calc(53.98mm * var(--scale));
+  height: calc(85.6mm * var(--scale));
+  margin: 0 auto 18px;
+  border: 1.5px solid var(--accent);
+  border-radius: calc(3.18mm * var(--scale));
+  background:
+    linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat;
+}
+.calibrate-scale { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.calibrate-scale input { flex: 1; accent-color: var(--ink); }
+.calibrate button {
+  min-width: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.calibrate button:hover { border-color: var(--muted); }
+.calibrate-actions { display: flex; justify-content: center; gap: 10px; }
+.calibrate [data-done] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
 /* The WebGL paper (paper-gl.mjs) fades in over its photograph once drawn. */
 .paper-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 600ms ease; }
 .paper-gl[data-material-ready] { opacity: 1; }
