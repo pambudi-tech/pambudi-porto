@@ -1,4 +1,5 @@
-import { PaperGL } from '../paper/paper-gl.mjs';
+import { PaperGL, lightPosition } from '../paper/paper-gl.mjs';
+import { inkBrightness } from '../paper/paper-ink-light.mjs';
 import { paperTarget, advancePaper } from '../paper/paper-motion.mjs';
 import { paperFlipKeyframes, paperFlipDirection, PAPER_FLIP } from '../paper/paper-flip.mjs';
 
@@ -26,6 +27,40 @@ let pose = target(), angle = 0, turning = null, rect = null;
 // Read on resize and scroll only, never while drawing.
 const measure = () => { rect = paper.getBoundingClientRect(); };
 
+// —— The printed lines ——
+// They take the paper's lamp as the homepage's ink does (paper-ink-light.mjs):
+// a touch lighter as it comes over a line, with a faint sheen right beneath
+// it, a touch darker as it moves away, and their own colour at rest. Where
+// each line sits on the sheet is read once, after a resize or the font's
+// arrival, never while lighting.
+const PAPER_ASPECT = 1122 / 1402;
+const REST_LAMP = lightPosition({}, PAPER_ASPECT);
+const inkLines = [...paper.querySelectorAll('.card-copy span, .card-place')];
+let ink = null;
+function measureInk() {
+  const frame = sheets[0].getBoundingClientRect();
+  if (!frame.height) return null;
+  return inkLines.map(element => {
+    const box = element.getBoundingClientRect();
+    return { element, brightness: 1, at: [(box.left + box.width / 2 - frame.left - frame.width / 2) / frame.height,
+      (box.top + box.height / 2 - frame.top - frame.height / 2) / frame.height] };
+  });
+}
+function lightInk() {
+  if (showing() !== 0) return;
+  ink ??= measureInk();
+  if (!ink) return;
+  const lamp = lightPosition(pose, PAPER_ASPECT);
+  for (const line of ink) {
+    const brightness = inkBrightness(line.at, lamp, REST_LAMP);
+    // Small changes wait for a larger one, except the return to rest.
+    if (brightness === line.brightness || (brightness !== 1 && Math.abs(brightness - line.brightness) < .004)) continue;
+    line.brightness = brightness;
+    line.element.style.filter = brightness === 1 ? '' : `brightness(${brightness.toFixed(3)})`;
+  }
+}
+document.fonts.ready.then(() => { ink = null; request(); });
+
 // The face showing: the front at 0°, the back at 180°.
 const showing = () => (angle === 180 ? 1 : 0);
 
@@ -47,6 +82,7 @@ function write() {
   shade(showing());
   // Turned round twice over, the back faces the viewer unmirrored: the same lamp.
   faces[showing()].draw(pose);
+  lightInk();
 }
 
 let frame = null, last = null;
@@ -200,7 +236,7 @@ for (const [name, value] of Object.entries(CARD_MM))
 document.querySelector('[data-dim-summary]').textContent =
   `The card measures ${millimetres(CARD_MM.width)} wide by ${millimetres(CARD_MM.height)} high.`;
 
-new ResizeObserver(() => { measure(); request(); }).observe(paper);
+new ResizeObserver(() => { measure(); ink = null; request(); }).observe(paper);
 addEventListener('scroll', measure, { passive: true });
 measure();
 write();
