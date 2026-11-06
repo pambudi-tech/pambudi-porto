@@ -460,10 +460,11 @@
 .works-filter-count { color: var(--muted); font-size: 11px; }
 .works-filter-item[aria-checked="true"]::after { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 
-/* The sheet: the band scrolls down, fading at its edges; no dots. */
+/* The sheet: the band scrolls down, fading under the bar; no dots. */
 .works-gallery.is-sheet .works-scroll {
   overflow: hidden auto;
-  mask-image: linear-gradient(transparent, #000 20px, #000 calc(100% - 28px), transparent);
+  /* Soft under the bar only; at the bottom the stamps run off the screen. */
+  mask-image: linear-gradient(transparent, #000 20px);
 }
 .works-gallery.is-sheet .works-dots { display: none; }
 @media (pointer: coarse), (max-width: 540px) {

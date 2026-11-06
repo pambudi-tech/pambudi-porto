@@ -526,12 +526,13 @@ export class WorksGallery {
   }
 
   // The sheet: the same stamps, at one height, wrapped into lines centred
-  // across the screen, in a band from under the bar to near the bottom, where
-  // the clock was, that scrolls down.
+  // across the screen, in a band from under the bar to the bottom of the
+  // screen, where the clock was, that scrolls down.
   layoutSheet({ top, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
-    // With the clock away, the band runs to two stitches above the bottom.
-    const bottom = innerHeight - 2 * pitch;
+    // With the clock away, the band runs to the bottom of the screen, where
+    // the stamps scroll off its edge.
+    const bottom = innerHeight;
     Object.assign(this.scroller.style, { top: `${top}px`, bottom: `${Math.max(0, innerHeight - bottom)}px` });
     const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
     const side = snapCol(stacked ? 16 : Math.max(48, width * .06), Math.round);
