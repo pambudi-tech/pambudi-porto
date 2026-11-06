@@ -3,9 +3,9 @@ import { EASE_OUT } from '../shared/motion.mjs';
 import { stampOutline } from '../works/postage-stamp.mjs';
 
 // A gallery image seen up close, as under a loupe: it grows out of its stamp
-// to fill the screen, and shrinks back into it. A tap anywhere closes it
-// (zoomed in, the first tap zooms back out); a pinch, the trackpad or + and
-// - zoom by degrees, and a drag or the wheel pans. The arrows, the side
+// to fill the screen, and shrinks back into it. A click on the image zooms
+// in where it lands and out again, a tap anywhere around it closes it; a
+// drag or the wheel pans, a pinch zooms by degrees. The arrows, the side
 // buttons or a swipe go to the next image, endlessly, round from the last to
 // the first, and Escape or "back" returns to the gallery.
 export const CLOSEUP = Object.freeze({
@@ -13,6 +13,7 @@ export const CLOSEUP = Object.freeze({
   swap: 280,     // ms one image takes to give way to the next
   most: 4,       // the furthest a pinch or the wheel zooms in
   swipe: 60,     // px a swipe travels to go to the next image
+  zoom: 2.5,     // the furthest a click zooms in
   drag: 4,       // px a press travels before it is a drag, not a click
   perf: 18,      // px between perforations up close; `perfPhone` on phones
   perfPhone: 14,
@@ -192,9 +193,8 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     return { x: event.clientX - left, y: event.clientY - top };
   };
 
-  // One finger or the mouse: a tap closes, or zooms back out first when
-  // zoomed in; a drag pans when zoomed and swipes to a neighbour when not.
-  // Two fingers pinch.
+  // One finger or the mouse: a click zooms, a drag pans when zoomed and
+  // swipes to a neighbour when not. Two fingers pinch.
   const pointers = new Map();
   let press = null, pinch = null;
   frame.addEventListener('pointerdown', event => {
@@ -235,8 +235,8 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     press = null;
     if (event.type === 'pointercancel') { image.style.translate = ''; return; }
     if (!moved) {
-      if (view.scale > 1.01) show(FIT, true);
-      else close();
+      // A click zooms in where it lands, or back out.
+      show(view.scale > 1.01 ? FIT : zoomAt(view, pointIn(event), CLOSEUP.zoom, box), true);
       return;
     }
     if (before.scale > 1.01) return;
