@@ -16,8 +16,6 @@
 //   disabled, for the PIN; its address is private/works/<id>/site.txt.
 // - `coverFocus` is where the project page's cover holds the photo in its
 //   stamp, as an object-position; a little above the centre when left out.
-// - Covers from Unsplash are temporary samples.
-const unsplash = id => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&h=900&q=80`;
 
 export const WORKS = [
   { id: 'bca-prioritas', title: 'bca prioritas', client: 'bank central asia', tags: ['website', 'art direction', 'prototype'],
@@ -58,22 +56,40 @@ export const WORKS = [
     alt: 'Mandalika GP website on a desktop monitor resting on a motorcycle wheel: the MotoGP riders standing, above the last session results, on a red gradient' },
 ];
 
-// Exploration: personal studies and play, shown by the gallery's toggle.
-// All samples for now; none has a page yet, so their cards do not open.
+// Exploration: personal studies and play, shown by the row's toggle. None
+// has a page: a card opens its piece large over the row, at its own shape
+// (`width` and `height`, the image's pixels), and steps through the rest.
+// They carry no dates, so their cards show no years.
+const exploration = (id, title, tags, width, height, alt) =>
+  ({ id, title, tags, width, height, alt, image: `/assets/exploration/${id}.webp` });
+
 export const EXPLORATION = [
-  { id: 'soft-forms', title: 'soft forms', client: 'personal', tags: ['3d study'], role: 'exploration',
-    summary: 'sample: rounded shapes lit like fabric.',
-    from: '2026-07', to: null, image: unsplash('1618005182384-a83a8bd57fbe'), alt: 'Sample cover: an abstract colour study' },
-  { id: 'night-signal', title: 'night signal', client: 'personal', tags: ['light study'], role: 'exploration',
-    summary: 'sample: neon light, long exposures.',
-    from: '2025-12', to: '2026-02', image: unsplash('1550684376-efcbd6e3f031'), alt: 'Sample cover: an abstract light study' },
-  { id: 'paint-drift', title: 'paint drift', client: 'personal', tags: ['colour study'], role: 'exploration',
-    summary: 'sample: poured paint, read as a palette.',
-    from: '2025-06', to: '2025-08', image: unsplash('1541701494587-cb58502866ab'), alt: 'Sample cover: an abstract paint study' },
-  { id: 'gradient-weather', title: 'gradient weather', client: 'personal', tags: ['motion study'], role: 'exploration',
-    summary: 'sample: gradients that move like the sky.',
-    from: '2024-11', to: '2025-01', image: unsplash('1557672172-298e090bd0f1'), alt: 'Sample cover: an abstract gradient study' },
-  { id: 'colour-field', title: 'colour field', client: 'personal', tags: ['type and colour'], role: 'exploration',
-    summary: 'sample: one colour, many weights of type.',
-    from: '2024-03', to: '2024-06', image: unsplash('1579546929518-9e396f3cc809'), alt: 'Sample cover: an abstract colour field' },
+  exploration('alpha-basketball-academy', 'alpha basketball academy', ['brand identity'], 1920, 1440,
+    'Alpha Basketball Academy moodboard: “where Champions are made” in red script over a hoop on a cream wall, the ball-seam crest in cream on black, a red court from above, a pile of basketballs and the academy name in heavy capitals'),
+  exploration('bellingham-card', 'bellingham card', ['card design'], 2000, 1500,
+    'A gold player card for Jude Bellingham, rated 86 as a central midfielder, with his six stats and the England, LaLiga and Real Madrid badges'),
+  exploration('player-of-the-match', 'player of the match', ['sports graphics'], 2000, 1500,
+    'Three Euro 2024 Player of the Match cards, for N’Golo Kanté, Cody Gakpo and Jude Bellingham, each in its team’s colours with the match, score and minutes played'),
+  exploration('hurts-mvp', 'hurts mvp', ['poster'], 1600, 2000,
+    'Super Bowl LIX MVP poster for Jalen Hurts: his face and two throwing poses in Eagles green, his name in grainy white and green script, and his passing and rushing stats down the side'),
+  exploration('jerusalem', 'jerusalem', ['poster', 'lettering'], 2000, 1500,
+    'A framed poster leaning on a wall: the Dome of the Rock mirrored top and bottom in black ink, “Jerusalem” as a turquoise blackletter ambigram across the middle, and its coordinates in each corner'),
+  exploration('dari-langit', 'dari langit', ['album cover'], 1954, 1492,
+    'An album cover held up in one hand: two engraved portraits cut out over old Indonesian banknotes, with “DAR 1L4N617” typed on a folded note'),
+  exploration('leaderboard', 'leaderboard', ['app design'], 2000, 1512,
+    'Two phones showing a football training leaderboard: the top three on silver, gold and bronze shields, the ranks below, and the viewer’s own place at number 8 in purple'),
+  exploration('logofolio', 'logofolio', ['logo design'], 1330, 1022,
+    'Logofolio: eight glowing white marks on black, among them a ball-seam crest, a flame, a flowing R and a tall monogram, under “Logofolio” in dark blackletter'),
+  exploration('lusail-circuit', 'lusail circuit', ['web design'], 2000, 1500,
+    'A Formula 1 GP Qatar 2025 web page for the Lusail International Circuit: the track drawn in glowing red over the circuit’s name, with its length, corners and lap record'),
+  exploration('campeon', 'campeón', ['social media'], 2000, 1500,
+    'Three campeón news posts on a pink gradient: Chelsea’s new shirt sponsor, the Racing Bulls’ magenta Miami livery and Kaká in Adidas and Kith, each with a photo cut on the diagonal above a condensed headline'),
+  exploration('natuno-design-academy', 'natuno design academy', ['sticker design'], 2000, 1500,
+    'Natuno Design Academy stickers in orange and green: a varsity arch badge, an N block, a “Class of AI” pennant, a script “Academy” and a hexagonal monogram badge'),
+  exploration('padel-booking', 'padel booking', ['app design'], 2000, 1500,
+    'Two phones showing a padel court booking app in dark green: picking a day, time and court, then a booking review with the match option, a split bill and the subtotal'),
+  exploration('squircle-flags', 'squircle flags', ['icon design'], 2000, 1511,
+    'Four glossy squircle flag icons, Germany, Scotland, Hungary and Switzerland, over a pale script letter'),
+  exploration('direction-matters', 'direction matters', ['sticker design', 'motion'], 1000, 800,
+    'Animated: the Direction Matters sticker pack, its title on an orange label, then a horse in sunglasses saying “don’t ride blind”, a pixel cursor reaching a hand, and a tarot-style “The Navigator”'),
 ];

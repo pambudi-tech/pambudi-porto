@@ -4,6 +4,7 @@ import { WORKS, EXPLORATION, clockLabel, fullCover, workHref, yearLabel } from '
 import { clockTextLayout } from '../clock/clock.mjs';
 import { paperTarget, advancePaper } from '../paper/paper-motion.mjs';
 import { transitionToProject } from './project-transition.mjs';
+import { mountCloseup } from '../project/project-closeup.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
@@ -20,6 +21,17 @@ export const WHEEL_GLIDE = 140;
 // How far a pressed card gives, and the least time a press shows.
 export const CARD_PRESS = Object.freeze({ scale: .97, hold: 120 });
 
+
+// A card's width when it keeps its photo's own shape (exploration, which
+// gives each piece's size): the window takes the photo's aspect at the row's
+// shared height, and the paper keeps its margin, in whole perforations.
+export function ownShapeWidth(aspect, height, inset, perf) {
+  return Math.max(perf * 4, Math.round(((height - inset * 2) * aspect + inset * 2) / perf) * perf);
+}
+
+// A piece that gives its own size (exploration) keeps its shape, and its
+// card shows the picture alone: no number, title or tags.
+const ownShape = work => work.width > 0 && work.height > 0;
 
 export function halfFlipKeyframes(half) {
   const frames = half === 'away' ? paperFlipKeyframes(0, 180) : paperFlipKeyframes(-180, 0);
@@ -65,8 +77,9 @@ export class WorksGallery {
     this.dots.setAttribute('aria-label', 'Works');
     root.append(this.dots);
     frontSeal.addEventListener('click', () => this.open());
+    // Up close, Escape and the wheel are the close-up's.
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && this.isOpen) this.close();
+      if (event.key === 'Escape' && this.isOpen && !this.closeupOpen) this.close();
     }, { signal });
     addEventListener('popstate', () => {
       if (location.pathname.startsWith('/work/')) return;
@@ -79,7 +92,7 @@ export class WorksGallery {
     // The row scrolls sideways, freely. It lies over the cloth without taking
     // its pointer, so the wheel is passed on and the cloth stays stitchable.
     addEventListener('wheel', event => {
-      if (!this.isOpen) return;
+      if (!this.isOpen || this.closeupOpen) return;
       event.preventDefault();
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       this.glideBy(event.deltaMode === 1 ? delta * 40 : delta);
@@ -89,6 +102,7 @@ export class WorksGallery {
   }
 
   get reduced() { return this.motionPreference.matches; }
+  get closeupOpen() { return Object.values(this.closeups ?? {}).some(closeup => closeup.isOpen()); }
   get stacked() { return isPhone(innerWidth); }
 
   // Removes the gallery's window and document listeners.
@@ -108,7 +122,7 @@ export class WorksGallery {
     if (href) link.href = href;
     else link.setAttribute('aria-disabled', 'true');
     link.tabIndex = 0;
-    link.setAttribute('aria-label', `${work.title}, ${work.tags.join(', ')}, ${yearLabel(work)}${work.passwordProtected ? ', passcode protected' : ''}`);
+    link.setAttribute('aria-label', [work.title, ...work.tags, yearLabel(work), work.passwordProtected && 'passcode protected'].filter(Boolean).join(', '));
     // The photograph fills the stamp, over its paper.
     const frame = document.createElement('span');
     frame.className = 'works-frame';
@@ -131,9 +145,12 @@ export class WorksGallery {
     const stamp = createPostageStamp(`works-paper-${work.id}`, 'works-stamp');
     // Its place in the collection, blind-embossed into the photo's bottom
     // left: on the frame itself, so it can blend with the photo.
-    const number = Object.assign(document.createElement('span'), { className: 'works-number', textContent: String(index + 1).padStart(2, '0') });
-    number.setAttribute('aria-hidden', 'true');
-    frame.append(picture, stamp, number, cardText(work));
+    frame.append(picture, stamp);
+    if (!ownShape(work)) {
+      const number = Object.assign(document.createElement('span'), { className: 'works-number', textContent: String(index + 1).padStart(2, '0') });
+      number.setAttribute('aria-hidden', 'true');
+      frame.append(number, cardText(work));
+    }
     // Work with a page shows a wax "details" seal in the middle of its photo
     // on hover: the homepage's seal and its light, without its wax-flow entrance.
     let seal = null;
@@ -329,16 +346,23 @@ export class WorksGallery {
     // The paper's height follows its 4:3 window, to the nearest perforation.
     const inset = Math.round(perf * STAMP.margin);
     const h = Math.round(((w - inset * 2) / ratio + inset * 2) / perf) * perf;
-    // Every card shares one size, so one stamp outline serves them all. The
-    // photo fills the whole stamp, cut to its perforations, over the paper;
-    // the text keeps to where the paper's margin would be.
+    // Every card shares one height. Works share one width too; a piece that
+    // gives its own size (exploration) keeps its shape, whole, with no room
+    // to slide (ownShapeWidth). The photo fills the whole stamp, cut to its
+    // perforations, over the paper; the text keeps to where the paper's
+    // margin would be.
     this.window = stampShape(w, h, perf);
-    const outline = stampOutline(w, h, perf);
+    const outlines = new Map();
+    const outlineOf = width => outlines.get(width) ?? outlines.set(width, stampOutline(width, h, perf)).get(width);
     for (const entry of this.items) {
-      entry.stamp.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      entry.ownShape = ownShape(entry.work);
+      entry.w = entry.ownShape ? ownShapeWidth(entry.work.width / entry.work.height, h, this.window.inset, perf) : w;
+      const outline = outlineOf(entry.w);
+      entry.stamp.setAttribute('viewBox', `0 0 ${entry.w} ${h}`);
       entry.stamp.lastChild.setAttribute('d', outline);
       entry.picture.style.clipPath = `path('${outline}')`;
       entry.frame.style.setProperty('--inset', `${this.window.inset}px`);
+      if (entry.ownShape) entry.frame.style.setProperty('--photo-overscan', '1');
       entry.frame.style.height = `${h}px`;
     }
     // Upright screens keep the two rows in a band near the middle, rather
@@ -350,6 +374,7 @@ export class WorksGallery {
     let x = left, previous = null;
     this.cards = [];
     this.items.forEach((entry, index) => {
+      const cw = entry.w;
       // The last two cards close the row with a zig-zag rather than half a
       // pair: each takes the shelf opposite the card before it, out at that
       // shelf's far edge.
@@ -378,7 +403,7 @@ export class WorksGallery {
       for (let moved = true; moved;) {
         moved = false;
         for (const other of this.cards) {
-          const overlaps = x < other.x + other.w + CARD_GUARD.gap && other.x < x + w + CARD_GUARD.gap
+          const overlaps = x < other.x + other.w + CARD_GUARD.gap && other.x < x + cw + CARD_GUARD.gap
             && y < other.y + other.h + other.tail + CARD_GUARD.gap && other.y < y + h + tail + CARD_GUARD.gap;
           if (!overlaps) continue;
           const below = snapRow(other.y + other.h + other.tail + CARD_GUARD.gap, Math.ceil);
@@ -389,8 +414,8 @@ export class WorksGallery {
           moved = true;
         }
       }
-      Object.assign(entry.item.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
-      previous = { x, y, w, h, tail, shelf };
+      Object.assign(entry.item.style, { left: `${x}px`, top: `${y}px`, width: `${cw}px` });
+      previous = { x, y, w: cw, h, tail, shelf };
       this.cards.push(previous);
     });
     const end = x + previous.w;
@@ -522,7 +547,7 @@ export class WorksGallery {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     this.cards.forEach((card, index) => {
       const entry = this.items[index];
-      entry.parallax = this.reduced ? 0 : -clamp((card.x + card.w / 2 - centre) / innerWidth, -1, 1) * card.w * PHOTO_PARALLAX;
+      entry.parallax = this.reduced || entry.ownShape ? 0 : -clamp((card.x + card.w / 2 - centre) / innerWidth, -1, 1) * card.w * PHOTO_PARALLAX;
       // Whole device pixels keep the dither dots sharp as the photo slides.
       entry.image.style.translate = `${Math.round(entry.parallax * dpr) / dpr}px 0`;
       if (this.glitched === entry) this.glitcher.canvas.style.translate = entry.image.style.translate;
@@ -642,7 +667,35 @@ export class WorksGallery {
     if (this.departing) return;
     // Touch has no hover, so a tap opens the work at once, without the seal.
     if (workHref(entry.work)) transitionToProject(this, entry, { seal: event.pointerType !== 'touch' });
+    else if (entry.ownShape) this.openPiece(entry);
     else this.activate(entry);
+  }
+
+  // A piece without a page (exploration) grows out of its card, whole, over
+  // the row; the arrows step through the rest of its collection, and the row
+  // follows, so "back" returns the piece shown to its own card. One close-up
+  // per collection, made when first wanted.
+  openPiece(entry) {
+    const items = this.items;
+    this.closeups ??= {};
+    const closeup = this.closeups[this.collection] ??= mountCloseup({
+      images: items.map(({ work }) => ({ src: work.image, width: work.width, height: work.height, alt: work.alt })),
+      motionPreference: this.motionPreference,
+      sourceOf: index => items[index].frame,
+      onIndex: index => this.jumpTo(index),
+      onClose: () => {},
+    });
+    this.activate(null);
+    closeup.open(items.indexOf(entry));
+  }
+
+  // Straight to a card, unseen, under the close-up.
+  jumpTo(index) {
+    const card = this.cards?.[index];
+    if (!card) return;
+    this.gliding = false;
+    this.scroller.scrollLeft = clamp(card.x + card.w / 2 - innerWidth / 2, 0, this.scroller.scrollWidth - this.scroller.clientWidth);
+    this.paint();
   }
 }
 

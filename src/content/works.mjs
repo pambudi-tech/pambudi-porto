@@ -8,16 +8,22 @@ const year = month => Number(month.slice(0, 4));
 export const workHref = work => work.page ? `/work/${work.id}` : null;
 
 // "2024—26", "2025—now", or one year when it starts and ends in the same one.
+// Undated exploration has none.
 export const yearLabel = work => {
+  if (!work.from) return '';
   const from = year(work.from), to = work.to ? year(work.to) : 'now';
   return from === to ? String(from) : `${from}—${to === 'now' ? to : String(to).slice(2)}`;
 };
 
-// The dot clock's capitals: "OCEAN BY BCA 2024-2026".
+// The dot clock's capitals: "OCEAN BY BCA 2024-2026". Undated work shows its
+// title alone; accents are dropped, so "campeón" reads CAMPEON.
 export const clockLabel = (work, short = false) => {
-  const from = year(work.from), to = work.to ? year(work.to) : 'now';
-  const years = from === to ? String(from) : `${from}-${to}`;
-  return `${work.title}${short ? '' : ` ${years}`}`.toUpperCase().replace(/[^A-Z0-9 -]/g, '').replace(/\s+/g, ' ').trim();
+  let years = '';
+  if (work.from && !short) {
+    const from = year(work.from), to = work.to ? year(work.to) : 'now';
+    years = from === to ? ` ${from}` : ` ${from}-${to}`;
+  }
+  return `${work.title}${years}`.normalize('NFD').toUpperCase().replace(/[^A-Z0-9 -]/g, '').replace(/\s+/g, ' ').trim();
 };
 
 // Where a project page's cover holds its photo in the stamp, as an

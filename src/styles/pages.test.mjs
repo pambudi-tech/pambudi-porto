@@ -14,7 +14,7 @@ test('each page links one stylesheet, so the build cannot regroup the cascade', 
 
 test('page styles import the base first and the postage stamp before what restacks it', () => {
   const home = imports(read('src/styles/pages/home.css'));
-  assert.deepEqual(home, ['base', 'postage-stamp', 'works', 'project-transition']);
+  assert.deepEqual(home, ['base', 'postage-stamp', 'works', 'project-transition', 'closeup']);
   const work = imports(read('src/styles/pages/work.css'));
   assert.equal(work[0], 'base');
   assert.ok(work.indexOf('postage-stamp') < work.indexOf('project-detail'));

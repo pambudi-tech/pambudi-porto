@@ -80,6 +80,10 @@
   user-select: none;
   -webkit-user-drag: none;
 }
+/* Its piece is up close (src/project/project-closeup.mjs), grown out of it. */
+.works-frame.is-closeup-source { visibility: hidden; }
+/* Up close, the row's top bar and dots step aside for the close-up's own. */
+.closeup-open .works-gallery.is-open :is(.works-nav, .works-dots) { opacity: 0; pointer-events: none; }
 /* Blank until its dithered photo is ready. */
 .works-window img:not([src]) { visibility: hidden; }
 /* The hovered card's glitch (dither.mjs), lying exactly over the photo.

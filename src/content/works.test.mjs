@@ -2,14 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WORKS, EXPLORATION, clockLabel, projectId, projectPage, workHref, yearLabel } from './works.mjs';
 
-test('every work has a unique id, readable months, and a cover with alt text', () => {
+test('every work has a unique id, readable months, and a cover with alt text; exploration its own size', () => {
   const all = [...WORKS, ...EXPLORATION];
   assert.equal(new Set(all.map(work => work.id)).size, all.length);
-  for (const work of all) {
+  for (const work of WORKS) {
     assert.match(work.from, /^\d{4}-(0[1-9]|1[0-2])$/, work.id);
     if (work.to !== null) assert.ok(work.to >= work.from, work.id);
-    assert.ok(work.image && work.alt, work.id);
   }
+  for (const work of all) assert.ok(work.image && work.alt, work.id);
+  for (const work of EXPLORATION) assert.ok(work.width > 0 && work.height > 0 && !work.page, work.id);
 });
 
 test('year labels and clock messages read the months as years', () => {
@@ -19,6 +20,9 @@ test('year labels and clock messages read the months as years', () => {
   assert.equal(clockLabel(ocean, true), 'OCEAN BY BCA');
   assert.equal(yearLabel({ from: '2025-10', to: null }), '2025—now');
   assert.equal(yearLabel({ from: '2023-05', to: '2023-07' }), '2023');
+  const campeon = EXPLORATION.find(work => work.id === 'campeon');
+  assert.equal(yearLabel(campeon), '');
+  assert.equal(clockLabel(campeon), 'CAMPEON');
 });
 
 test('project pages live at /work/<id>, and only works with a page get one', () => {
@@ -27,7 +31,7 @@ test('project pages live at /work/<id>, and only works with a page get one', () 
   assert.equal(projectId('/work/ocean'), 'ocean');
   assert.equal(projectId('/work/ocean/'), 'ocean');
   assert.equal(projectId('/ocean.html'), null);
-  assert.equal(projectPage('soft-forms'), null);
+  assert.equal(projectPage('logofolio'), null);
   assert.equal(projectPage('missing'), null);
 });
 
