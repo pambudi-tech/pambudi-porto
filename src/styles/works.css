@@ -15,6 +15,8 @@
 .works-scroll {
   position: absolute;
   inset: 0;
+  /* Its own stack: a lifted card stays under the bar and the veils. */
+  z-index: 0;
   overflow: auto hidden;
   overscroll-behavior: contain;
   scrollbar-width: none;

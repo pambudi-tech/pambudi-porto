@@ -1,5 +1,6 @@
 import { clamp } from '../shared/math.mjs';
 import { EASE_OUT } from '../shared/motion.mjs';
+import { stampOutline } from '../works/postage-stamp.mjs';
 
 // A gallery image seen up close, as under a loupe: it grows out of its stamp
 // to fill the screen, and shrinks back into it. A click zooms in where it
@@ -13,6 +14,8 @@ export const CLOSEUP = Object.freeze({
   most: 4,       // the furthest a pinch or the wheel zooms in
   swipe: 60,     // px a swipe travels to go to the next image
   drag: 4,       // px a press travels before it is a drag, not a click
+  perf: 18,      // px between perforations up close; `perfPhone` on phones
+  perfPhone: 14,
 });
 
 const EASE = EASE_OUT;
@@ -60,13 +63,25 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
   root.innerHTML = '<div class="project-closeup-backdrop"></div>'
-    + '<div class="project-closeup-frame"></div>'
+    + '<div class="project-closeup-frame"><div class="project-closeup-paper"></div></div>'
     + '<div class="project-closeup-bar"><button class="project-closeup-back" type="button">back</button><span class="project-closeup-count" aria-live="polite"></span></div>'
     + '<button class="project-closeup-step" type="button" data-step="-1" aria-label="Previous image"></button>'
     + '<button class="project-closeup-step" type="button" data-step="1" aria-label="Next image"></button>';
   document.body.append(root);
   const backdrop = root.querySelector('.project-closeup-backdrop');
   const frame = root.querySelector('.project-closeup-frame');
+  // The image lies on a postage stamp's paper, cut to its perforations by
+  // the cards' own outline (postage-stamp.mjs): holes evenly spaced from
+  // corner to corner, a quarter bite at each. It is redrawn at every size the
+  // frame takes, growing or shrinking, before that size is drawn. The frame
+  // carries the paper's shadow.
+  const paper = frame.firstChild;
+  new ResizeObserver(([entry]) => {
+    const { width, height } = entry.contentRect;
+    if (!width || !height) return;
+    const perf = innerWidth <= 760 ? CLOSEUP.perfPhone : CLOSEUP.perf;
+    paper.style.clipPath = `path('${stampOutline(width, height, perf)}')`;
+  }).observe(paper);
   const back = root.querySelector('.project-closeup-back');
   const count = root.querySelector('.project-closeup-count');
   const steps = [...root.querySelectorAll('.project-closeup-step')];
@@ -91,7 +106,7 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     // Asked for as its stamp asked (project-gallery.mjs), so the photo
     // already fetched and decoded there is the one shown.
     const img = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', src: item.src, alt: item.alt, draggable: false, decoding: 'async' });
-    frame.append(img);
+    paper.append(img);
     return img;
   }
 
@@ -108,7 +123,7 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     const source = sourceOf(index), from = rectOf(source);
     root.hidden = false;
     document.body.classList.add('closeup-open');
-    frame.replaceChildren();
+    paper.replaceChildren();
     image = picture(index);
     show(FIT);
     label();
@@ -141,7 +156,7 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     root.getAnimations({ subtree: true }).forEach(animation => animation.cancel());
     root.hidden = true;
     document.body.classList.remove('closeup-open');
-    frame.replaceChildren();
+    paper.replaceChildren();
     active = -1;
     closing = false;
     image = null;
