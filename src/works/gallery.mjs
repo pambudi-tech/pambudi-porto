@@ -43,6 +43,9 @@ export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far
   return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
 }
 
+// The veil under the bar on the sheet: how far its colours part, in pixels.
+export const WORKS_VEIL = Object.freeze({ split: 3 });
+
 // The tags of `works`, most used first, then by name, with their counts.
 export function tagCounts(works) {
   const counts = new Map();
@@ -126,6 +129,7 @@ export class WorksGallery {
     this.toggles[0].parentElement.prepend(this.togglePill);
     // Beside it the row or the sheet, and under it a filter by tag.
     this.tools = this.makeTools();
+    this.veil = this.makeVeil();
     // Above the clock: a dot per stamp, the current one filled; a dot glides
     // the row to its stamp.
     this.dots = Object.assign(document.createElement('nav'), { className: 'works-dots' });
@@ -157,7 +161,12 @@ export class WorksGallery {
       this.glideBy(event.deltaMode === 1 ? delta * 40 : delta);
     }, { passive: false, signal });
     // A native scroll (a swipe, or the keyboard) is drawn in the same frame loop.
-    this.scroller.addEventListener('scroll', () => this.paint(), { passive: true });
+    this.scroller.addEventListener('scroll', () => {
+      this.paint();
+      // The veil under the bar shows once the sheet has scrolled under it.
+      const scrolled = this.sheet && this.scroller.scrollTop > 2;
+      if (scrolled !== this.scrolled) this.root.classList.toggle('is-scrolled', this.scrolled = scrolled);
+    }, { passive: true });
   }
 
   get reduced() { return this.motionPreference.matches; }
@@ -529,6 +538,8 @@ export class WorksGallery {
   // across the screen, filling it from under the bar and scrolling down.
   layoutSheet({ top, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
+    // The veil reaches from the top to where the first line starts.
+    this.veil.style.setProperty('--veil-height', `${top}px`);
     // The sheet fills the screen: its first line starts under the bar, and
     // the stamps scroll up under the bar's solid pills and off the bottom
     // edge, where the clock was.
@@ -642,6 +653,32 @@ export class WorksGallery {
     group.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
   }
 
+  // Behind the bar on the sheet, a band that blurs the stamps passing under
+  // it and parts their colours a little at the edges, as a lens does, fading
+  // out toward the stamps below. Where a filter cannot work on what lies
+  // behind it (Safari, Firefox), the band only blurs.
+  makeVeil() {
+    const veil = Object.assign(document.createElement('div'), { className: 'works-veil' });
+    veil.setAttribute('aria-hidden', 'true');
+    this.nav.before(veil);
+    const chromium = navigator.userAgentData?.brands?.some(brand => brand.brand === 'Chromium');
+    if (chromium && !document.getElementById('works-aberration')) {
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      defs.setAttribute('class', 'works-veil-filters');
+      defs.setAttribute('aria-hidden', 'true');
+      const channel = (row, offset, name) => `<feColorMatrix in="SourceGraphic" type="matrix" values="${row}" result="${name}"/>`
+        + (offset ? `<feOffset in="${name}" dx="${offset}" result="${name}"/>` : '');
+      defs.innerHTML = '<filter id="works-aberration" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">'
+        + channel('1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0', -WORKS_VEIL.split, 'red')
+        + channel('0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0', 0, 'green')
+        + channel('0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0', WORKS_VEIL.split, 'blue')
+        + '<feBlend in="red" in2="green" mode="screen" result="rg"/><feBlend in="rg" in2="blue" mode="screen"/></filter>';
+      document.body.append(defs);
+    }
+    if (chromium) veil.classList.add('is-aberrant');
+    return veil;
+  }
+
   // The view switch: in the top bar, or on phones under it, before the filter.
   placeViews() {
     if (this.stacked) { if (this.views.parentElement !== this.tools) this.tools.prepend(this.views); }
@@ -699,6 +736,8 @@ export class WorksGallery {
       this.view = view;
       this.markView();
       this.root.classList.toggle('is-sheet', this.sheet);
+      this.root.classList.remove('is-scrolled');
+      this.scrolled = false;
       this.syncClock();
     });
   }
