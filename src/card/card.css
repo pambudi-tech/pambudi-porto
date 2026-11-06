@@ -132,6 +132,16 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 }
 .dim-width .dim-label { left: 50%; top: 0; transform: translate(-50%, -50%); }
 .dim-height .dim-label { right: 0; top: 50%; transform: translate(50%, -50%) rotate(90deg); }
+/* Which side this is, under the card, centred on it as the width is above. */
+.dim-side {
+  position: absolute;
+  left: var(--left);
+  right: var(--right);
+  top: calc(100% - var(--bottom) + var(--offset));
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+}
 
 /* The card's printed lines, centred inside the embossed frame, in Syne
    Mono, the site's own type, at 0 tracking with open leading. Sized in cqw, a share of the
