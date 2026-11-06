@@ -1,0 +1,56 @@
+/* The colophon: above the homepage's top, on the red of the paper's back,
+   shown when the page is pulled down past it (src/colophon/colophon-pull.mjs).
+   It waits just over the screen's top edge and drops with the page. Its
+   title sits at its lower edge, by the page, so it is the first thing seen. */
+.colophon {
+  --colophon-red: #bb2b2e;
+  position: fixed;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  max-height: 82dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: calc(28px + env(safe-area-inset-top, 0px)) clamp(20px, 6vw, 48px) 20px;
+  background: var(--colophon-red);
+  /* The page's edge lies over the red as it drops away; above, the red goes
+     on, for a pull past the colophon's own height. */
+  box-shadow: inset 0 -12px 14px -12px rgb(0 0 0 / .32), 0 -50vh 0 50vh var(--colophon-red);
+  color: #fff2df;
+  font-family: "Syne Mono", monospace;
+  font-size: 14px;
+  line-height: 1.45;
+  outline: none;
+  touch-action: pan-y;
+}
+.colophon::-webkit-scrollbar { display: none; }
+.colophon[hidden] { display: flex; visibility: hidden; }
+.colophon > * { flex-shrink: 0; width: 100%; max-width: 560px; margin-inline: auto; }
+
+/* Read top to bottom: the note, the rows, then the title by the page. */
+.colophon-note { order: 1; margin-top: 0; margin-bottom: 1.6em; opacity: .7; }
+.colophon-list { order: 2; margin-block: 0; }
+.colophon-heading { order: 3; display: flex; align-items: baseline; justify-content: space-between; gap: 1em; margin-top: 1.6em; }
+.colophon-heading h2 { margin: 0; font: inherit; font-size: 16px; }
+.colophon-back {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+.colophon-back:hover { text-decoration-thickness: 2px; }
+.colophon-back:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
+
+.colophon-row { display: grid; grid-template-columns: 6ch 1fr; gap: 1.5ch; }
+.colophon-row + .colophon-row { margin-top: .5em; }
+.colophon-row dt { opacity: .7; }
+.colophon-row dd { margin: 0; }

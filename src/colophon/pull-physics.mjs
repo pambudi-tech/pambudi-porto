@@ -1,0 +1,67 @@
+// The homepage's one hidden extra: pulled down past its top, the page drops
+// like rubber and shows the colophon above it (colophon-pull.mjs). These are the
+// pure numbers behind that pull, kept apart so they can be tested.
+
+export const PULL = Object.freeze({
+  // How hard the page resists: the iOS rubber-band constant.
+  resistance: .55,
+  // A touch owns the pull once it has travelled this far, mostly downward.
+  commit: 12,
+  // Starting on the paper, only a flick pulls (px/ms); a slower drag still
+  // tilts the sheet, as it always has.
+  paperFlick: .6,
+  // Let go past this share of the screen's height and the colophon stays out.
+  openShare: .16,
+  // Or let go while still moving down this fast (px/ms), past the first peek.
+  flick: .8,
+  peek: 40,
+  // The wheel and trackpad: the pull ends once the wheel has been still this long.
+  wheelRest: 140,
+  // The colophon takes at most this share of the screen; the page stays in sight below it.
+  maxShare: .82,
+  // The spring that carries the page out and back, the same both ways.
+  stiffness: 320,
+});
+
+// How far the page drops for a pull of `distance` px, against a screen `size` px tall:
+// it follows the finger at first and gives less and less the further it goes.
+export function rubberBand(distance, size) {
+  if (distance <= 0 || size <= 0) return 0;
+  return (1 - 1 / (distance * PULL.resistance / size + 1)) * size;
+}
+
+// The pull a lift came from: rubberBand's inverse, so a pull can pick up
+// where a spring left the page.
+export function pullFor(lift, size) {
+  if (lift <= 0 || size <= 0) return 0;
+  const share = Math.min(lift / size, .999);
+  return size * (1 / (1 - share) - 1) / PULL.resistance;
+}
+
+// Whether a pull let go at `lift`, moving down at `velocity` px/ms, opens the colophon.
+export function opensAt(lift, velocity, size) {
+  return lift >= size * PULL.openShare || (lift >= PULL.peek && velocity >= PULL.flick);
+}
+
+// Whether a touch that moved (dx, dy) from where it went down (dy > 0 is
+// down) in `elapsed` ms is a pull. On the paper it must be a flick.
+export function isPull(dx, dy, elapsed, { onPaper = false } = {}) {
+  if (dy < PULL.commit || dy < Math.abs(dx) * 1.5) return false;
+  return !onPaper || dy / Math.max(elapsed, 1) >= PULL.paperFlick;
+}
+
+// One step of a critically damped spring toward `target`: no overshoot past
+// it, so the page never rises past where it rests. Velocities are px/ms.
+export function springStep(position, velocity, target, elapsed) {
+  const omega = Math.sqrt(PULL.stiffness) / 1000;
+  const t = Math.min(elapsed, 64);
+  const offset = position - target;
+  const k = velocity + omega * offset;
+  const decay = Math.exp(-omega * t);
+  const next = target + (offset + k * t) * decay;
+  const nextVelocity = (velocity - omega * k * t) * decay;
+  return { position: next, velocity: nextVelocity };
+}
+
+// Settled: close enough and slow enough to stop drawing.
+export const springSettled = (position, velocity, target) => Math.abs(position - target) < .5 && Math.abs(velocity) < .02;

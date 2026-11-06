@@ -90,6 +90,13 @@ async function boot() {
   surface.removeAttribute('aria-busy');
   document.body.dataset.ready = 'true';
   document.getElementById('preloader')?.remove();
+  // The page pulled down past its top shows the colophon (colophon-pull.mjs);
+  // its code comes after the page is up.
+  import('../colophon/colophon-pull.mjs').then(({ ColophonPull }) => new ColophonPull({
+    scene, motionPreference: preference,
+    panel: document.getElementById('colophon'),
+    layers: [surface, document.getElementById('portfolio-clock')],
+  })).catch(error => console.warn('Colophon:', error));
   if (works) return;
   const row = await makeWorks();
   if (location.hash === '#works') row.open({ history: false });

@@ -8,6 +8,7 @@ import { SITE, contactHref } from '../content/site.mjs';
 //   <!-- site:social -->               Open Graph and Twitter link-preview tags
 //   <!-- site:paper-copy -->           introduction and contact icons
 //   <!-- site:about -->                About Me on the back of the paper
+//   <!-- site:colophon -->             "about this porto", above the homepage's top
 //   <!-- partial:name -->              src/partials/name.html
 
 const escape = text => String(text).replace(/[&<>"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[character]);
@@ -67,6 +68,21 @@ export function about() {
   ].join('\n');
 }
 
+// The colophon, above the homepage's top (src/colophon/colophon-pull.mjs).
+export function colophon() {
+  const { title, rows, note } = SITE.colophon;
+  return [
+    '<header class="colophon-heading">',
+    `  <h2 id="colophon-title">${escape(title)}</h2>`,
+    '  <button class="colophon-back" type="button" aria-label="Back to the page">back</button>',
+    '</header>',
+    '<dl class="colophon-list">',
+    ...rows.map(([label, detail]) => `  <div class="colophon-row"><dt>${escape(label)}</dt><dd>${escape(detail)}</dd></div>`),
+    '</dl>',
+    `<p class="colophon-note">${escape(note)}</p>`,
+  ].join('\n');
+}
+
 function social() {
   const { url, title, description, image } = SITE;
   const tags = [
@@ -94,7 +110,7 @@ export function fillHtml(html, { root }) {
     .replaceAll('%site.title%', escape(SITE.title))
     .replaceAll('%site.description%', escape(SITE.description))
     .replace(/^([ \t]*)<!-- site:social -->/gm, (_, space) => indent(space + social(), space.length))
-    .replace(/^([ \t]*)<!-- site:(paper-copy|about) -->/gm, (_, space, name) => indent(space + (name === 'about' ? about() : paperCopy()), space.length))
+    .replace(/^([ \t]*)<!-- site:(paper-copy|about|colophon) -->/gm, (_, space, name) => indent(space + ({ about, colophon, 'paper-copy': paperCopy })[name](), space.length))
     .replace(/^([ \t]*)<!-- partial:([\w-]+) -->/gm, (_, space, name) => indent(space + readFileSync(new URL(`src/partials/${name}.html`, root), 'utf8').trimEnd(), space.length));
 }
 

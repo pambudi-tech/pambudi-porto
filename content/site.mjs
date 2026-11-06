@@ -42,6 +42,23 @@ export const SITE = {
     profile: 'linkedin',
     signature: { src: '/assets/ivan-signature.webp', srcset: '/assets/ivan-signature-320w.webp 320w, /assets/ivan-signature.webp 640w', sizes: '160px', width: 640, height: 371, alt: 'Ivan Pambudi’s signature' },
   },
+
+  // The homepage's hidden extra: pull the page down past its top and this
+  // shows on red above it (src/colophon/). A row per part of the site.
+  colophon: {
+    title: 'about this porto',
+    rows: [
+      ['built', '2026, by ivan, with claude'],
+      ['type', 'syne mono'],
+      ['paper', 'modelled in blender, relit live in webgl, no engine'],
+      ['seal', 'wax poured in blender, lit by the paper’s own lamp'],
+      ['cloth', 'every stitch on a grid; tap it to add yours'],
+      ['dove', 'flies on its own, rests on the corners when you do'],
+      ['clock', 'your local time, in dots'],
+      ['stack', 'vite, plain javascript, vercel'],
+    ],
+    note: 'you pulled past the top. nothing else up here, thanks for looking.',
+  },
 };
 
 export const contactHref = id => SITE.contacts.find(contact => contact.id === id)?.href;

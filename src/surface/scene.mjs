@@ -484,6 +484,30 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       bird?.setVisible(!away, away ? { duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH, immediate: instant } : { immediate: instant });
       requestFrame({ stitches: true });
     },
+    // Whether the page may be pulled down past its top (colophon-pull.mjs): as
+    // it first opens, the paper's white side up and nothing else open.
+    canLift() {
+      return running && Boolean(scene.paper) && !scene.surfaceOnly
+        && sheet.element.dataset.paperSide !== 'red' && sheet.element.dataset.flipping !== 'true'
+        && !scene.controls.isOpen && scene.pointers.size <= 1 && !scene.suppressTouch && scene.freePointer == null;
+    },
+    get stitchMode() { return scene.stitchMode; },
+    paperContains(x, y) { return Boolean(scene.paper?.contains(x, y)); },
+    announce,
+    // A touch or wheel the pull took over: its tap, its long-press, its press
+    // on the paper and the hover it drew are let go, as though it had never
+    // touched, and the sheet's lamp goes back to rest.
+    letGo(pointerId = null) {
+      scene.cancelTap();
+      if (pointerId != null) {
+        scene.pointers.delete(pointerId);
+        if (surface.hasPointerCapture(pointerId)) surface.releasePointerCapture(pointerId);
+      }
+      scene.paper?.reset();
+      scene.paper?.dim();
+      scene.hover = null;
+      requestFrame();
+    },
     setMessage(message = '') {
       clock?.setMessage(message);
       requestFrame();
