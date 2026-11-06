@@ -43,6 +43,9 @@ export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far
   return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
 }
 
+// On phones the sheet's stamps keep this far, in px, from the screen's sides.
+export const SHEET_PHONE_SIDE = 16;
+
 // The veils at the sheet's top and bottom edges: each layer blurs by `blur`
 // px, parts red and blue `split` px either way (Chromium), and fades out by
 // `reach` of the band's depth, measured from the edge.
@@ -553,7 +556,11 @@ export class WorksGallery {
     this.scroller.style.removeProperty('top');
     this.scroller.style.removeProperty('bottom');
     const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
-    const side = snapCol(stacked ? 16 : Math.max(48, width * .06), Math.round);
+    // On phones the stamps keep exactly SHEET_PHONE_SIDE px from the screen's
+    // sides, sized to fit rather than to whole perforations, and each line of
+    // two is justified to those edges. Wider screens keep to the holes.
+    const exact = stacked;
+    const side = exact ? SHEET_PHONE_SIDE : snapCol(Math.max(48, width * .06), Math.round);
     const room = width - side * 2;
     const gap = Math.max(pitch, Math.round((stacked ? 14 : 28) / pitch) * pitch);
     const { columns } = EXPLORATION_VIEW;
@@ -561,7 +568,8 @@ export class WorksGallery {
     // One height for every card: a 4:3 piece fills a column's width.
     const column = (room - gap * (count - 1)) / count;
     // Rounded down, so whole perforations never push a 4:3 card past its column.
-    const h = Math.max(perf * 4, Math.floor(((column - inset * 2) / STAMP.window + inset * 2) / perf) * perf);
+    const h = exact ? (column - inset * 2) / STAMP.window + inset * 2
+      : Math.max(perf * 4, Math.floor(((column - inset * 2) / STAMP.window + inset * 2) / perf) * perf);
     this.window = stampShape(Math.round(column / perf) * perf, h, perf);
     const outlines = new Map();
     const outlineOf = w => outlines.get(w) ?? outlines.set(w, stampOutline(w, h, perf)).get(w);
@@ -569,7 +577,9 @@ export class WorksGallery {
       // Exploration's pieces keep their own shape; works keep the 4:3 window
       // their project's cover shares.
       const own = ownShape(entry.work);
-      entry.w = Math.min(Math.floor(room / perf) * perf, ownShapeWidth(own ? entry.work.width / entry.work.height : STAMP.window, h, inset, perf));
+      const aspect = own ? entry.work.width / entry.work.height : STAMP.window;
+      entry.w = exact ? Math.min(room, (h - inset * 2) * aspect + inset * 2)
+        : Math.min(Math.floor(room / perf) * perf, ownShapeWidth(aspect, h, inset, perf));
       const outline = outlineOf(entry.w);
       entry.stamp.setAttribute('viewBox', `0 0 ${entry.w} ${h}`);
       entry.stamp.lastChild.setAttribute('d', outline);
@@ -578,15 +588,20 @@ export class WorksGallery {
       if (own) entry.frame.style.setProperty('--photo-overscan', '1');
       entry.frame.style.height = `${h}px`;
     }
-    const lines = wrapLines(shown.map(entry => entry.w), room, gap);
+    // Half a pixel's leeway, so exact widths that just fill a line keep to it.
+    const lines = wrapLines(shown.map(entry => entry.w), room + .5, gap);
     // Lines sit a whole number of stitches apart, from under the bar, so at
     // rest every stamp is on the holes.
     const lineGap = Math.round(gap / pitch) * pitch;
     let y = top;
     this.cards = new Array(shown.length);
     for (const line of lines) {
-      const lineWidth = line.reduce((sum, index) => sum + shown[index].w, 0) + gap * (line.length - 1);
-      let x = snapCol((width - lineWidth) / 2, Math.round);
+      const widths = line.reduce((sum, index) => sum + shown[index].w, 0);
+      const lineWidth = widths + gap * (line.length - 1);
+      // Phones: a line of several spans side to side; a lone stamp centres.
+      const justified = exact && line.length > 1;
+      const spacing = justified ? (room - widths) / (line.length - 1) : gap;
+      let x = justified ? side : exact ? (width - lineWidth) / 2 : snapCol((width - lineWidth) / 2, Math.round);
       // A passcode label hangs under its stamp; its line leaves it room.
       const tail = line.some(index => shown[index].work.passwordProtected) ? Math.ceil(CARD_GUARD.label / pitch) * pitch : 0;
       for (const index of line) {
@@ -594,7 +609,7 @@ export class WorksGallery {
         entry.item.dataset.shelf = 'top';
         Object.assign(entry.item.style, { left: `${x}px`, top: `${y}px`, width: `${entry.w}px` });
         this.cards[index] = { x, y, w: entry.w, h, tail: entry.work.passwordProtected ? CARD_GUARD.label : 0, shelf: 'top' };
-        x = snapCol(x + entry.w + gap, Math.round);
+        x = exact ? x + entry.w + spacing : snapCol(x + entry.w + gap, Math.round);
       }
       y += h + tail + lineGap;
     }
