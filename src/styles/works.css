@@ -46,6 +46,8 @@
   -webkit-tap-highlight-color: transparent;
 }
 .works-link[aria-disabled="true"] { cursor: default; }
+/* An exploration piece opens up close. */
+.works-link[role="button"] { cursor: zoom-in; }
 
 /* A postage stamp: the photograph fills it to its perforated edge, over its
    paper. --inset is where the paper's margin would be; the text keeps to it. */

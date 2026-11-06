@@ -204,6 +204,9 @@ export class WorksGallery {
     link.className = 'works-link';
     const href = workHref(work);
     if (href) link.href = href;
+    // A piece without a page opens up close, so it is a button; anything
+    // else without a page does nothing.
+    else if (ownShape(work)) link.setAttribute('role', 'button');
     else link.setAttribute('aria-disabled', 'true');
     link.tabIndex = 0;
     link.setAttribute('aria-label', [work.title, ...work.tags, yearLabel(work), work.passwordProtected && 'passcode protected'].filter(Boolean).join(', '));
@@ -255,7 +258,7 @@ export class WorksGallery {
     }
     item.append(link);
     this.wall.append(item);
-    const entry = { work, index, item, link, frame, picture, image, photo, dithered: null, stamp, seal, parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
+    const entry = { work, index, item, link, frame, picture, image, photo, dithered: null, stamp, seal, ownShape: ownShape(work), parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
     image.addEventListener('load', () => this.paint());
     photo.addEventListener('load', () => this.ditherCard(entry));
     link.addEventListener('pointermove', event => {
@@ -472,7 +475,6 @@ export class WorksGallery {
     const outlines = new Map();
     const outlineOf = width => outlines.get(width) ?? outlines.set(width, stampOutline(width, h, perf)).get(width);
     for (const entry of shown) {
-      entry.ownShape = ownShape(entry.work);
       entry.w = entry.ownShape ? ownShapeWidth(entry.work.width / entry.work.height, h, this.window.inset, perf) : w;
       const outline = outlineOf(entry.w);
       entry.stamp.setAttribute('viewBox', `0 0 ${entry.w} ${h}`);
@@ -574,10 +576,10 @@ export class WorksGallery {
     const outlines = new Map();
     const outlineOf = w => outlines.get(w) ?? outlines.set(w, stampOutline(w, h, perf)).get(w);
     for (const entry of shown) {
-      // Exploration's pieces keep their own shape; works keep the 4:3 window
-      // their project's cover shares.
+      // Every stamp on the sheet takes the 4:3 window, a piece of another
+      // shape filling it as a cover does; up close it shows whole again.
       const own = ownShape(entry.work);
-      const aspect = own ? entry.work.width / entry.work.height : STAMP.window;
+      const aspect = STAMP.window;
       entry.w = exact ? Math.min(room, (h - inset * 2) * aspect + inset * 2)
         : Math.min(Math.floor(room / perf) * perf, ownShapeWidth(aspect, h, inset, perf));
       const outline = outlineOf(entry.w);
