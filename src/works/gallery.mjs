@@ -61,7 +61,16 @@ export const WORKS_VEIL = Object.freeze({
 // and sinking away, seen from `perspective` px. The cylinder's radius makes
 // a stamp at the screen's edge `roll` radians round (about 70°); it is
 // edge-on just beyond.
-export const SHEET_TAPER = Object.freeze({ roll: 1.2, perspective: 1000 });
+// Near a quarter turn a stamp goes over the roller's horizon, out of sight
+// behind the curve: it fades out between `horizon[0]` and `horizon[1]`
+// radians (about 72° to 88°), and shows whole short of that.
+export const SHEET_TAPER = Object.freeze({ roll: 1.2, perspective: 1000, horizon: [1.25, 1.53] });
+
+// How much of a stamp shows at a roll of `angle` radians.
+export function overHorizon(angle, [from, to] = SHEET_TAPER.horizon) {
+  const t = Math.max(0, Math.min(1, (angle - from) / (to - from)));
+  return 1 - t * t * (3 - 2 * t);
+}
 
 // Where a stamp `past` px beyond the curl's start lies on a cylinder of
 // `radius`: its tilt (radians, up to a quarter turn), how far it slides back
@@ -865,24 +874,26 @@ export class WorksGallery {
       const { move, leave, enter, stagger } = EXPLORATION_VIEW;
       const ease = 'cubic-bezier(.22, 1, .36, 1)', screen = { width: innerWidth, height: innerHeight };
       // Every frame has the same functions, the roll last and unchanged, so
-      // only the offset and size between ease; all about the card's middle.
-      const at = (dx, dy, sx = 1, sy = 1, roll = '') => `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})${roll ? ` ${roll}` : ''}`;
+      // only the offset and size between ease; scaled about the card's
+      // middle, written about its top left corner as the roll is.
+      const at = (dx, dy, sx, sy, roll, [mx, my]) => `translate(${dx}px, ${dy}px) translate(${mx}px, ${my}px) scale(${sx}, ${sy}) translate(${-mx}px, ${-my}px)${roll ? ` ${roll}` : ''}`;
       const middle = rect => [rect.left + rect.width / 2, rect.top + rect.height / 2];
       let settling = 0;
-      for (const entry of this.shown) {
+      this.shown.forEach((entry, index) => {
         const from = before.get(entry), to = entry.item.getBoundingClientRect();
         const kind = cardMove(from, to, screen);
-        if (kind === 'none') continue;
-        const roll = entry.tapered || '', origin = '50% 50%';
+        if (kind === 'none') return;
+        const roll = entry.tapered || '', origin = '0 0';
+        const card = this.cards[index], centre = [card.w / 2, card.h / 2];
         const [tx, ty] = middle(to);
-        const held = from && (([fx, fy]) => at(fx - tx, fy - ty, from.width / to.width, from.height / to.height, roll))(middle(from));
-        const rest = at(0, 0, 1, 1, roll), lowered = at(0, 10, 1, 1, roll);
+        const held = from && (([fx, fy]) => at(fx - tx, fy - ty, from.width / to.width, from.height / to.height, roll, centre))(middle(from));
+        const rest = at(0, 0, 1, 1, roll, centre), lowered = at(0, 10, 1, 1, roll, centre);
         if (kind === 'glide') {
           entry.item.animate([
             { transformOrigin: origin, transform: held },
             { transformOrigin: origin, transform: rest },
           ], { duration: move, easing: ease });
-          continue;
+          return;
         }
         // Out where it was, then in where it is, in one timeline so neither
         // half overrides the other. A card that was out of sight only comes in.
@@ -896,7 +907,7 @@ export class WorksGallery {
           { offset: 1, opacity: 1, transformOrigin: origin, transform: rest });
         entry.item.animate(frames, { duration: total });
         longest = Math.max(longest, total);
-      }
+      });
     }
     this.keepPainting(longest + 100);
     this.busy = false;
@@ -1153,7 +1164,7 @@ export class WorksGallery {
     const at = zone ? this.scroller.scrollTop : 0, height = innerHeight, radius = zone / roll;
     const shown = new Map(this.shown.map((entry, index) => [entry, this.cards?.[index]]));
     for (const entry of this.items) {
-      let transform = '';
+      let transform = '', shows = 1;
       const card = zone && shown.get(entry);
       if (card) {
         const centre = card.y - at + card.h / 2;
@@ -1165,13 +1176,31 @@ export class WorksGallery {
           const { angle, slide, sink } = rollAt(past, radius);
           // Over the top its top edge tips away; over the bottom, its bottom.
           const sign = up >= down ? 1 : -1;
-          transform = `perspective(${perspective}px) translate3d(0, ${(sign * slide).toFixed(2)}px, ${(-sink).toFixed(2)}px) rotateX(${(sign * angle * 180 / Math.PI).toFixed(2)}deg)`;
+          // One roller seen from one eye: every card's perspective meets at
+          // the middle of the screen, so a whole line narrows as one strip,
+          // its outer edges slanting and those near the middle upright,
+          // while each card still tips about its own middle. Written about
+          // the card's top left corner (transform-origin 0 0), so a move can
+          // ease to it unchanged.
+          const f = n => n.toFixed(2);
+          const eyeX = innerWidth / 2 - card.x, eyeY = height / 2 - (card.y - at), midX = card.w / 2, midY = card.h / 2;
+          transform = `translate(${f(eyeX)}px, ${f(eyeY)}px) perspective(${perspective}px) translate(${f(-eyeX)}px, ${f(-eyeY)}px)`
+            + ` translate3d(0, ${f(sign * slide)}px, ${f(-sink)}px)`
+            + ` translate(${f(midX)}px, ${f(midY)}px) rotateX(${f(sign * angle * 180 / Math.PI)}deg) translate(${f(-midX)}px, ${f(-midY)}px)`;
+          shows = overHorizon(angle);
         }
+      }
+      // On the card's link, inside it: the card's own opacity eases its
+      // arrival, and the passcode label goes with its stamp.
+      const opacity = shows < 1 ? shows.toFixed(3) : '';
+      if (entry.faded !== opacity) {
+        entry.faded = opacity;
+        entry.link.style.opacity = opacity;
       }
       if (entry.tapered === transform) continue;
       entry.tapered = transform;
       entry.item.style.transform = transform;
-      entry.item.style.transformOrigin = transform ? '50% 50%' : '';
+      entry.item.style.transformOrigin = transform ? '0 0' : '';
     }
   }
 

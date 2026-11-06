@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ownShapeWidth, tagCounts, wrapLines, cardMove, rollAt, sheetColumns } from './gallery.mjs';
+import { ownShapeWidth, tagCounts, wrapLines, cardMove, rollAt, overHorizon, sheetColumns } from './gallery.mjs';
 import { EXPLORATION } from '../content/works.mjs';
 
 test('a card that keeps its photo\'s shape: the window takes its aspect at the shared height, in whole perforations', () => {
@@ -62,4 +62,11 @@ test('the sheet takes four columns only while each stays at least 280 px wide', 
     const count = sheetColumns(room(width), 28);
     assert.ok((room(width) - 28 * (count - 1)) / count >= 280 || count === 2, `${width}`);
   }
+});
+
+test('a rolling stamp shows whole until it nears the roller\'s horizon, then goes', () => {
+  for (const angle of [0, .5, 1, 1.2, 1.25]) assert.equal(overHorizon(angle), 1);
+  assert.equal(overHorizon(1.53), 0);
+  assert.equal(overHorizon(Math.PI / 2), 0);
+  assert.ok(overHorizon(1.4) > 0 && overHorizon(1.4) < 1);
 });
