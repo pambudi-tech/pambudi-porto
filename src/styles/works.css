@@ -317,3 +317,136 @@
 @media (prefers-reduced-motion: reduce) {
   .works-item, .works-nav, .works-window img, .works-frame { transition: none; }
 }
+
+/* Exploration's second bar, under the first: the row or the sheet, and a
+   filter by tag (gallery.mjs makeTools). Shown only with exploration. */
+.works-tools {
+  position: absolute;
+  top: calc(16px + 36px + 8px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  translate: -50% -4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms ease, translate 360ms var(--ease-out);
+}
+.works-gallery.is-open.is-exploration .works-tools { opacity: 1; translate: -50% 0; pointer-events: auto; }
+.works-gallery.is-navigating .works-tools { opacity: 0; pointer-events: none; }
+.closeup-open .works-gallery.is-open .works-tools { opacity: 0; pointer-events: none; }
+.works-views,
+.works-filter-button {
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 999px;
+  background: rgb(255 255 255 / .92);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .05);
+}
+/* The view switch, as the project gallery's: an ink pill slides to the view. */
+.works-views { position: relative; display: flex; gap: 2px; padding: 3px; }
+.works-views button {
+  position: relative;
+  z-index: 1;
+  height: 28px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 12px/1 "Syne Mono", monospace;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 300ms ease;
+}
+.works-views button:hover { color: var(--ink); }
+.works-views button[aria-pressed="true"] { color: #ffffff; cursor: default; }
+.works-views button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.works-views-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: calc(3px + var(--pill-left, 0px));
+  width: var(--pill-width, 0px);
+  border-radius: 999px;
+  background: var(--ink);
+  transition: left 260ms var(--ease-out), width 260ms var(--ease-out);
+}
+/* The filter: a pill naming the tag shown, and the list it opens, as the
+   project page's list of projects. */
+.works-filter { position: relative; }
+.works-filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  color: var(--ink);
+  font: 12px/1 "Syne Mono", monospace;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.works-filter-button:hover, .works-tools.is-filtering .works-filter-button { background: #f4f3f0; }
+.works-filter-button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.works-filter-caret {
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  mask: url('/assets/contact/angle-left.svg') center / contain no-repeat;
+  rotate: -90deg;
+  transition: rotate 300ms var(--ease-out);
+}
+.works-tools.is-filtering .works-filter-caret { rotate: 90deg; }
+.works-filter-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 4;
+  width: 220px;
+  max-height: min(360px, calc(100dvh - 140px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 18px;
+  background: rgb(255 255 255 / .96);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .05), 0 14px 36px rgb(58 55 50 / .13);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transform-origin: 50% 0;
+}
+.works-filter-list[hidden] { display: none; }
+.works-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font: 12px/1.3 "Syne Mono", monospace;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.works-filter-item:hover, .works-filter-item:focus-visible { background: #f4f3f0; outline: none; }
+.works-filter-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.works-filter-count { color: var(--muted); font-size: 11px; }
+.works-filter-item[aria-checked="true"]::after { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+
+/* The sheet: the band scrolls down, fading at its edges; no dots. */
+.works-gallery.is-sheet .works-scroll {
+  overflow: hidden auto;
+  mask-image: linear-gradient(transparent, #000 20px, #000 calc(100% - 28px), transparent);
+}
+.works-gallery.is-sheet .works-dots { display: none; }
+@media (pointer: coarse), (max-width: 540px) {
+  .works-gallery.is-sheet .works-scroll { pointer-events: auto; touch-action: pan-y; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .works-tools, .works-views-pill, .works-filter-caret { transition: none; }
+}

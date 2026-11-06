@@ -20,6 +20,49 @@ export const WORKS_MOTION = Object.freeze({ fade: 280 });
 export const WHEEL_GLIDE = 140;
 // How far a pressed card gives, and the least time a press shows.
 export const CARD_PRESS = Object.freeze({ scale: .97, hold: 120 });
+// Exploration's two views: the `row`, sideways, and the `sheet`, the same
+// stamps wrapped into lines that scroll down. On the sheet a line holds about
+// `columns` 4:3 stamps for the screen's width. Changing view or filter, cards
+// that go fade out over `leave` ms first. A card with only a short way to its
+// new place glides there over `move` ms; one going further than `far` of the
+// screen's diagonal, or coming from off screen, fades out where it was and
+// settles in at its new place over `enter` ms, `stagger` ms after the last.
+export const EXPLORATION_VIEW = Object.freeze({
+  initial: 'sheet', move: 560, leave: 180, enter: 380, stagger: 28, far: .28,
+  columns: { phone: 2, tablet: 3, desktop: 4 },
+});
+
+// How a card moves between two layouts, given where it was and where it is
+// now (rects) and the screen: 'glide' a short way, 'settle' in at its new
+// place, or 'none' when it ends out of sight.
+export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far) {
+  const seen = rect => rect && rect.width > 0 && rect.right > 0 && rect.left < width && rect.bottom > 0 && rect.top < height;
+  if (!seen(to)) return 'none';
+  if (!seen(from)) return 'settle';
+  const distance = Math.hypot(from.left - to.left, from.top - to.top);
+  return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
+}
+
+// The tags of `works`, most used first, then by name, with their counts.
+export function tagCounts(works) {
+  const counts = new Map();
+  for (const work of works) for (const tag of work.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+// Wraps cards of `widths` into lines no wider than `room`, `gap` apart.
+// Returns each line's card indices.
+export function wrapLines(widths, room, gap) {
+  const lines = [];
+  let line = [], used = 0;
+  widths.forEach((width, index) => {
+    if (line.length && used + gap + width > room) { lines.push(line); line = []; used = 0; }
+    used += (line.length ? gap : 0) + width;
+    line.push(index);
+  });
+  if (line.length) lines.push(line);
+  return lines;
+}
 
 
 // A card's width when it keeps its photo's own shape (exploration, which
@@ -57,7 +100,11 @@ export class WorksGallery {
     this.active = null;
     this.collections = collections;
     this.collection = 'works';
+    // Exploration's view and the tag it is filtered to, kept for the visit.
+    this.view = EXPLORATION_VIEW.initial;
+    this.filter = null;
     this.items = collections.works.map((work, index) => this.createItem(work, index));
+    this.shown = this.items;
     // Each collection's cards are made once and kept.
     this.built = { works: this.items };
     // Protected work's covers dither coarser until the visitor has the PIN;
@@ -71,6 +118,8 @@ export class WorksGallery {
     this.nav.querySelector('.works-nav-back').addEventListener('click', () => this.close());
     this.toggles = [...this.nav.querySelectorAll('[data-collection]')];
     for (const toggle of this.toggles) toggle.addEventListener('click', () => this.show(toggle.dataset.collection));
+    // Under it, for exploration: the row or the sheet, and a filter by tag.
+    this.tools = this.makeTools();
     // Above the clock: a dot per stamp, the current one filled; a dot glides
     // the row to its stamp.
     this.dots = Object.assign(document.createElement('nav'), { className: 'works-dots' });
@@ -79,7 +128,9 @@ export class WorksGallery {
     frontSeal.addEventListener('click', () => this.open());
     // Up close, Escape and the wheel are the close-up's.
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && this.isOpen && !this.closeupOpen) this.close();
+      if (event.key !== 'Escape' || !this.isOpen || this.closeupOpen) return;
+      if (this.filterOpen) { this.closeFilter({ focus: true }); return; }
+      this.close();
     }, { signal });
     addEventListener('popstate', () => {
       if (location.pathname.startsWith('/work/')) return;
@@ -87,14 +138,15 @@ export class WorksGallery {
     }, { signal });
     addEventListener('resize', () => {
       if (!this.isOpen) return;
+      if (this.collection === 'exploration') this.markView();
       this.layout();
     }, { signal });
     // The row scrolls sideways, freely. It lies over the cloth without taking
     // its pointer, so the wheel is passed on and the cloth stays stitchable.
     addEventListener('wheel', event => {
-      if (!this.isOpen || this.closeupOpen) return;
+      if (!this.isOpen || this.closeupOpen || this.filterOpen) return;
       event.preventDefault();
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const delta = this.sheet ? event.deltaY || event.deltaX : Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       this.glideBy(event.deltaMode === 1 ? delta * 40 : delta);
     }, { passive: false, signal });
     // A native scroll (a swipe, or the keyboard) is drawn in the same frame loop.
@@ -102,6 +154,10 @@ export class WorksGallery {
   }
 
   get reduced() { return this.motionPreference.matches; }
+  // Exploration on its sheet, which scrolls down rather than sideways.
+  get sheet() { return this.collection === 'exploration' && this.view === 'sheet'; }
+  get scrollAxis() { return this.sheet ? 'scrollTop' : 'scrollLeft'; }
+  get scrollMax() { return this.sheet ? this.scroller.scrollHeight - this.scroller.clientHeight : this.scroller.scrollWidth - this.scroller.clientWidth; }
   get closeupOpen() { return Object.values(this.closeups ?? {}).some(closeup => closeup.isOpen()); }
   get stacked() { return isPhone(innerWidth); }
 
@@ -139,8 +195,8 @@ export class WorksGallery {
     const photo = new Image();
     photo.crossOrigin = 'anonymous';
     photo.decoding = 'async';
-    photo.addEventListener('error', () => { image.src = work.image; }, { once: true });
-    photo.src = work.image;
+    photo.addEventListener('error', () => { image.src = work.preview ?? work.image; }, { once: true });
+    photo.src = work.preview ?? work.image;
     // The stamp's paper is drawn once the card's size is known.
     const stamp = createPostageStamp(`works-paper-${work.id}`, 'works-stamp');
     // Its place in the collection, blind-embossed into the photo's bottom
@@ -218,16 +274,16 @@ export class WorksGallery {
     this.isOpen = true;
     this.root.hidden = false;
     this.layout();
-    this.scroller.scrollLeft = 0;
+    this.scroller.scrollLeft = this.scroller.scrollTop = 0;
     this.paint();
     // Lay the cards out, then let them settle onto the cloth in turn.
     if (instant) {
       this.root.classList.add('is-instant', 'is-open');
       requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-instant')));
     } else requestAnimationFrame(() => this.root.classList.add('is-open'));
-    this.keepPainting(this.items.length * 80 + 700);
+    this.keepPainting(this.shown.length * 80 + 700);
     this.busy = false;
-    (this.items.find(entry => workHref(entry.work)) ?? this.items[0]).link.focus({ preventScroll: true, focusVisible: false });
+    (this.shown.find(entry => workHref(entry.work)) ?? this.shown[0])?.link.focus({ preventScroll: true, focusVisible: false });
   }
 
   // A project's own address, opened directly: the row opens at once on the
@@ -254,6 +310,7 @@ export class WorksGallery {
     if (!this.isOpen || this.busy) return;
     this.busy = true;
     this.activate(null);
+    this.closeFilter();
     if (history && location.hash === '#works') {
       if (window.history.state?.works) window.history.back();
       else window.history.replaceState(null, '', location.pathname + location.search);
@@ -282,6 +339,7 @@ export class WorksGallery {
     this.collection = collection;
     for (const toggle of this.toggles) toggle.setAttribute('aria-pressed', String(toggle.dataset.collection === collection));
     this.activate(null);
+    this.closeFilter();
     this.root.classList.add('is-swapping');
     this.keepPainting(WORKS_MOTION.fade + 100);
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
@@ -289,11 +347,15 @@ export class WorksGallery {
     this.items = this.built[collection] ??= this.collections[collection].map((work, index) => this.createItem(work, index));
     for (const entry of this.items) this.wall.append(entry.item);
     this.gliding = false;
+    this.root.classList.toggle('is-exploration', collection === 'exploration');
+    this.root.classList.toggle('is-sheet', this.sheet);
+    if (collection === 'exploration') this.renderFilter();
     this.layout();
-    this.scroller.scrollLeft = 0;
+    if (collection === 'exploration') this.markView();
+    this.scroller.scrollLeft = this.scroller.scrollTop = 0;
     // Let the new cards be drawn hidden once, so they arrive in turn.
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
-    this.keepPainting(this.items.length * 80 + 700);
+    this.keepPainting(this.shown.length * 80 + 700);
     this.busy = false;
   }
 
@@ -311,7 +373,9 @@ export class WorksGallery {
 
   // `quiet` only measures and places, for warm() below: no dithering yet,
   // and no frame painted while the row is out of sight.
-  layout({ quiet = false } = {}) {
+  // `dither: false` leaves the cards' dithers for later (relayout does them
+  // once its cards have moved).
+  layout({ quiet = false, dither = true } = {}) {
     const view = this.scene.view;
     const pitch = GRID * view.scale;
     const width = innerWidth, height = innerHeight, stacked = this.stacked;
@@ -324,14 +388,27 @@ export class WorksGallery {
     this.root.style.setProperty('--seal-label-size', getComputedStyle(label).fontSize);
 
     const clockTop = view.y + (Math.floor((height - view.y) / pitch) - (stacked ? 21 : 7)) * pitch;
+    // Only the cards the filter keeps are laid out; the rest are hidden.
+    const shown = this.collection === 'exploration' && this.filter
+      ? this.items.filter(entry => entry.work.tags.includes(this.filter)) : this.items;
+    for (const entry of this.items) entry.item.hidden = !shown.includes(entry);
+    this.shown = shown;
     // The dots sit three rows above the clock, and the stamps stop three rows
     // above the dots, so the space above the dots matches the space below.
-    if (this.dotsFor !== this.items) this.renderDots();
+    if (this.dotsFor !== shown) this.renderDots();
     this.dots.style.top = `${clockTop - 3 * pitch}px`;
 
     // Cards lean to the top or the bottom of the space between the top bar
     // and the clock, each at its own height there; all share one size.
-    const top = snapRow(this.nav.getBoundingClientRect().bottom + (stacked ? 16 : 24));
+    // Exploration's tools add a second bar under the first.
+    const bar = this.collection === 'exploration' ? this.tools : this.nav;
+    const top = snapRow(bar.getBoundingClientRect().bottom + (stacked ? 16 : 24));
+    if (this.sheet) {
+      this.layoutSheet({ top, clockTop, pitch, stacked, snapCol, quiet, dither });
+      return;
+    }
+    this.scroller.style.removeProperty('top');
+    this.scroller.style.removeProperty('bottom');
     const bottom = snapRow(clockTop - 6 * pitch, Math.floor);
     const ratio = STAMP.window;
     const available = bottom - top;
@@ -354,7 +431,7 @@ export class WorksGallery {
     this.window = stampShape(w, h, perf);
     const outlines = new Map();
     const outlineOf = width => outlines.get(width) ?? outlines.set(width, stampOutline(width, h, perf)).get(width);
-    for (const entry of this.items) {
+    for (const entry of shown) {
       entry.ownShape = ownShape(entry.work);
       entry.w = entry.ownShape ? ownShapeWidth(entry.work.width / entry.work.height, h, this.window.inset, perf) : w;
       const outline = outlineOf(entry.w);
@@ -373,12 +450,12 @@ export class WorksGallery {
     const left = snapCol(stacked ? 24 : Math.max(48, width * .06), Math.round);
     let x = left, previous = null;
     this.cards = [];
-    this.items.forEach((entry, index) => {
+    shown.forEach((entry, index) => {
       const cw = entry.w;
       // The last two cards close the row with a zig-zag rather than half a
       // pair: each takes the shelf opposite the card before it, out at that
       // shelf's far edge.
-      const closing = Boolean(previous) && index >= this.items.length - 2;
+      const closing = Boolean(previous) && index >= shown.length - 2;
       const shelf = closing ? (previous.shelf === 'top' ? 'bottom' : 'top') : shelfAt(index);
       const { lift, shift } = placement(index);
       entry.item.dataset.shelf = shelf;
@@ -423,8 +500,229 @@ export class WorksGallery {
     this.wall.style.width = `${end + left}px`;
     this.wall.style.height = `${height}px`;
     if (quiet) return;
-    for (const entry of this.items) this.ditherCard(entry);
+    if (dither) for (const entry of shown) this.ditherCard(entry);
     this.paint();
+  }
+
+  // Exploration's sheet: the same stamps, at one height, wrapped into lines
+  // centred across the screen, in a band from under the tools to just above
+  // the clock that scrolls down.
+  layoutSheet({ top, clockTop, pitch, stacked, snapCol, quiet, dither }) {
+    const width = innerWidth, shown = this.shown;
+    const bottom = clockTop - 2 * pitch;
+    Object.assign(this.scroller.style, { top: `${top}px`, bottom: `${Math.max(0, innerHeight - bottom)}px` });
+    const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
+    const side = snapCol(stacked ? 16 : Math.max(48, width * .06), Math.round);
+    const room = width - side * 2;
+    const gap = Math.max(pitch, Math.round((stacked ? 14 : 28) / pitch) * pitch);
+    const { columns } = EXPLORATION_VIEW;
+    const count = stacked ? columns.phone : width <= CARD_GUARD.tabletUpTo ? columns.tablet : columns.desktop;
+    // One height for every card: a 4:3 piece fills a column's width.
+    const column = (room - gap * (count - 1)) / count;
+    // Rounded down, so whole perforations never push a 4:3 card past its column.
+    const h = Math.max(perf * 4, Math.floor(((column - inset * 2) / STAMP.window + inset * 2) / perf) * perf);
+    this.window = stampShape(Math.round(column / perf) * perf, h, perf);
+    const outlines = new Map();
+    const outlineOf = w => outlines.get(w) ?? outlines.set(w, stampOutline(w, h, perf)).get(w);
+    for (const entry of shown) {
+      entry.w = Math.min(Math.floor(room / perf) * perf, ownShapeWidth(entry.work.width / entry.work.height, h, inset, perf));
+      const outline = outlineOf(entry.w);
+      entry.stamp.setAttribute('viewBox', `0 0 ${entry.w} ${h}`);
+      entry.stamp.lastChild.setAttribute('d', outline);
+      entry.picture.style.clipPath = `path('${outline}')`;
+      entry.frame.style.setProperty('--inset', `${inset}px`);
+      entry.frame.style.setProperty('--photo-overscan', '1');
+      entry.frame.style.height = `${h}px`;
+    }
+    const lines = wrapLines(shown.map(entry => entry.w), room, gap);
+    // Lines sit a whole number of stitches apart, from a stitch below the
+    // band's top, so at rest every stamp is on the holes.
+    const lineGap = Math.round(gap / pitch) * pitch;
+    let y = pitch * 2;
+    this.cards = new Array(shown.length);
+    for (const line of lines) {
+      const lineWidth = line.reduce((sum, index) => sum + shown[index].w, 0) + gap * (line.length - 1);
+      let x = snapCol((width - lineWidth) / 2, Math.round);
+      for (const index of line) {
+        const entry = shown[index];
+        entry.item.dataset.shelf = 'top';
+        Object.assign(entry.item.style, { left: `${x}px`, top: `${y}px`, width: `${entry.w}px` });
+        this.cards[index] = { x, y, w: entry.w, h, tail: 0, shelf: 'top' };
+        x = snapCol(x + entry.w + gap, Math.round);
+      }
+      y += h + lineGap;
+    }
+    this.wall.style.width = `${width}px`;
+    this.wall.style.height = `${y - lineGap + pitch * 3}px`;
+    if (quiet) return;
+    if (dither) for (const entry of shown) this.ditherCard(entry);
+    this.paint();
+  }
+
+  // The second bar, under the top one, shown with exploration: a switch
+  // between the row and the sheet, its ink pill sliding to the view chosen,
+  // and a pill that opens a list of the collection's tags to filter by.
+  makeTools() {
+    const tools = Object.assign(document.createElement('div'), { className: 'works-tools' });
+    tools.setAttribute('role', 'toolbar');
+    tools.setAttribute('aria-label', 'Exploration view');
+    tools.innerHTML = '<div class="works-views" role="group" aria-label="View">'
+      + '<span class="works-views-pill" aria-hidden="true"></span>'
+      + '<button type="button" data-view="row">row</button>'
+      + '<button type="button" data-view="sheet">sheet</button></div>'
+      + '<div class="works-filter">'
+      + '<button class="works-filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="works-filter-list">'
+      + '<span class="works-filter-label">all</span><span class="works-filter-caret" aria-hidden="true"></span></button>'
+      + '<div class="works-filter-list" id="works-filter-list" role="menu" aria-label="Filter by tag" hidden></div></div>';
+    this.nav.after(tools);
+    this.viewButtons = [...tools.querySelectorAll('[data-view]')];
+    for (const button of this.viewButtons) button.addEventListener('click', () => this.setView(button.dataset.view));
+    this.filterButton = tools.querySelector('.works-filter-button');
+    this.filterList = tools.querySelector('.works-filter-list');
+    this.filterButton.addEventListener('click', () => (this.filterOpen ? this.closeFilter() : this.openFilter()));
+    const { signal } = this.lifetime;
+    document.addEventListener('pointerdown', event => {
+      if (this.filterOpen && !tools.querySelector('.works-filter').contains(event.target)) this.closeFilter();
+    }, { signal });
+    this.filterList.addEventListener('keydown', event => {
+      const items = [...this.filterList.querySelectorAll('button')];
+      const at = items.indexOf(document.activeElement);
+      const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      items[(at + step + items.length) % items.length].focus();
+    });
+    this.markView();
+    return tools;
+  }
+
+  markView() {
+    for (const button of this.viewButtons) button.setAttribute('aria-pressed', String(button.dataset.view === this.view));
+    const chosen = this.viewButtons.find(button => button.dataset.view === this.view);
+    const views = chosen.parentElement;
+    views.style.setProperty('--pill-left', `${chosen.offsetLeft - this.viewButtons[0].offsetLeft}px`);
+    views.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
+  }
+
+  // The tag list: all, then each tag with how many pieces carry it.
+  renderFilter() {
+    const works = this.collections.exploration;
+    const option = (tag, count) => {
+      const item = Object.assign(document.createElement('button'), { type: 'button', className: 'works-filter-item' });
+      item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', String(tag === this.filter));
+      item.innerHTML = '<span class="works-filter-name"></span><span class="works-filter-count"></span>';
+      item.firstChild.textContent = tag ?? 'all';
+      item.lastChild.textContent = String(count);
+      item.addEventListener('click', () => { this.closeFilter({ focus: true }); this.setFilter(tag); });
+      return item;
+    };
+    this.filterList.replaceChildren(option(null, works.length), ...tagCounts(works).map(([tag, count]) => option(tag, count)));
+    this.filterButton.querySelector('.works-filter-label').textContent = this.filter ?? 'all';
+    this.filterButton.setAttribute('aria-label', `Filter: ${this.filter ?? 'all pieces'}`);
+  }
+
+  openFilter() {
+    if (this.filterOpen) return;
+    this.filterOpen = true;
+    this.renderFilter();
+    this.filterList.hidden = false;
+    this.filterButton.setAttribute('aria-expanded', 'true');
+    this.tools.classList.add('is-filtering');
+    if (!this.reduced) this.filterList.animate([{ opacity: 0, transform: 'translateY(-4px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    (this.filterList.querySelector('[aria-checked="true"]') ?? this.filterList.firstChild).focus({ preventScroll: true });
+  }
+
+  closeFilter({ focus = false } = {}) {
+    if (!this.filterOpen) return;
+    this.filterOpen = false;
+    this.filterList.hidden = true;
+    this.filterButton.setAttribute('aria-expanded', 'false');
+    this.tools.classList.remove('is-filtering');
+    if (focus) this.filterButton.focus({ preventScroll: true });
+  }
+
+  setView(view) {
+    if (view === this.view || this.busy) return;
+    this.relayout(() => {
+      this.view = view;
+      this.markView();
+      this.root.classList.toggle('is-sheet', this.sheet);
+    });
+  }
+
+  setFilter(tag) {
+    if (tag === this.filter || this.busy) return;
+    this.relayout(() => {
+      this.filter = tag;
+      this.renderFilter();
+    });
+  }
+
+  // Lays the cards out again after `change`: cards that go fade out, those
+  // that stay glide from where they were to their new places, and new ones
+  // fade in, all from the start of the row or the top of the sheet.
+  async relayout(change) {
+    this.busy = true;
+    this.activate(null);
+    this.gliding = false;
+    const before = new Map(this.shown.map(entry => [entry, entry.item.getBoundingClientRect()]));
+    const was = this.filter;
+    change();
+    const keep = entry => !this.filter || entry.work.tags.includes(this.filter);
+    if (!this.reduced && this.filter !== was) {
+      const going = this.items.filter(entry => before.has(entry) && !keep(entry));
+      await Promise.all(going.map(entry => entry.item.animate([{ opacity: 1 }, { opacity: 0 }], { duration: EXPLORATION_VIEW.leave, easing: 'ease', fill: 'forwards' }).finished.catch(() => {})));
+      for (const entry of going) entry.item.getAnimations().forEach(animation => animation.cancel());
+    }
+    // The cards keep their dithers, stretched a moment, while they move.
+    this.layout({ dither: false });
+    this.scroller.scrollLeft = this.scroller.scrollTop = 0;
+    this.updateRow();
+    let longest = EXPLORATION_VIEW.move;
+    if (!this.reduced) {
+      const { move, leave, enter, stagger } = EXPLORATION_VIEW;
+      const ease = 'cubic-bezier(.22, 1, .36, 1)', screen = { width: innerWidth, height: innerHeight };
+      let settling = 0;
+      for (const entry of this.shown) {
+        const from = before.get(entry), to = entry.item.getBoundingClientRect();
+        const kind = cardMove(from, to, screen);
+        if (kind === 'none') continue;
+        const held = from && `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`;
+        if (kind === 'glide') {
+          entry.item.animate([
+            { transformOrigin: '0 0', transform: held },
+            { transformOrigin: '0 0', transform: 'none' },
+          ], { duration: move, easing: ease });
+          continue;
+        }
+        // Out where it was, then in where it is, in one timeline so neither
+        // half overrides the other. A card that was out of sight only comes in.
+        const delay = (from && from.width ? leave : 0) + settling++ * stagger, total = delay + enter;
+        const frames = [];
+        if (from && from.width && cardMove(from, from, screen) !== 'none') {
+          frames.push({ offset: 0, opacity: 1, transformOrigin: '0 0', transform: held, easing: 'ease' },
+            { offset: leave / total, opacity: 0, transformOrigin: '0 0', transform: held });
+        } else frames.push({ offset: 0, opacity: 0, transformOrigin: '0 0', transform: 'translateY(10px)' });
+        frames.push({ offset: delay / total, opacity: 0, transformOrigin: '0 0', transform: 'translateY(10px)', easing: ease },
+          { offset: 1, opacity: 1, transformOrigin: '0 0', transform: 'none' });
+        entry.item.animate(frames, { duration: total });
+        longest = Math.max(longest, total);
+      }
+    }
+    this.keepPainting(longest + 100);
+    this.busy = false;
+    // Then, one card at a time in quiet moments, each is dithered at its new
+    // size (or shown at once from one it had before), those in view first.
+    const layout = this.shown;
+    await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : longest));
+    const idle = () => new Promise(resolve => (window.requestIdleCallback ?? setTimeout)(resolve));
+    const inView = entry => { const r = entry.item.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight; };
+    for (const entry of [...layout.filter(inView), ...layout.filter(entry => !inView(entry))]) {
+      if (this.shown !== layout) return;
+      this.ditherCard(entry);
+      await idle();
+    }
   }
 
   // Readies the row while the paper is read: laid out once out of sight for
@@ -482,17 +780,31 @@ export class WorksGallery {
     const key = `${width}x${height}@${dpr}${options ? ':locked' : ''}:${photo.currentSrc}`;
     if (entry.dithered === key) return;
     entry.dithered = key;
+    // A size this card has had before shows its dither again at once.
+    entry.dithers ??= new Map();
+    if (entry.dithers.has(key)) {
+      image.src = entry.dithers.get(key);
+      entry.shown = Promise.resolve();
+      if (this.glitched === entry) this.glitched = null;
+      return;
+    }
     // `shown` settles once the card shows this dither, for a flight home to
     // carry it (project-transition.mjs). The dither is drawn off the main
     // thread where it can be (dither.mjs).
     entry.shown = ditherPhotoBlob(photo, width, height, dpr, options).then(blob => {
       if (entry.dithered !== key) return;
       if (!blob) { image.src = photo.src; return; }
-      const previous = image.src.startsWith('blob:') ? image.src : null;
       image.src = URL.createObjectURL(blob);
       // Decoded now, so a card first shown has only to be drawn.
       image.decode().catch(() => {});
-      if (previous) URL.revokeObjectURL(previous);
+      // Kept for a return to this size (the row and the sheet), the oldest
+      // of more than a few let go.
+      entry.dithers.set(key, image.src);
+      if (entry.dithers.size > 4) {
+        const [oldest, url] = entry.dithers.entries().next().value;
+        entry.dithers.delete(oldest);
+        if (url !== image.src) URL.revokeObjectURL(url);
+      }
     });
     if (this.glitched === entry) this.glitched = null;
   }
@@ -543,10 +855,15 @@ export class WorksGallery {
   // from the cards' known places without measuring the page.
   updateRow() {
     if (!this.cards) return;
+    // On the sheet the photos hold still, and there are no dots to keep.
+    if (this.sheet) {
+      for (const entry of this.shown) entry.image.style.translate = '';
+      return;
+    }
     const centre = this.scroller.scrollLeft + innerWidth / 2;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     this.cards.forEach((card, index) => {
-      const entry = this.items[index];
+      const entry = this.shown[index];
       entry.parallax = this.reduced || entry.ownShape ? 0 : -clamp((card.x + card.w / 2 - centre) / innerWidth, -1, 1) * card.w * PHOTO_PARALLAX;
       // Whole device pixels keep the dither dots sharp as the photo slides.
       entry.image.style.translate = `${Math.round(entry.parallax * dpr) / dpr}px 0`;
@@ -568,9 +885,9 @@ export class WorksGallery {
   }
 
   renderDots() {
-    this.dotsFor = this.items;
+    this.dotsFor = this.shown;
     this.current = null;
-    this.dots.replaceChildren(...this.items.map((entry, index) => {
+    this.dots.replaceChildren(...this.shown.map((entry, index) => {
       const dot = Object.assign(document.createElement('button'), { type: 'button', className: 'works-dot' });
       dot.setAttribute('aria-label', entry.work.title);
       dot.addEventListener('click', () => this.goTo(index));
@@ -597,7 +914,7 @@ export class WorksGallery {
         this.glidePosition = this.glideTarget;
         this.gliding = false;
       }
-      this.scroller.scrollLeft = this.glidePosition;
+      this.scroller[this.scrollAxis] = this.glidePosition;
     }
     this.updateRow();
     let moving = this.gliding || now < (this.paintUntil ?? 0);
@@ -630,10 +947,10 @@ export class WorksGallery {
 
   // Eases the row toward its target, so wheel steps glide rather than jump.
   glideBy(delta) {
-    const max = this.scroller.scrollWidth - this.scroller.clientWidth;
-    this.glideTarget = clamp((this.gliding ? this.glideTarget : this.scroller.scrollLeft) + delta, 0, max);
-    if (this.reduced) { this.scroller.scrollLeft = this.glideTarget; this.paint(); return; }
-    if (!this.gliding) this.glidePosition = this.scroller.scrollLeft;
+    const axis = this.scrollAxis;
+    this.glideTarget = clamp((this.gliding ? this.glideTarget : this.scroller[axis]) + delta, 0, this.scrollMax);
+    if (this.reduced) { this.scroller[axis] = this.glideTarget; this.paint(); return; }
+    if (!this.gliding) this.glidePosition = this.scroller[axis];
     this.gliding = true;
     this.paint();
   }
@@ -641,7 +958,9 @@ export class WorksGallery {
   goTo(index) {
     if (!this.cards) return;
     const card = this.cards[clamp(index, 0, this.cards.length - 1)];
-    this.glideBy(card.x + card.w / 2 - innerWidth / 2 - (this.gliding ? this.glideTarget : this.scroller.scrollLeft));
+    const at = this.gliding ? this.glideTarget : this.scroller[this.scrollAxis];
+    if (this.sheet) this.glideBy(card.y + card.h / 2 - this.scroller.clientHeight / 2 - at);
+    else this.glideBy(card.x + card.w / 2 - innerWidth / 2 - at);
   }
 
   activate(entry) {
@@ -676,9 +995,9 @@ export class WorksGallery {
   // follows, so "back" returns the piece shown to its own card. One close-up
   // per collection, made when first wanted.
   openPiece(entry) {
-    const items = this.items;
+    const items = this.shown;
     this.closeups ??= {};
-    const closeup = this.closeups[this.collection] ??= mountCloseup({
+    const closeup = this.closeups[`${this.collection}:${this.filter ?? ''}`] ??= mountCloseup({
       images: items.map(({ work }) => ({ src: work.image, width: work.width, height: work.height, alt: work.alt })),
       motionPreference: this.motionPreference,
       sourceOf: index => items[index].frame,
@@ -694,7 +1013,8 @@ export class WorksGallery {
     const card = this.cards?.[index];
     if (!card) return;
     this.gliding = false;
-    this.scroller.scrollLeft = clamp(card.x + card.w / 2 - innerWidth / 2, 0, this.scroller.scrollWidth - this.scroller.clientWidth);
+    if (this.sheet) this.scroller.scrollTop = clamp(card.y + card.h / 2 - this.scroller.clientHeight / 2, 0, this.scrollMax);
+    else this.scroller.scrollLeft = clamp(card.x + card.w / 2 - innerWidth / 2, 0, this.scrollMax);
     this.paint();
   }
 }

@@ -30,7 +30,7 @@ Open http://127.0.0.1:4317.
 Text and links live in `content/`, separate from the code:
 
 - `content/site.mjs`: the introduction, contact links, and About Me (experience, skills, stack, signature). It is written into the HTML at build time, so it stays readable without JavaScript.
-- `content/works.mjs`: the cards on the works index and the exploration toggle (disabled in `index.html` for now), in display order. Dates are months (`'2024-07'`); `to: null` means ongoing.
+- `content/works.mjs`: the cards on the works index and the exploration pieces, in display order. Dates are months (`'2024-07'`); `to: null` means ongoing. An exploration piece's tags become its filters; after adding one, run `python3 tools/exploration-previews.py` for its preview.
 - `content/projects/`: one case study per file, named after its work's `id`.
 
 **Adding a project:** add its card to `content/works.mjs` with `page: true`. It gets a page at `/work/<id>` right away, using its card details and a stand-in gallery. To write the case study, copy `content/projects/ocean.mjs` to `content/projects/<id>.mjs`, fill it in, and list it in `content/projects/index.mjs`. Put local images in `public/assets/works/`.
