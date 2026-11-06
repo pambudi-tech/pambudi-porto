@@ -626,7 +626,10 @@ export class WorksGallery {
       y += h + tail + lineGap;
     }
     this.wall.style.width = `${width}px`;
-    this.wall.style.height = `${y - lineGap + pitch * 3}px`;
+    // As much room after the last line as before the first, so at the end
+    // of the scroll the last line rests where the bottom curl begins, flat,
+    // as the first line does at the top.
+    this.wall.style.height = `${y - lineGap + top}px`;
     // Stamps taper once they pass where the first line's middle rests.
     this.taperZone = top + h / 2;
     requestAnimationFrame(() => this.updateVeils());
@@ -1130,8 +1133,10 @@ export class WorksGallery {
       if (card) {
         const centre = card.y - at + card.h / 2;
         const up = zone - centre, down = centre - (height - zone);
+        // Under a pixel in is flat: the scroll stops on whole pixels, and
+        // the last line, resting at the curl's start, must not tip a hair.
         const past = Math.max(up, down);
-        if (past > 0) {
+        if (past > 1) {
           const { angle, slide, sink } = rollAt(past, radius);
           // Over the top its top edge tips away; over the bottom, its bottom.
           const sign = up >= down ? 1 : -1;
