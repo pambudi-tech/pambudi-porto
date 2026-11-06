@@ -457,7 +457,7 @@ export class WorksGallery {
     const barBottom = Math.max(this.nav.getBoundingClientRect().bottom, under ? this.tools.getBoundingClientRect().bottom : 0);
     const top = snapRow(barBottom + (stacked ? 16 : 24));
     if (this.sheet) {
-      this.layoutSheet({ top, pitch, stacked, snapCol, quiet, dither });
+      this.layoutSheet({ top, bar: barBottom, pitch, stacked, snapCol, quiet, dither });
       return;
     }
     this.scroller.style.removeProperty('top');
@@ -558,7 +558,7 @@ export class WorksGallery {
 
   // The sheet: the same stamps, at one height, wrapped into lines centred
   // across the screen, filling it from under the bar and scrolling down.
-  layoutSheet({ top, pitch, stacked, snapCol, quiet, dither }) {
+  layoutSheet({ top, bar, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
     // The veils reach from each edge as deep as the first line starts.
     for (const veil of this.veils) veil.style.setProperty('--veil-height', `${top}px`);
@@ -605,7 +605,18 @@ export class WorksGallery {
     // Lines sit a whole number of stitches apart, from under the bar, so at
     // rest every stamp is on the holes.
     const lineGap = Math.round(gap / pitch) * pitch;
-    let y = top;
+    // A passcode label hangs under its stamp; its line leaves it room.
+    const tailOf = line => line.some(index => shown[index].work.passwordProtected) ? Math.ceil(CARD_GUARD.label / pitch) * pitch : 0;
+    // A sheet that would scroll starts just under the bar and keeps as much
+    // room after its last line as before its first. One with too few stamps
+    // to scroll sits centred in the room under the bar, never nearer it than
+    // a scrolling one starts, and does not roll (taper): nothing runs on past
+    // its edges. Whole stitches on wider screens.
+    const block = lines.reduce((sum, line) => sum + h + tailOf(line), 0) + lineGap * (lines.length - 1);
+    const scrolls = top + block + top > innerHeight;
+    const middle = bar + (innerHeight - bar - block) / 2;
+    const start = scrolls ? top : Math.max(top, exact ? middle : bar + Math.round((middle - bar) / pitch) * pitch);
+    let y = start;
     this.cards = new Array(shown.length);
     for (const line of lines) {
       const widths = line.reduce((sum, index) => sum + shown[index].w, 0);
@@ -614,8 +625,7 @@ export class WorksGallery {
       const justified = exact && line.length > 1;
       const spacing = justified ? (room - widths) / (line.length - 1) : gap;
       let x = justified ? side : exact ? (width - lineWidth) / 2 : snapCol((width - lineWidth) / 2, Math.round);
-      // A passcode label hangs under its stamp; its line leaves it room.
-      const tail = line.some(index => shown[index].work.passwordProtected) ? Math.ceil(CARD_GUARD.label / pitch) * pitch : 0;
+      const tail = tailOf(line);
       for (const index of line) {
         const entry = shown[index];
         entry.item.dataset.shelf = 'top';
@@ -628,10 +638,11 @@ export class WorksGallery {
     this.wall.style.width = `${width}px`;
     // As much room after the last line as before the first, so at the end
     // of the scroll the last line rests where the bottom curl begins, flat,
-    // as the first line does at the top.
-    this.wall.style.height = `${y - lineGap + top}px`;
+    // as the first line does at the top. A sheet that fits stays the screen's
+    // height, and flat.
+    this.wall.style.height = scrolls ? `${y - lineGap + top}px` : `${innerHeight}px`;
     // Stamps taper once they pass where the first line's middle rests.
-    this.taperZone = top + h / 2;
+    this.taperZone = scrolls ? top + h / 2 : 0;
     requestAnimationFrame(() => this.updateVeils());
     if (quiet) return;
     if (dither) for (const entry of shown) this.ditherCard(entry);
