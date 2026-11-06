@@ -517,3 +517,8 @@ body.works-open.works-sheet .portfolio-clock { opacity: 0; }
 /* On the sheet each stamp is its own layer, so tapering it as the sheet
    scrolls (gallery.mjs taper) only moves it, never repaints it. */
 .works-gallery.is-sheet .works-item { will-change: transform; }
+/* On the sheet the stamps show their pictures alone: selected works' title,
+   years, tags and number fade away, and back for the row. The passcode label
+   stays. */
+.works-text, .works-number { transition: opacity 240ms ease; }
+.works-gallery.is-sheet :is(.works-text, .works-number) { opacity: 0; }
