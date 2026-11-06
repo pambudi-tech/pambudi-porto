@@ -19,6 +19,9 @@ export const DITHER = Object.freeze({
 // already this dither, baked coarse (tools/locked-preview.py), so the card
 // keeps its dots nearly as they are.
 export const DITHER_LOCKED = Object.freeze({ cell: .5, levels: 16 });
+// No dither to see: brightness in 4096 steps, finer than a screen shows, so
+// the glitch can shuffle tiles of a photo shown as it is (exploration).
+export const DITHER_NONE = Object.freeze({ cell: .5, levels: 4096 });
 
 // A card's glitch as the pointer moves over it: its window cut into
 // `columns` × `rows` tiles, of which those within `reach` tiles of the pointer

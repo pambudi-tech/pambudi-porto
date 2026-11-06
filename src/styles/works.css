@@ -514,3 +514,6 @@ body.works-open.works-sheet .portfolio-clock { opacity: 0; }
 .works-gallery.is-sheet.has-more .works-veil[data-edge="bottom"] { opacity: 1; }
 .closeup-open .works-veil { opacity: 0 !important; }
 .works-veil-filters { position: absolute; width: 0; height: 0; }
+/* On the sheet each stamp is its own layer, so tapering it as the sheet
+   scrolls (gallery.mjs taper) only moves it, never repaints it. */
+.works-gallery.is-sheet .works-item { will-change: transform; }

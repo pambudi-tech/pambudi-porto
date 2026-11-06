@@ -8,7 +8,7 @@ import { mountCloseup } from '../project/project-closeup.mjs';
 import { STAMP, stampShape, stampOutline, createPostageStamp } from './postage-stamp.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
-import { DITHER_LOCKED, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
+import { DITHER_LOCKED, DITHER_NONE, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
 
@@ -43,18 +43,17 @@ export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far
   return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
 }
 
-// The veils at the sheet's top and bottom edges, each three layers deep: a
-// light one across the whole band, then stronger ones nearer the edge, so
-// the stamps distort most where they leave the screen. Each layer blurs by
-// `blur` px, parts red and blue `split` px either way (Chromium), and fades
-// out by `reach` of the band's depth, measured from the edge.
+// The veils at the sheet's top and bottom edges: each layer blurs by `blur`
+// px, parts red and blue `split` px either way (Chromium), and fades out by
+// `reach` of the band's depth, measured from the edge.
 export const WORKS_VEIL = Object.freeze({
-  layers: [
-    { blur: 3, split: 2, reach: 1 },
-    { blur: 8, split: 5, reach: .62 },
-    { blur: 16, split: 10, reach: .32 },
-  ],
+  layers: [{ blur: 5, split: 3, reach: 1 }],
 });
+// Stamps on the sheet taper toward its top and bottom edges, as if the sheet
+// curved away there: past the middle of the first line's place at rest, a
+// stamp tilts back by up to `tilt` degrees, seen from `perspective` px away,
+// its outer edge narrowing, and shrinks by up to `shrink`.
+export const SHEET_TAPER = Object.freeze({ tilt: 38, shrink: .12, perspective: 900 });
 
 // The tags of `works`, most used first, then by name, with their counts.
 export function tagCounts(works) {
@@ -601,6 +600,8 @@ export class WorksGallery {
     }
     this.wall.style.width = `${width}px`;
     this.wall.style.height = `${y - lineGap + pitch * 3}px`;
+    // Stamps taper once they pass where the first line's middle rests.
+    this.taperZone = top + h / 2;
     requestAnimationFrame(() => this.updateVeils());
     if (quiet) return;
     if (dither) for (const entry of shown) this.ditherCard(entry);
@@ -887,6 +888,7 @@ export class WorksGallery {
   // The dots a card's photo is dithered with: coarser for protected work,
   // until the visitor has the PIN.
   ditherOf(entry) {
+    if (ownShape(entry.work)) return DITHER_NONE;
     return entry.work.passwordProtected && !this.passed ? DITHER_LOCKED : undefined;
   }
 
@@ -895,6 +897,15 @@ export class WorksGallery {
   // `size`, the card's photo in CSS pixels, when the row is out of sight.
   ditherCard(entry, size = null) {
     const { image, photo } = entry;
+    // Exploration's pieces show their photo as it is, undithered.
+    if (ownShape(entry.work)) {
+      if (!photo.complete || !photo.naturalWidth) return;
+      const src = photo.currentSrc || photo.src;
+      if (image.src !== src) image.src = src;
+      entry.dithered = 'plain';
+      entry.shown = Promise.resolve();
+      return;
+    }
     const { width, height } = size ?? { width: image.clientWidth, height: image.clientHeight };
     if (!photo.complete || !photo.naturalWidth || !width || !height) return;
     const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -936,7 +947,7 @@ export class WorksGallery {
   // some tiles near the pointer out of place, and hides once the pointer has
   // been still a moment. Not at all for reduced motion.
   glitch(entry, event) {
-    if (this.reduced || event.pointerType === 'touch' || !entry.image.src.startsWith('blob:')) return;
+    if (this.reduced || event.pointerType === 'touch' || !(entry.image.src.startsWith('blob:') || entry.dithered === 'plain')) return;
     this.glitcher ??= createGlitch() ?? false;
     if (!this.glitcher) return;
     const { canvas } = this.glitcher;
@@ -1039,12 +1050,17 @@ export class WorksGallery {
       this.scroller[this.scrollAxis] = this.glidePosition;
     }
     this.updateRow();
+    this.taper();
     let moving = this.gliding || now < (this.paintUntil ?? 0);
-    // Read every card's place before writing transforms. Native images travel
-    // with their paper frame without a separate rendering layer.
-    const places = this.items.map(entry => entry.item.getBoundingClientRect());
-    this.items.forEach((entry, index) => {
-      const anchor = places[index];
+    // Only a card hovered, pressed or still settling moves; the rest lie flat
+    // and are not measured. Read those cards' places before writing
+    // transforms. Native images travel with their paper frame without a
+    // separate rendering layer.
+    const resting = entry => entry !== this.active && !entry.pressed && !entry.pose.rx && !entry.pose.ry && entry.pose.scale === 1;
+    const live = this.items.filter(entry => !resting(entry));
+    const places = new Map(live.map(entry => [entry, entry.item.getBoundingClientRect()]));
+    live.forEach(entry => {
+      const anchor = places.get(entry);
       const hovered = entry === this.active;
       // The frame answers the pointer as the homepage paper does: it tilts
       // toward it, lifts a little, and presses flat when clicked.
@@ -1060,6 +1076,35 @@ export class WorksGallery {
     });
     if (moving) this.paint();
     else this.painted = null;
+  }
+
+  // Tapers the stamps nearing the sheet's top and bottom edges, from the
+  // sheet's own sums: where each card was laid out and how far the sheet has
+  // scrolled. Anywhere else, and off the sheet, they lie flat.
+  taper() {
+    const { tilt, shrink, perspective } = SHEET_TAPER;
+    const zone = this.sheet && !this.reduced ? this.taperZone ?? 0 : 0;
+    const at = zone ? this.scroller.scrollTop : 0, height = innerHeight;
+    const shown = new Map(this.shown.map((entry, index) => [entry, this.cards?.[index]]));
+    for (const entry of this.items) {
+      let transform = '', origin = '';
+      const card = zone && shown.get(entry);
+      if (card) {
+        const centre = card.y - at + card.h / 2;
+        const up = clamp((zone - centre) / zone, 0, 1), down = clamp((centre - (height - zone)) / zone, 0, 1);
+        const t = Math.max(up, down);
+        if (t > 0) {
+          const eased = t * t * (3 - 2 * t), away = up >= down;
+          // Hinged on its side toward the middle, its outer edge tips away.
+          transform = `perspective(${perspective}px) rotateX(${((away ? 1 : -1) * tilt * eased).toFixed(2)}deg) scale(${(1 - shrink * eased).toFixed(4)})`;
+          origin = away ? '50% 100%' : '50% 0';
+        }
+      }
+      if (entry.tapered === transform) continue;
+      entry.tapered = transform;
+      entry.item.style.transform = transform;
+      entry.item.style.transformOrigin = origin;
+    }
   }
 
   keepPainting(duration) {
