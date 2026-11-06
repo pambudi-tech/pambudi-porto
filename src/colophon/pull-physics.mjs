@@ -10,12 +10,17 @@ export const PULL = Object.freeze({
   // Starting on the paper, only a flick pulls (px/ms); a slower drag still
   // tilts the sheet, as it always has.
   paperFlick: .6,
-  // Let go past this share of the screen's height and the colophon stays out.
-  openShare: .16,
-  // Or let go while still moving down this fast (px/ms), past the first peek.
-  flick: .8,
-  peek: 40,
-  // The wheel and trackpad: the pull ends once the wheel has been still this long.
+  // It is meant to be found, not stumbled on: the page has to be let go
+  // this far down (a share of the screen), a finger dragged most of the way
+  // down a phone. How fast it was let go never counts. Any shorter pull only
+  // shows the colophon's edge, and the page rises back.
+  openShare: .29,
+  // Or most of the colophon itself, where it is shorter than that.
+  openOfPanel: .85,
+  // The wheel and trackpad pull this much less than a finger for the same
+  // distance: a long, sustained scroll up, not an everyday one.
+  wheelScale: .4,
+  // The pull ends once the wheel has been still this long.
   wheelRest: 140,
   // The colophon takes at most this share of the screen; the page stays in sight below it.
   maxShare: .82,
@@ -38,9 +43,10 @@ export function pullFor(lift, size) {
   return size * (1 / (1 - share) - 1) / PULL.resistance;
 }
 
-// Whether a pull let go at `lift`, moving down at `velocity` px/ms, opens the colophon.
-export function opensAt(lift, velocity, size) {
-  return lift >= size * PULL.openShare || (lift >= PULL.peek && velocity >= PULL.flick);
+// Whether a pull let go with the page `lift` px down opens the colophon,
+// `height` px tall, on a screen `size` px tall.
+export function opensAt(lift, size, height = Infinity) {
+  return lift > 0 && lift >= Math.min(size * PULL.openShare, height * PULL.openOfPanel);
 }
 
 // Whether a touch that moved (dx, dy) from where it went down (dy > 0 is

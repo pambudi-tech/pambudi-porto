@@ -16,11 +16,18 @@ test('a pull can be picked up from where the page is', () => {
   assert.equal(pullFor(0, 800), 0);
 });
 
-test('a gentle pull drops back; a long or quick one opens the colophon', () => {
-  assert.equal(opensAt(60, 0, 800), false);
-  assert.equal(opensAt(800 * PULL.openShare, 0, 800), true);
-  assert.equal(opensAt(PULL.peek, PULL.flick, 800), true);
-  assert.equal(opensAt(PULL.peek - 1, 4, 800), false);
+test('only a deep pull opens the colophon, however fast it was let go', () => {
+  assert.equal(opensAt(0, 800), false);
+  assert.equal(opensAt(60, 800), false);
+  assert.equal(opensAt(800 * PULL.openShare - 1, 800), false);
+  assert.equal(opensAt(800 * PULL.openShare, 800), true);
+  // On a phone that is most of the screen's height for the finger.
+  assert.ok(pullFor(844 * PULL.openShare, 844) > 844 * .7);
+});
+
+test('a colophon shorter than the threshold opens near its own height', () => {
+  assert.equal(opensAt(300, 1400, 340), true);
+  assert.equal(opensAt(250, 1400, 340), false);
 });
 
 test('only a downward drag is a pull, and on the paper only a flick', () => {

@@ -143,7 +143,7 @@ export class ColophonPull {
     // Moving down is positive here, as the drop is.
     const velocity = span > 0 ? (last.y - first.y) / span : 0;
     const lift = this.reduced ? rubberBand(touch.from + event.clientY - touch.y, this.size) : this.lift;
-    if (event.type === 'pointerup' && opensAt(lift, velocity, this.size) && this.canPull()) this.toOpen(velocity);
+    if (event.type === 'pointerup' && opensAt(lift, this.size, this.height) && this.canPull()) this.toOpen(Math.max(velocity, 0));
     else this.toRest(Math.min(velocity, 0));
   }
 
@@ -181,7 +181,7 @@ export class ColophonPull {
     if (!this.canPull()) { this.wheel = null; this.toRest(0); return; }
     // The wheel pulls no further than the page will go once let go, so it
     // never snaps back to there.
-    wheel.pull = Math.min(Math.max(0, wheel.pull + pixels), pullFor(this.ceiling, this.size));
+    wheel.pull = Math.min(Math.max(0, wheel.pull + pixels * PULL.wheelScale), pullFor(this.ceiling, this.size));
     wheel.lift = rubberBand(wheel.pull, this.size);
     if (!this.reduced && !this.frame) this.frame = requestAnimationFrame(now => this.glide(now));
     wheel.timer = setTimeout(() => this.wheelRest(), PULL.wheelRest);
@@ -202,9 +202,9 @@ export class ColophonPull {
     const wheel = this.wheel;
     this.wheel = null;
     if (!wheel) return;
-    // A wheel has no flick to let go of: only how far it pulled counts. The
-    // spring takes over from wherever the glide has got to.
-    if (opensAt(wheel.lift ?? 0, 0, this.size) && this.canPull()) this.toOpen(0);
+    // Only how far it pulled counts. The spring takes over from wherever the
+    // glide has got to.
+    if (opensAt(wheel.lift ?? 0, this.size, this.height) && this.canPull()) this.toOpen(0);
     else this.toRest(0);
   }
 
