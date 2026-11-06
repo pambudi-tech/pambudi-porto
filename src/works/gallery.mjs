@@ -283,6 +283,8 @@ export class WorksGallery {
     this.paper.style.visibility = 'hidden';
     this.isOpen = true;
     this.root.hidden = false;
+    document.body.classList.add('works-open');
+    this.syncClock();
     this.placeViews();
     this.markView();
     this.placeTogglePill();
@@ -325,6 +327,8 @@ export class WorksGallery {
     this.busy = true;
     this.activate(null);
     this.closeFilter();
+    // The clock comes back as the cards leave.
+    this.syncClock({ away: false });
     if (history && location.hash === '#works') {
       if (window.history.state?.works) window.history.back();
       else window.history.replaceState(null, '', location.pathname + location.search);
@@ -341,6 +345,7 @@ export class WorksGallery {
     await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
+    document.body.classList.remove('works-open');
     this.paper.dispatchEvent(new CustomEvent('paperflipend', { detail: { red: false } }));
     this.busy = false;
     this.frontSeal.focus({ preventScroll: true, focusVisible: false });
@@ -420,7 +425,7 @@ export class WorksGallery {
     const barBottom = Math.max(this.nav.getBoundingClientRect().bottom, under ? this.tools.getBoundingClientRect().bottom : 0);
     const top = snapRow(barBottom + (stacked ? 16 : 24));
     if (this.sheet) {
-      this.layoutSheet({ top, clockTop, pitch, stacked, snapCol, quiet, dither });
+      this.layoutSheet({ top, pitch, stacked, snapCol, quiet, dither });
       return;
     }
     this.scroller.style.removeProperty('top');
@@ -520,12 +525,13 @@ export class WorksGallery {
     this.paint();
   }
 
-  // Exploration's sheet: the same stamps, at one height, wrapped into lines
-  // centred across the screen, in a band from under the tools to just above
-  // the clock that scrolls down.
-  layoutSheet({ top, clockTop, pitch, stacked, snapCol, quiet, dither }) {
+  // The sheet: the same stamps, at one height, wrapped into lines centred
+  // across the screen, in a band from under the bar to near the bottom, where
+  // the clock was, that scrolls down.
+  layoutSheet({ top, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
-    const bottom = clockTop - 2 * pitch;
+    // With the clock away, the band runs to two stitches above the bottom.
+    const bottom = innerHeight - 2 * pitch;
     Object.assign(this.scroller.style, { top: `${top}px`, bottom: `${Math.max(0, innerHeight - bottom)}px` });
     const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
     const side = snapCol(stacked ? 16 : Math.max(48, width * .06), Math.round);
@@ -621,6 +627,13 @@ export class WorksGallery {
     return tools;
   }
 
+  // The sheet takes the clock's place: it fades away there and back for the
+  // row, or as the works view closes.
+  syncClock({ away = this.isOpen && this.sheet } = {}) {
+    document.body.classList.toggle('works-sheet', away);
+    document.getElementById('portfolio-clock')?.toggleAttribute('aria-hidden', away);
+  }
+
   placeTogglePill() {
     const chosen = this.toggles.find(toggle => toggle.dataset.collection === this.collection);
     const group = chosen.parentElement;
@@ -685,6 +698,7 @@ export class WorksGallery {
       this.view = view;
       this.markView();
       this.root.classList.toggle('is-sheet', this.sheet);
+      this.syncClock();
     });
   }
 

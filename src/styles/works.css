@@ -472,3 +472,12 @@
 @media (prefers-reduced-motion: reduce) {
   .works-tools, .works-views-pill, .works-nav-toggle-pill, .works-filter-caret { transition: none; }
 }
+
+/* The sheet takes the clock's place (gallery.mjs syncClock): the clock fades
+   out while the works view shows the sheet, and back for the row or as the
+   view closes. */
+body.works-open .portfolio-clock { transition: opacity 280ms ease; }
+body.works-open.works-sheet .portfolio-clock { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  body.works-open .portfolio-clock { transition: none; }
+}
