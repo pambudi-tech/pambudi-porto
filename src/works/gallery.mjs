@@ -11,28 +11,32 @@ import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
 import { DITHER_LOCKED, DITHER_NONE, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
+import { SheetRoller, copiesOf, rollerRadius, scrollDriven } from './sheet-roller.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
 // when edge-on; it returns through the second half, from the other side.
 export const PAPER_AWAY = Object.freeze({ duration: 560 });
 export const WORKS_MOTION = Object.freeze({ fade: 280 });
+// Exploration's filter lies along the bottom, `edge` px up from the screen's
+// edge (works.css).
+export const WORKS_FILTER = Object.freeze({ edge: 16 });
 // Wheel scrolling glides toward where the wheel has sent it.
 export const WHEEL_GLIDE = 140;
 // How far a pressed card gives, and the least time a press shows.
 export const CARD_PRESS = Object.freeze({ scale: .97, hold: 120 });
-// The two views of either collection: the `row`, sideways, and the `sheet`,
-// the same stamps wrapped into lines that scroll down. On the sheet a line holds about
-// `columns` 4:3 stamps for the screen's width. Changing view or filter, cards
-// that go fade out over `leave` ms first. A card with only a short way to its
+// Each collection has its own view: selected works the `row`, sideways, and
+// exploration the `sheet`, its stamps wrapped into lines that scroll down. On
+// the sheet a line holds about `columns` 4:3 stamps for the screen's width.
+// Changing filter, cards that go fade out over `leave` ms first. A card with only a short way to its
 // new place glides there over `move` ms; one going further than `far` of the
 // screen's diagonal, or coming from off screen, fades out where it was and
 // settles in at its new place over `enter` ms, `stagger` ms after the last.
 export const EXPLORATION_VIEW = Object.freeze({
-  initial: 'row', move: 560, leave: 180, enter: 380, stagger: 28, far: .28,
+  move: 560, leave: 180, enter: 380, stagger: 28, far: .28,
   // On the sheet, as many columns as `most`, down to `fewest`, as keep each
   // stamp at least `narrowest` px wide, so it stays clear to see; phones
   // always show `phone`.
-  columns: { most: 4, fewest: 2, narrowest: 280, phone: 2 },
+  columns: { most: 4, fewest: 2, narrowest: 280, phone: 1 },
 });
 
 // How a card moves between two layouts, given where it was and where it is
@@ -55,30 +59,11 @@ export const SHEET_PHONE_SIDE = 16;
 export const WORKS_VEIL = Object.freeze({
   layers: [{ blur: 5, split: 3, reach: 1 }],
 });
-// The sheet rolls away at its top and bottom edges, as if wrapped over a
-// cylinder there: past where the first line's middle rests, a stamp follows
-// the curve, tilting back further the further it goes, sliding along the arc
-// and sinking away, seen from `perspective` px. The cylinder's radius makes
-// a stamp at the screen's edge `roll` radians round (about 70°); it is
-// edge-on just beyond.
-// Near a quarter turn a stamp goes over the roller's horizon, out of sight
-// behind the curve: it fades out between `horizon[0]` and `horizon[1]`
-// radians (about 72° to 88°), and shows whole short of that.
-export const SHEET_TAPER = Object.freeze({ roll: 1.2, perspective: 1000, horizon: [1.25, 1.53] });
-
-// How much of a stamp shows at a roll of `angle` radians.
-export function overHorizon(angle, [from, to] = SHEET_TAPER.horizon) {
-  const t = Math.max(0, Math.min(1, (angle - from) / (to - from)));
-  return 1 - t * t * (3 - 2 * t);
-}
-
-// Where a stamp `past` px beyond the curl's start lies on a cylinder of
-// `radius`: its tilt (radians, up to a quarter turn), how far it slides back
-// toward the curl's start along the screen, and how far it sinks away.
-export function rollAt(past, radius) {
-  const angle = Math.min(Math.PI / 2 - .001, past / radius);
-  return { angle, slide: past - radius * Math.sin(angle), sink: radius * (1 - Math.cos(angle)) };
-}
+// A sheet of at least `least` stamps runs on round, endlessly: past its last
+// line comes its first again, a line's gap apart as ever. It is laid out up
+// to `copies` times over either way, about `reach` px in all, and the scroll
+// is brought back toward the middle copy whenever it rests.
+export const SHEET_LOOP = Object.freeze({ least: 10, reach: 400000, copies: 24 });
 
 // How many columns the sheet takes in `room` px with `gap` between them: the
 // most that keep each at least `narrowest` px wide once rounded down to
@@ -145,11 +130,11 @@ export class WorksGallery {
     this.lifetime = new AbortController();
     const { signal } = this.lifetime;
     this.active = null;
+    this.relayouts = 0;
     this.collections = collections;
-    this.collection = 'works';
-    // The view, shared by both collections, and the tag exploration is
-    // filtered to, kept for the visit. Selected works has no filter.
-    this.view = EXPLORATION_VIEW.initial;
+    this.collection = this.laidOut = 'works';
+    // The tag exploration is filtered to, kept for the visit. Selected works
+    // has no filter.
     this.explorationFilter = null;
     this.items = collections.works.map((work, index) => this.createItem(work, index));
     this.shown = this.items;
@@ -172,7 +157,7 @@ export class WorksGallery {
     this.togglePill.setAttribute('aria-hidden', 'true');
     this.toggles[0].parentElement.prepend(this.togglePill);
     // Beside it the row or the sheet, and under it a filter by tag.
-    this.tools = this.makeTools();
+    this.makeFilter();
     this.veils = this.makeVeils();
     // Above the clock: a dot per stamp, the current one filled; a dot glides
     // the row to its stamp.
@@ -192,8 +177,6 @@ export class WorksGallery {
     }, { signal });
     addEventListener('resize', () => {
       if (!this.isOpen) return;
-      this.placeViews();
-      this.markView();
       this.layout();
     }, { signal });
     // The row scrolls sideways, freely. It lies over the cloth without taking
@@ -208,11 +191,21 @@ export class WorksGallery {
     this.scroller.addEventListener('scroll', () => {
       this.paint();
       this.updateVeils();
+      // An endless sheet comes back round toward its middle copy once it rests.
+      clearTimeout(this.recentring);
+      if (this.loop) this.recentring = setTimeout(() => this.recentre(), 220);
     }, { passive: true });
+    this.scroller.addEventListener('touchstart', () => { this.touching = true; }, { passive: true });
+    for (const type of ['touchend', 'touchcancel']) this.scroller.addEventListener(type, () => { this.touching = false; }, { passive: true });
+    // The cards near the sheet's edges, rolled.
+    this.roller = new SheetRoller(root);
   }
 
   get reduced() { return this.motionPreference.matches; }
   // On the sheet, which scrolls down rather than sideways.
+  // Selected works lie in a row, exploration on a sheet: the view of the
+  // collection laid out, which changes once the old cards have gone.
+  get view() { return this.laidOut === 'exploration' ? 'sheet' : 'row'; }
   get sheet() { return this.view === 'sheet'; }
   get filter() { return this.collection === 'exploration' ? this.explorationFilter : null; }
   set filter(tag) { this.explorationFilter = tag; }
@@ -291,7 +284,10 @@ export class WorksGallery {
     item.append(link);
     this.wall.append(item);
     const entry = { work, index, item, link, frame, picture, image, photo, dithered: null, stamp, seal, ownShape: ownShape(work), parallax: 0, pressed: false, pose: paperTarget(), pointer: { x: -1e4, y: -1e4 } };
-    image.addEventListener('load', () => this.paint());
+    image.addEventListener('load', () => {
+      this.roller?.refresh(entry);
+      this.paint();
+    });
     photo.addEventListener('load', () => this.ditherCard(entry));
     link.addEventListener('pointermove', event => {
       entry.pointer = { x: event.clientX, y: event.clientY };
@@ -339,12 +335,10 @@ export class WorksGallery {
     this.root.hidden = false;
     document.body.classList.add('works-open');
     this.syncClock();
-    this.placeViews();
-    this.markView();
     this.placeTogglePill();
     this.placeTogglePill();
     this.layout();
-    this.scroller.scrollLeft = this.scroller.scrollTop = 0;
+    this.toStart();
     this.paint();
     // Lay the cards out, then let them settle onto the cloth in turn.
     if (instant) {
@@ -424,9 +418,11 @@ export class WorksGallery {
     this.items = this.built[collection] ??= this.collections[collection].map((work, index) => this.createItem(work, index));
     for (const entry of this.items) this.wall.append(entry.item);
     this.gliding = false;
+    this.laidOut = collection;
     this.root.classList.toggle('is-sheet', this.sheet);
+    this.syncClock();
     this.layout();
-    this.scroller.scrollLeft = this.scroller.scrollTop = 0;
+    this.toStart();
     // Let the new cards be drawn hidden once, so they arrive in turn.
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
     this.keepPainting(this.shown.length * 80 + 700);
@@ -466,25 +462,27 @@ export class WorksGallery {
     const shown = this.filter ? this.items.filter(entry => entry.work.tags.includes(this.filter)) : this.items;
     for (const entry of this.items) entry.item.hidden = !shown.includes(entry);
     this.shown = shown;
-    // The dots sit three rows above the clock, and the stamps stop three rows
-    // above the dots, so the space above the dots matches the space below.
-    if (this.dotsFor !== shown) this.renderDots();
-    this.dots.style.top = `${clockTop - 3 * pitch}px`;
-
     // Cards lean to the top or the bottom of the space between the top bar
     // and the clock, each at its own height there; all share one size.
-    // Exploration's filter, under the bar, extends it; so does the view
-    // switch, which sits there on phones.
-    const under = this.collection === 'exploration' || this.stacked;
-    const barBottom = Math.max(this.nav.getBoundingClientRect().bottom, under ? this.tools.getBoundingClientRect().bottom : 0);
+    const barBottom = this.nav.getBoundingClientRect().bottom;
     const top = snapRow(barBottom + (stacked ? 16 : 24));
+    // The sheet (exploration) runs down to the screen's bottom, where its
+    // filter lies (WORKS_FILTER.edge px up); the row stops above the clock.
+    const floor = this.sheet ? height - WORKS_FILTER.edge - this.filterDock.offsetHeight : clockTop;
     if (this.sheet) {
-      this.layoutSheet({ top, bar: barBottom, pitch, stacked, snapCol, quiet, dither });
+      this.layoutSheet({ top, bar: barBottom, floor, pitch, stacked, snapCol, quiet, dither });
       return;
     }
+    // The dots sit three rows above the clock, and the stamps
+    // stop three rows above the dots, so the space above the dots matches
+    // the space below.
+    if (this.dotsFor !== shown) this.renderDots();
+    this.dots.style.top = `${floor - 3 * pitch}px`;
     this.scroller.style.removeProperty('top');
     this.scroller.style.removeProperty('bottom');
-    const bottom = snapRow(clockTop - 6 * pitch, Math.floor);
+    this.loop = this.curl = null;
+    this.roller.setup();
+    const bottom = snapRow(floor - 6 * pitch, Math.floor);
     const ratio = STAMP.window;
     const available = bottom - top;
     // Size guard: a share of the screen's width, but never taller than two
@@ -580,7 +578,7 @@ export class WorksGallery {
 
   // The sheet: the same stamps, at one height, wrapped into lines centred
   // across the screen, filling it from under the bar and scrolling down.
-  layoutSheet({ top, bar, pitch, stacked, snapCol, quiet, dither }) {
+  layoutSheet({ top, bar, floor, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
     // The veils reach from each edge as deep as the first line starts.
     for (const veil of this.veils) veil.style.setProperty('--veil-height', `${top}px`);
@@ -591,8 +589,8 @@ export class WorksGallery {
     this.scroller.style.removeProperty('bottom');
     const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
     // On phones the stamps keep exactly SHEET_PHONE_SIDE px from the screen's
-    // sides, sized to fit rather than to whole perforations, and each line of
-    // two is justified to those edges. Wider screens keep to the holes.
+    // sides, one to a line, sized to fit rather than to whole perforations.
+    // Wider screens keep to the holes.
     const exact = stacked;
     const side = exact ? SHEET_PHONE_SIDE : snapCol(Math.max(48, width * .06), Math.round);
     const room = width - side * 2;
@@ -630,14 +628,19 @@ export class WorksGallery {
     const lineGap = Math.round(gap / pitch) * pitch;
     // A passcode label hangs under its stamp; its line leaves it room.
     const tailOf = line => line.some(index => shown[index].work.passwordProtected) ? Math.ceil(CARD_GUARD.label / pitch) * pitch : 0;
-    // A sheet that would scroll starts just under the bar and keeps as much
-    // room after its last line as before its first. One with too few stamps
-    // to scroll sits centred in the room under the bar, never nearer it than
-    // a scrolling one starts, and does not roll (taper): nothing runs on past
-    // its edges. Whole stitches on wider screens.
+    // A sheet of enough stamps (SHEET_LOOP) starts just under the bar and runs
+    // on round endlessly, over the roller at either edge. Fewer, it scrolls
+    // if it must, from under the bar to as much room after its last line, so
+    // that line rests flat at the end as the first does at the start; or, if
+    // it fits, it sits centred between the bar and the filter, never nearer it
+    // than a scrolling one starts, flat and still. Whole stitches on wider
+    // screens.
     const block = lines.reduce((sum, line) => sum + h + tailOf(line), 0) + lineGap * (lines.length - 1);
-    const scrolls = top + block + top > innerHeight;
-    const middle = bar + (innerHeight - bar - block) / 2;
+    const loops = shown.length >= SHEET_LOOP.least;
+    const scrolls = loops || top + block + top > innerHeight;
+    // Where the scroll was in an endless sheet, as a share of one time round.
+    const was = this.loop, phase = was ? (((this.scroller.scrollTop - was.base) % was.period) + was.period) % was.period / was.period : 0;
+    const middle = bar + (floor - bar - block) / 2;
     const start = scrolls ? top : Math.max(top, exact ? middle : bar + Math.round((middle - bar) / pitch) * pitch);
     let y = start;
     this.cards = new Array(shown.length);
@@ -659,46 +662,51 @@ export class WorksGallery {
       y += h + tail + lineGap;
     }
     this.wall.style.width = `${width}px`;
-    // As much room after the last line as before the first, so at the end
-    // of the scroll the last line rests where the bottom curl begins, flat,
-    // as the first line does at the top. A sheet that fits stays the screen's
-    // height, and flat.
-    this.wall.style.height = scrolls ? `${y - lineGap + top}px` : `${innerHeight}px`;
-    // Stamps taper once they pass where the first line's middle rests.
-    this.taperZone = scrolls ? top + h / 2 : 0;
+    // The roller's curl lines: where the first line rests at the top, and as
+    // far in from the bottom. A sheet that fits on the screen does not roll.
+    this.curl = scrolls ? { top, bottom: innerHeight - top, radius: rollerRadius(top, innerHeight) } : null;
+    // An endless sheet: one time round is its lines and the gap after the
+    // last. Laid out many times over, it starts at the middle copy, its first
+    // line resting at the top as ever.
+    if (loops) {
+      const period = y - start;
+      const copies = Math.max(4, Math.min(SHEET_LOOP.copies * 2, Math.floor(SHEET_LOOP.reach / period)));
+      const base = Math.floor(copies / 2) * period;
+      this.loop = { period, base };
+      this.wall.style.height = `${copies * period + innerHeight}px`;
+      for (const entry of shown) entry.copy = null;
+      if (was) this.scroller.scrollTop = base + phase * period;
+    } else {
+      this.loop = null;
+      this.wall.style.height = scrolls ? `${y - lineGap + top}px` : `${innerHeight}px`;
+    }
+    // The edges roll where the browser can drive the roller by the scroll,
+    // unless motion is reduced; the cards' copies are placed for the scroll.
+    const rolls = this.curl && !this.reduced && scrollDriven();
+    this.roller.setup({ entries: shown, cards: this.cards, roll: rolls ? { ...this.curl, height: innerHeight } : null });
+    this.roll();
     requestAnimationFrame(() => this.updateVeils());
     if (quiet) return;
     if (dither) for (const entry of shown) this.ditherCard(entry);
     this.paint();
   }
 
-  // Beside the collection toggle, a switch between the row and the sheet,
-  // its ink pill sliding to the view chosen; under the bar, a pill that opens
-  // a list of the collection's tags to filter by. On phones, too narrow for
-  // the switch beside the toggle, it moves down beside the filter.
-  makeTools() {
-    this.views = Object.assign(document.createElement('div'), { className: 'works-views' });
-    this.views.setAttribute('role', 'group');
-    this.views.setAttribute('aria-label', 'View');
-    this.views.innerHTML = '<span class="works-views-pill" aria-hidden="true"></span>'
-      + '<button type="button" data-view="row">row</button>'
-      + '<button type="button" data-view="sheet">sheet</button>';
-    const tools = Object.assign(document.createElement('div'), { className: 'works-tools' });
-    tools.innerHTML = '<div class="works-filter">'
+  // Along the bottom, exploration's filter: a pill that opens a list of its
+  // tags to filter by.
+  makeFilter() {
+    // The filter, exploration's only, along the bottom; its list opens upward.
+    this.filterDock = Object.assign(document.createElement('div'), { className: 'works-filter-dock' });
+    this.filterDock.innerHTML = '<div class="works-filter">'
       + '<button class="works-filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="works-filter-list">'
       + '<span class="works-filter-label">all</span><span class="works-filter-caret" aria-hidden="true"></span></button>'
       + '<div class="works-filter-list" id="works-filter-list" role="menu" aria-label="Filter by tag" hidden></div></div>';
-    this.nav.after(tools);
-    this.tools = tools;
-    this.placeViews();
-    this.viewButtons = [...this.views.querySelectorAll('[data-view]')];
-    for (const button of this.viewButtons) button.addEventListener('click', () => this.setView(button.dataset.view));
-    this.filterButton = tools.querySelector('.works-filter-button');
-    this.filterList = tools.querySelector('.works-filter-list');
+    this.nav.after(this.filterDock);
+    this.filterButton = this.filterDock.querySelector('.works-filter-button');
+    this.filterList = this.filterDock.querySelector('.works-filter-list');
     this.filterButton.addEventListener('click', () => (this.filterOpen ? this.closeFilter() : this.openFilter()));
     const { signal } = this.lifetime;
     document.addEventListener('pointerdown', event => {
-      if (this.filterOpen && !tools.querySelector('.works-filter').contains(event.target)) this.closeFilter();
+      if (this.filterOpen && !this.filterDock.contains(event.target)) this.closeFilter();
     }, { signal });
     this.filterList.addEventListener('keydown', event => {
       const items = [...this.filterList.querySelectorAll('button')];
@@ -708,9 +716,7 @@ export class WorksGallery {
       event.preventDefault();
       items[(at + step + items.length) % items.length].focus();
     });
-    this.markView();
     this.renderFilter();
-    return tools;
   }
 
   // The sheet takes the clock's place: it fades away there and back for the
@@ -771,22 +777,9 @@ export class WorksGallery {
   // has scrolled under the bar, the bottom one while there is more below.
   updateVeils() {
     const at = this.scroller.scrollTop, max = this.scroller.scrollHeight - this.scroller.clientHeight;
-    const above = this.sheet && at > 2, below = this.sheet && at < max - 2;
+    const above = this.sheet && (Boolean(this.loop) || at > 2), below = this.sheet && (Boolean(this.loop) || at < max - 2);
     if (above !== this.scrolled) this.root.classList.toggle('is-scrolled', this.scrolled = above);
     if (below !== this.more) this.root.classList.toggle('has-more', this.more = below);
-  }
-
-  // The view switch: in the top bar, or on phones under it, before the filter.
-  placeViews() {
-    if (this.stacked) { if (this.views.parentElement !== this.tools) this.tools.prepend(this.views); }
-    else if (this.views.parentElement !== this.nav) this.nav.append(this.views);
-  }
-
-  markView() {
-    for (const button of this.viewButtons) button.setAttribute('aria-pressed', String(button.dataset.view === this.view));
-    const chosen = this.viewButtons.find(button => button.dataset.view === this.view);
-    this.views.style.setProperty('--pill-left', `${chosen.offsetLeft - this.viewButtons[0].offsetLeft}px`);
-    this.views.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
   }
 
   // Exploration's tag list: all, then each tag with how many pieces carry it.
@@ -813,8 +806,8 @@ export class WorksGallery {
     this.renderFilter();
     this.filterList.hidden = false;
     this.filterButton.setAttribute('aria-expanded', 'true');
-    this.tools.classList.add('is-filtering');
-    if (!this.reduced) this.filterList.animate([{ opacity: 0, transform: 'translateY(-4px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    this.filterDock.classList.add('is-filtering');
+    if (!this.reduced) this.filterList.animate([{ opacity: 0, transform: 'translateY(4px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22, 1, .36, 1)' });
     (this.filterList.querySelector('[aria-checked="true"]') ?? this.filterList.firstChild).focus({ preventScroll: true });
   }
 
@@ -823,18 +816,8 @@ export class WorksGallery {
     this.filterOpen = false;
     this.filterList.hidden = true;
     this.filterButton.setAttribute('aria-expanded', 'false');
-    this.tools.classList.remove('is-filtering');
+    this.filterDock.classList.remove('is-filtering');
     if (focus) this.filterButton.focus({ preventScroll: true });
-  }
-
-  setView(view) {
-    if (view === this.view || this.busy) return;
-    this.relayout(() => {
-      this.view = view;
-      this.markView();
-      this.root.classList.toggle('is-sheet', this.sheet);
-      this.syncClock();
-    });
   }
 
   setFilter(tag) {
@@ -862,32 +845,31 @@ export class WorksGallery {
       for (const entry of going) entry.item.getAnimations().forEach(animation => animation.cancel());
     }
     // The cards keep their dithers, stretched a moment, while they move.
+    // They move flat; the roller comes in once they have settled.
+    if (!this.reduced) this.roller.hold();
     this.layout({ dither: false });
-    this.scroller.scrollLeft = this.scroller.scrollTop = 0;
+    this.toStart();
     this.updateRow();
     this.updateVeils();
-    // Each card's roll at its new place, set now, so every move below runs to
-    // it and a rolled card keeps its curve all the way, never flattening.
-    this.taper();
+    this.roll();
     let longest = EXPLORATION_VIEW.move;
     if (!this.reduced) {
       const { move, leave, enter, stagger } = EXPLORATION_VIEW;
       const ease = 'cubic-bezier(.22, 1, .36, 1)', screen = { width: innerWidth, height: innerHeight };
-      // Every frame has the same functions, the roll last and unchanged, so
-      // only the offset and size between ease; scaled about the card's
-      // middle, written about its top left corner as the roll is.
-      const at = (dx, dy, sx, sy, roll, [mx, my]) => `translate(${dx}px, ${dy}px) translate(${mx}px, ${my}px) scale(${sx}, ${sy}) translate(${-mx}px, ${-my}px)${roll ? ` ${roll}` : ''}`;
+      // Every frame has the same functions, so only the offset and size
+      // ease; scaled about the card's middle, written about its top left.
+      const at = (dx, dy, sx, sy, [mx, my]) => `translate(${dx}px, ${dy}px) translate(${mx}px, ${my}px) scale(${sx}, ${sy}) translate(${-mx}px, ${-my}px)`;
       const middle = rect => [rect.left + rect.width / 2, rect.top + rect.height / 2];
       let settling = 0;
       this.shown.forEach((entry, index) => {
         const from = before.get(entry), to = entry.item.getBoundingClientRect();
         const kind = cardMove(from, to, screen);
         if (kind === 'none') return;
-        const roll = entry.tapered || '', origin = '0 0';
+        const origin = '0 0';
         const card = this.cards[index], centre = [card.w / 2, card.h / 2];
         const [tx, ty] = middle(to);
-        const held = from && (([fx, fy]) => at(fx - tx, fy - ty, from.width / to.width, from.height / to.height, roll, centre))(middle(from));
-        const rest = at(0, 0, 1, 1, roll, centre), lowered = at(0, 10, 1, 1, roll, centre);
+        const held = from && (([fx, fy]) => at(fx - tx, fy - ty, from.width / to.width, from.height / to.height, centre))(middle(from));
+        const rest = at(0, 0, 1, 1, centre), lowered = at(0, 10, 1, 1, centre);
         if (kind === 'glide') {
           entry.item.animate([
             { transformOrigin: origin, transform: held },
@@ -914,7 +896,10 @@ export class WorksGallery {
     // Then, one card at a time in quiet moments, each is dithered at its new
     // size (or shown at once from one it had before), those in view first.
     const layout = this.shown;
+    const settled = ++this.relayouts;
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : longest));
+    // Settled, the cards at the edges roll, the roller fading in.
+    if (settled === this.relayouts) this.roller.release({ fade: this.sheet });
     const idle = () => new Promise(resolve => (window.requestIdleCallback ?? setTimeout)(resolve));
     const inView = entry => { const r = entry.item.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight; };
     for (const entry of [...layout.filter(inView), ...layout.filter(entry => !inView(entry))]) {
@@ -1126,7 +1111,7 @@ export class WorksGallery {
       this.scroller[this.scrollAxis] = this.glidePosition;
     }
     this.updateRow();
-    this.taper();
+    this.roll();
     let moving = this.gliding || now < (this.paintUntil ?? 0);
     // Only a card hovered, pressed or still settling moves; the rest lie flat
     // and are not measured. Read those cards' places before writing
@@ -1154,54 +1139,63 @@ export class WorksGallery {
     else this.painted = null;
   }
 
-  // Rolls the stamps nearing the sheet's top and bottom edges over their
-  // cylinders (SHEET_TAPER), from the sheet's own sums: where each card was
-  // laid out and how far the sheet has scrolled. Anywhere else, and off the
-  // sheet, they lie flat.
-  taper() {
-    const { roll, perspective } = SHEET_TAPER;
-    const zone = this.sheet && !this.reduced ? this.taperZone ?? 0 : 0;
-    const at = zone ? this.scroller.scrollTop : 0, height = innerHeight, radius = zone / roll;
-    const shown = new Map(this.shown.map((entry, index) => [entry, this.cards?.[index]]));
-    for (const entry of this.items) {
-      let transform = '', shows = 1;
-      const card = zone && shown.get(entry);
-      if (card) {
-        const centre = card.y - at + card.h / 2;
-        const up = zone - centre, down = centre - (height - zone);
-        // Under a pixel in is flat: the scroll stops on whole pixels, and
-        // the last line, resting at the curl's start, must not tip a hair.
-        const past = Math.max(up, down);
-        if (past > 1) {
-          const { angle, slide, sink } = rollAt(past, radius);
-          // Over the top its top edge tips away; over the bottom, its bottom.
-          const sign = up >= down ? 1 : -1;
-          // One roller seen from one eye: every card's perspective meets at
-          // the middle of the screen, so a whole line narrows as one strip,
-          // its outer edges slanting and those near the middle upright,
-          // while each card still tips about its own middle. Written about
-          // the card's top left corner (transform-origin 0 0), so a move can
-          // ease to it unchanged.
-          const f = n => n.toFixed(2);
-          const eyeX = innerWidth / 2 - card.x, eyeY = height / 2 - (card.y - at), midX = card.w / 2, midY = card.h / 2;
-          transform = `translate(${f(eyeX)}px, ${f(eyeY)}px) perspective(${perspective}px) translate(${f(-eyeX)}px, ${f(-eyeY)}px)`
-            + ` translate3d(0, ${f(sign * slide)}px, ${f(-sink)}px)`
-            + ` translate(${f(midX)}px, ${f(midY)}px) rotateX(${f(sign * angle * 180 / Math.PI)}deg) translate(${f(-midX)}px, ${f(-midY)}px)`;
-          shows = overHorizon(angle);
+  // Back to the start: the row's left end, or the sheet's first line under
+  // the bar (on an endless sheet, in its middle copy).
+  toStart() {
+    this.gliding = false;
+    this.scroller.scrollLeft = 0;
+    this.scroller.scrollTop = this.loop?.base ?? 0;
+  }
+
+  // An endless sheet, at rest, brought back to the same place in its middle
+  // copy, so it never runs out of copies either way. Nothing on the screen
+  // changes.
+  recentre() {
+    const loop = this.loop;
+    if (!loop || !this.sheet || this.touching || this.gliding) return;
+    const at = this.scroller.scrollTop;
+    const to = loop.base + ((((at - loop.base) % loop.period) + loop.period) % loop.period);
+    if (Math.abs(to - at) < loop.period / 2) return;
+    this.scroller.scrollTop = to;
+    this.paint();
+  }
+
+  // Places the sheet's cards for its scroll, from the sheet's own sums,
+  // without measuring: on an endless sheet, each card in whichever copy shows
+  // most of it between the curl lines, and a ghost of it at each other copy
+  // in or near sight. The roller's strips follow each copy on their own
+  // (sheet-roller.mjs); nothing here changes from frame to frame but a copy
+  // coming round.
+  roll() {
+    const loop = this.sheet && this.cards ? this.loop : null;
+    if (!this.sheet || !this.cards || !(loop || this.curl)) return;
+    const scroll = this.scroller.scrollTop, height = innerHeight;
+    const rolling = Boolean(this.roller.rolling);
+    const edges = rolling ? this.curl : { top: 0, bottom: height };
+    const reach = rolling ? this.curl.radius * Math.PI / 2 : 0;
+    this.shown.forEach((entry, index) => {
+      const card = this.cards[index];
+      if (!card) return;
+      const tall = card.h + card.tail;
+      // Copies in sight, and a card's height beyond, so a ghost is in place
+      // before it comes into view.
+      const copies = copiesOf(card.y, tall, { scroll, period: loop?.period ?? 0, from: edges.top - reach - tall, to: edges.bottom + reach + tall });
+      // The card's own copy: the one most between the curl lines, or else
+      // the nearest the middle.
+      const flatness = ([, y]) => Math.min(y + tall, edges.bottom) - Math.max(y, edges.top);
+      const nearness = ([, y]) => -Math.abs(y + tall / 2 - height / 2);
+      let kept = copies[0];
+      for (const copy of copies) if (flatness(copy) > flatness(kept) || (flatness(copy) === flatness(kept) && nearness(copy) > nearness(kept))) kept = copy;
+      if (loop) {
+        const copy = kept?.[0] ?? Math.round((scroll + height / 2 - card.y - tall / 2) / loop.period);
+        if (entry.copy !== copy) {
+          entry.copy = copy;
+          entry.item.style.top = `${card.y + copy * loop.period}px`;
         }
       }
-      // On the card's link, inside it: the card's own opacity eases its
-      // arrival, and the passcode label goes with its stamp.
-      const opacity = shows < 1 ? shows.toFixed(3) : '';
-      if (entry.faded !== opacity) {
-        entry.faded = opacity;
-        entry.link.style.opacity = opacity;
-      }
-      if (entry.tapered === transform) continue;
-      entry.tapered = transform;
-      entry.item.style.transform = transform;
-      entry.item.style.transformOrigin = transform ? '0 0' : '';
-    }
+      const ghosts = loop ? copies.filter(copy => copy !== kept).map(([copy]) => card.y + copy * loop.period) : [];
+      this.roller.place(entry, card, loop ? card.y + entry.copy * loop.period : card.y, ghosts, scroll);
+    });
   }
 
   keepPainting(duration) {
@@ -1223,7 +1217,7 @@ export class WorksGallery {
     if (!this.cards) return;
     const card = this.cards[clamp(index, 0, this.cards.length - 1)];
     const at = this.gliding ? this.glideTarget : this.scroller[this.scrollAxis];
-    if (this.sheet) this.glideBy(card.y + card.h / 2 - this.scroller.clientHeight / 2 - at);
+    if (this.sheet) this.glideBy(this.sheetY(index, at) + card.h / 2 - this.scroller.clientHeight / 2 - at);
     else this.glideBy(card.x + card.w / 2 - innerWidth / 2 - at);
   }
 
@@ -1271,7 +1265,7 @@ export class WorksGallery {
     const items = this.shown;
     this.closeups ??= {};
     const closeup = this.closeups[`${this.collection}:${this.filter ?? ''}`] ??= mountCloseup({
-      images: items.map(({ work }) => ({ src: work.image, width: work.width, height: work.height, alt: work.alt })),
+      images: items.map(({ work }) => ({ src: work.image, preview: work.preview, width: work.width, height: work.height, alt: work.alt })),
       motionPreference: this.motionPreference,
       sourceOf: index => items[index].frame,
       onIndex: index => this.jumpTo(index),
@@ -1281,12 +1275,24 @@ export class WorksGallery {
     closeup.open(items.indexOf(entry));
   }
 
+  // How far down the sheet a card lies: on an endless sheet, in the copy
+  // nearest the scroll `at`.
+  sheetY(index, at = this.scroller.scrollTop) {
+    const card = this.cards[index], loop = this.loop;
+    if (!loop) return card.y;
+    const middle = at + this.scroller.clientHeight / 2 - card.h / 2;
+    return card.y + Math.round((middle - card.y) / loop.period) * loop.period;
+  }
+
   // Straight to a card, unseen, under the close-up.
   jumpTo(index) {
     const card = this.cards?.[index];
     if (!card) return;
     this.gliding = false;
-    if (this.sheet) this.scroller.scrollTop = clamp(card.y + card.h / 2 - this.scroller.clientHeight / 2, 0, this.scrollMax);
+    if (this.sheet) {
+      this.scroller.scrollTop = clamp(this.sheetY(index) + card.h / 2 - this.scroller.clientHeight / 2, 0, this.scrollMax);
+      this.roll();
+    }
     else this.scroller.scrollLeft = clamp(card.x + card.w / 2 - innerWidth / 2, 0, this.scrollMax);
     this.paint();
   }

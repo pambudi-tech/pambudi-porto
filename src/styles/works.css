@@ -33,7 +33,7 @@
 .works-item[data-shelf="bottom"] { --arrive: 8px; }
 .works-gallery.is-open .works-item { opacity: 1; translate: 0 0; }
 /* Opened at once (gallery.mjs `instant`): no entrance. */
-.works-gallery.is-instant :is(.works-item, .works-nav, .works-dots) { transition: none; }
+.works-gallery.is-instant :is(.works-item, .works-nav, .works-dots, .works-filter-dock) { transition: none; }
 .works-gallery:not(.is-open) .works-item { transition-duration: 240ms; transition-delay: 0ms; }
 /* Switching collection: the old cards leave together, the new settle in turn. */
 .works-gallery.is-open.is-swapping .works-item { opacity: 0; translate: 0 var(--arrive, -8px); transition-duration: 240ms; transition-delay: 0ms; }
@@ -336,67 +336,26 @@
   .works-item, .works-nav, .works-window img, .works-frame { transition: none; }
 }
 
-/* The view switch, in the top bar beside the collection toggle, and under
-   the bar the filter by tag (gallery.mjs makeTools), for either collection.
-   On phones, too narrow for the switch in the bar, it sits beside the filter. */
-.works-tools {
+/* Exploration's filter by tag, along the bottom of its sheet (gallery.mjs
+   makeFilter). Selected works has none. */
+.works-filter-dock {
   position: absolute;
-  top: calc(16px + 36px + 8px + env(safe-area-inset-top, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  translate: -50% -4px;
+  translate: -50% 4px;
   pointer-events: none;
   opacity: 0;
   transition: opacity 300ms ease, translate 360ms var(--ease-out);
 }
-.works-gallery.is-open .works-tools { opacity: 1; translate: -50% 0; pointer-events: auto; }
-/* Selected works has no filter: on wider screens its bar stays away, and on
-   phones only the view switch shows there. */
-.works-gallery.is-open:not(.is-exploration) .works-tools { opacity: 0; translate: -50% -4px; pointer-events: none; }
-@media (max-width: 540px) {
-  .works-gallery.is-open:not(.is-exploration) .works-tools { opacity: 1; translate: -50% 0; pointer-events: auto; }
-  .works-gallery:not(.is-exploration) .works-filter { display: none; }
-}
-.works-gallery.is-navigating .works-tools,
-.closeup-open .works-gallery.is-open .works-tools { opacity: 0; pointer-events: none; }
-.works-views,
+.works-gallery.is-open.is-exploration .works-filter-dock { opacity: 1; translate: -50% 0; pointer-events: auto; }
+.works-gallery.is-navigating .works-filter-dock,
+.closeup-open .works-gallery.is-open .works-filter-dock { opacity: 0; pointer-events: none; }
 .works-filter-button {
   border: 1px solid rgb(73 72 63 / .14);
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 1px 2px rgb(0 0 0 / .05);
-}
-/* The view switch, as the project gallery's: an ink pill slides to the view. */
-.works-views { position: relative; display: flex; gap: 2px; padding: 3px; }
-.works-views button {
-  position: relative;
-  z-index: 1;
-  height: 28px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font: 12px/1 "Syne Mono", monospace;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 300ms ease;
-}
-.works-views button:hover { color: var(--ink); }
-.works-views button[aria-pressed="true"] { color: #ffffff; cursor: default; }
-.works-views button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-.works-views-pill {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: calc(3px + var(--pill-left, 0px));
-  width: var(--pill-width, 0px);
-  border-radius: 999px;
-  background: var(--ink);
-  transition: left 260ms var(--ease-out), width 260ms var(--ease-out);
 }
 /* The filter: a pill naming the tag shown, and the list it opens, as the
    project page's list of projects. */
@@ -413,7 +372,7 @@
   cursor: pointer;
   transition: background-color 160ms ease;
 }
-.works-filter-button:hover, .works-tools.is-filtering .works-filter-button { background: #f4f3f0; }
+.works-filter-button:hover, .works-filter-dock.is-filtering .works-filter-button { background: #f4f3f0; }
 .works-filter-button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .works-filter-caret {
   width: 10px;
@@ -423,10 +382,10 @@
   rotate: -90deg;
   transition: rotate 300ms var(--ease-out);
 }
-.works-tools.is-filtering .works-filter-caret { rotate: 90deg; }
+.works-filter-dock.is-filtering .works-filter-caret { rotate: 90deg; }
 .works-filter-list {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 50%;
   translate: -50% 0;
   z-index: 4;
@@ -441,7 +400,7 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / .05), 0 14px 36px rgb(58 55 50 / .13);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  transform-origin: 50% 0;
+  transform-origin: 50% 100%;
 }
 .works-filter-list[hidden] { display: none; }
 .works-filter-item {
@@ -473,7 +432,7 @@
   .works-gallery.is-sheet .works-scroll { pointer-events: auto; touch-action: pan-y; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .works-tools, .works-views-pill, .works-nav-toggle-pill, .works-filter-caret { transition: none; }
+  .works-filter-dock, .works-nav-toggle-pill, .works-filter-caret { transition: none; }
 }
 
 /* The sheet takes the clock's place (gallery.mjs syncClock): the clock fades
@@ -518,11 +477,48 @@ body.works-open.works-sheet .portfolio-clock { opacity: 0; }
 .works-gallery.is-sheet.has-more .works-veil[data-edge="bottom"] { opacity: 1; }
 .closeup-open .works-veil { opacity: 0 !important; }
 .works-veil-filters { position: absolute; width: 0; height: 0; }
-/* On the sheet each stamp is its own layer, so tapering it as the sheet
-   scrolls (gallery.mjs taper) only moves it, never repaints it. */
-.works-gallery.is-sheet .works-item { will-change: transform; }
 /* On the sheet the stamps show their pictures alone: selected works' title,
    years, tags and number fade away, and back for the row. The passcode label
    stays. */
 .works-text, .works-number { transition: opacity 240ms ease; }
 .works-gallery.is-sheet :is(.works-text, .works-number) { opacity: 0; }
+
+/* The sheet's roller (sheet-roller.mjs): the cards past the curl lines, drawn
+   as strips wrapping over a cylinder, seen from the middle of the screen, each
+   moved by the scroll itself. Under the sheet, which shows only between the
+   curl lines while the edges roll; it comes and goes with the cards. */
+.sheet-roller {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  perspective-origin: 50% 50%;
+  contain: strict;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+.works-gallery.is-open.is-sheet .sheet-roller { opacity: 1; }
+.works-gallery:not(.is-open) .sheet-roller,
+.works-gallery.is-open.is-swapping .sheet-roller { opacity: 0; transition-duration: 240ms; }
+.works-gallery.is-instant .sheet-roller { transition: none; }
+.works-gallery .sheet-roller.is-held { opacity: 0; transition: none; }
+.sheet-roller-strip {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+  transform-origin: 0 0;
+  backface-visibility: hidden;
+}
+.sheet-roller-face { position: absolute; left: 0; display: block; color: inherit; }
+.sheet-roller-face .works-window img { will-change: auto; }
+/* The sheet shows only between the curl lines; past them, the roller. */
+.works-gallery.is-rolling .works-scroll {
+  -webkit-mask-image: linear-gradient(transparent var(--curl-top), #000 var(--curl-top), #000 var(--curl-bottom), transparent var(--curl-bottom));
+  mask-image: linear-gradient(transparent var(--curl-top), #000 var(--curl-top), #000 var(--curl-bottom), transparent var(--curl-bottom));
+}
+/* An endless sheet's other copies of a card: likenesses, not to be used. */
+.works-ghost { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet-roller { transition: none; }
+}

@@ -9,7 +9,7 @@ import { stampOutline } from '../works/postage-stamp.mjs';
 // buttons or a swipe go to the next image, endlessly, round from the last to
 // the first, and Escape or "back" returns to the gallery.
 export const CLOSEUP = Object.freeze({
-  duration: 640, // ms the image takes to grow out of its stamp, or back
+  duration: 420, // ms the image takes to grow out of its stamp, or back
   swap: 280,     // ms one image takes to give way to the next
   most: 4,       // the furthest a pinch or the wheel zooms in
   swipe: 60,     // px a swipe travels to go to the next image
@@ -21,8 +21,8 @@ export const CLOSEUP = Object.freeze({
 });
 
 const EASE = EASE_OUT;
-// Growing out of its stamp and back, as gently as the gallery's own flights.
-const GROW = 'cubic-bezier(.65, 0, .35, 1)';
+// Growing out of its stamp and back: under way at once, settling softly.
+const GROW = 'cubic-bezier(.3, .7, .15, 1)';
 
 // The room the image fills: clear of the top bar, and of the side buttons,
 // which sit below it on a phone.
@@ -108,8 +108,14 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
   function picture(index) {
     const item = images[index];
     // Asked for as its stamp asked (project-gallery.mjs), so the photo
-    // already fetched and decoded there is the one shown.
-    const img = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', src: item.src, alt: item.alt, draggable: false, decoding: 'async' });
+    // already fetched and decoded there is the one shown. An image whose
+    // stamp shows a smaller `preview` (exploration) grows out with that,
+    // there at once, and takes the full photo once it is decoded.
+    const img = Object.assign(new Image(item.width, item.height), { crossOrigin: 'anonymous', src: item.preview ?? item.src, alt: item.alt, draggable: false, decoding: 'async' });
+    if (item.preview && item.preview !== item.src) {
+      const full = Object.assign(new Image(), { crossOrigin: 'anonymous', src: item.src });
+      full.decode().then(() => { if (img.isConnected) img.src = item.src; }, () => {});
+    }
     paper.append(img);
     return img;
   }
