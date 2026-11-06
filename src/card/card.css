@@ -147,10 +147,33 @@ html.panning .space { cursor: grabbing; }
   white-space: nowrap;
 }
 
+/* The back's print: a faint 16 mm ring (30% black) in a 19 mm box (26.123%
+   of the paper image's width) centred on the die line's middle (49.87%,
+   50.25%), for the hand-placed 19 mm wax seal over the NFC chip; the NFC
+   mark above the seal; and one
+   line in black at the front's size, its top 4.5 mm under the seal's edge
+   (65.932%; 2.5 mm, and 2 mm more in case the wax spreads). tools/build-card-files.py draws the same in millimetres. */
+.card-tap { position: absolute; inset: 0; z-index: 1; color: #000; pointer-events: none; }
+.card-tap svg { position: absolute; left: 49.87%; top: 50.25%; width: 26.123%; height: auto; overflow: visible; transform: translate(-50%, -50%); }
+/* The NFC mark, 5 mm wide (6.875%), 3.6 mm above the seal's edge (its middle at 32.744%):
+   1.6 mm, and 2 mm more in case the hand-pressed wax spreads. */
+.card-tap .card-nfc { top: 32.744%; width: 6.875%; overflow: hidden; }
+.card-tap p {
+  position: absolute;
+  left: 49.87%;
+  top: 65.932%;
+  margin: 0;
+  transform: translateX(-50%);
+  font: 400 4.123cqw/1 "Syne Mono", ui-monospace, monospace;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
 /* The card's printed lines, centred inside the embossed frame, in Syne
    Mono, the site's own type, at 0 tracking with open leading. Sized in cqw, a share of the
    card's width, so they keep their size on the card at any size on screen:
-   about 2.6 mm (7.4 pt) type on an 85 mm card. */
+   8.5 pt (2.999 mm) type on the card: 4.123% of the paper image's width,
+   the die line being 67.75 mm of its 1045.19 px. */
 .card-copy {
   position: absolute;
   inset: 25% 26% 24%;
@@ -159,9 +182,9 @@ html.panning .space { cursor: grabbing; }
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  /* The site's warm dark ink, not black. */
-  color: var(--ink);
-  font: 400 3.8cqw/1.8 "Syne Mono", ui-monospace, monospace;
+  /* Printed in black, every line. */
+  color: #000;
+  font: 400 4.123cqw/1.8 "Syne Mono", ui-monospace, monospace;
   letter-spacing: 0;
   text-align: center;
   white-space: nowrap;
@@ -170,7 +193,6 @@ html.panning .space { cursor: grabbing; }
   -webkit-user-select: none;
 }
 .card-copy p { display: flex; flex-direction: column; align-items: center; margin: 0; }
-.card-who span:not(.card-name) { color: #7f7e74; }
 
 /* —— Controls: zoom, and calibration —— */
 .controls {

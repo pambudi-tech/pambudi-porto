@@ -43,42 +43,59 @@ def relief_rect(offset=(0, 0)):
 # —— SVG paths (absolute M, L, H, V, C, Z) ——
 
 def parse_path(d):
-    """Subpaths as {'start': p, 'curves': [(c1, c2, p) or (None, None, p)]}."""
-    tokens = re.findall(r'[MLHVCZ]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?', d)
-    subpaths, command, numbers, current = [], None, [], (0, 0)
+    """Subpaths as {'start': p, 'curves': [(c1, c2, p) or (None, None, p)]}.
+    Reads M L H V C S Z, absolute and relative (lowercase)."""
+    tokens = re.findall(r'[MLHVCSZmlhvcsz]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?', d)
+    subpaths, current, last_c2 = [], (0.0, 0.0), None
+    i, command = 0, None
 
-    def flush():
-        nonlocal current
-        if command == 'M':
-            for k in range(0, len(numbers), 2):
-                p = (numbers[k], numbers[k + 1])
-                if k == 0:
-                    subpaths.append({'start': p, 'curves': []})
-                else:
-                    subpaths[-1]['curves'].append((None, None, p))
-                current = p
-        elif command in ('L', 'H', 'V'):
-            step = 2 if command == 'L' else 1
-            for k in range(0, len(numbers), step):
-                p = ((numbers[k], numbers[k + 1]) if command == 'L'
-                     else (numbers[k], current[1]) if command == 'H' else (current[0], numbers[k]))
-                subpaths[-1]['curves'].append((None, None, p))
-                current = p
-        elif command == 'C':
-            for k in range(0, len(numbers), 6):
-                c = numbers[k:k + 6]
-                subpaths[-1]['curves'].append(((c[0], c[1]), (c[2], c[3]), (c[4], c[5])))
-                current = (c[4], c[5])
+    def num():
+        nonlocal i
+        i += 1
+        return float(tokens[i - 1])
 
-    for token in tokens:
-        if token in 'MLHVCZ':
-            flush()
-            command, numbers = token, []
-            if token == 'Z' and subpaths:
-                current = subpaths[-1]['start']
-        else:
-            numbers.append(float(token))
-    flush()
+    while i < len(tokens):
+        if tokens[i] in 'MLHVCSZmlhvcsz':
+            command = tokens[i]
+            i += 1
+            if command in 'Zz':
+                if subpaths:
+                    current = subpaths[-1]['start']
+                last_c2 = None
+                continue
+        rel = command.islower()
+        base = current if rel else (0.0, 0.0)
+        c = command.upper()
+        if c == 'M':
+            p = (base[0] + num(), base[1] + num())
+            subpaths.append({'start': p, 'curves': []})
+            current, last_c2 = p, None
+            command = 'l' if rel else 'L'   # further pairs are lines
+        elif c == 'L':
+            p = (base[0] + num(), base[1] + num())
+            subpaths[-1]['curves'].append((None, None, p))
+            current, last_c2 = p, None
+        elif c == 'H':
+            p = ((current[0] if rel else 0) + num(), current[1])
+            subpaths[-1]['curves'].append((None, None, p))
+            current, last_c2 = p, None
+        elif c == 'V':
+            p = (current[0], (current[1] if rel else 0) + num())
+            subpaths[-1]['curves'].append((None, None, p))
+            current, last_c2 = p, None
+        elif c == 'C':
+            c1 = (base[0] + num(), base[1] + num())
+            c2 = (base[0] + num(), base[1] + num())
+            p = (base[0] + num(), base[1] + num())
+            subpaths[-1]['curves'].append((c1, c2, p))
+            current, last_c2 = p, c2
+        elif c == 'S':
+            # The first control point mirrors the last curve's second, about the current point.
+            c1 = (2 * current[0] - last_c2[0], 2 * current[1] - last_c2[1]) if last_c2 else current
+            c2 = (base[0] + num(), base[1] + num())
+            p = (base[0] + num(), base[1] + num())
+            subpaths[-1]['curves'].append((c1, c2, p))
+            current, last_c2 = p, c2
     return subpaths
 
 
@@ -111,7 +128,8 @@ def bounds(subpaths):
 def transform(subpaths, f):
     return [{'start': f(sp['start']),
              'curves': [(None if c1 is None else f(c1), None if c2 is None else f(c2), f(p))
-                        for c1, c2, p in sp['curves']]} for sp in subpaths]
+                        for c1, c2, p in sp['curves']],
+             **({'open': True} if sp.get('open') else {})} for sp in subpaths]
 
 
 # —— The supplied files, together ——

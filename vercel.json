@@ -34,6 +34,11 @@
       "source": "/ocean.html",
       "destination": "/work/ocean",
       "permanent": true
+    },
+    {
+      "source": "/tap",
+      "destination": "https://pambudi.xyz/",
+      "permanent": false
     }
   ],
   "headers": [

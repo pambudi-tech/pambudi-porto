@@ -4,22 +4,42 @@ Size (die-cut, shaped)   67.75 x 85.00 mm (width x height), portrait
 Shape                    custom die-cut outline: pambudi-card-die-cut.svg
 Stock                    white, uncoated (confirm weight and thickness on a proof)
 Front                    blind emboss (no ink) + printed type
-Back                     no print; shows the emboss recessed (debossed)
+Back                     shows the emboss recessed (debossed), plus a small print,
+                         seen from the back in pambudi-card-back.svg:
+                         - a faint dashed 16 mm ring, 30% K: the guide for the wax seal,
+                           which covers it;
+                         - the NFC mark, 5 mm wide, black (100% K), above the seal;
+                         both keep 2 mm clear of the seal's edge in case the
+                         wax spreads as it's pressed on;
+                         - "tap the seal" in black (100% K), under the seal.
+NFC                      one NFC chip (sticker or inlay), round, max 18 mm, e.g.
+                         NTAG213 for a link, NTAG215/216 for a contact card,
+                         centred on the guide ring: 33.88 mm from the
+                         left, 42.50 mm from the top (the card's middle).
+                         Apply after printing, embossing and die-cutting (the press
+                         would crack it). No metal or foil near it. Write the link,
+                         then lock the chip. Test a sample through the wax with
+                         iPhone and Android.
+Wax seal                 19 mm, applied by hand last, over the chip, centred on
+                         the guide ring. Use a self-adhesive (cold) seal: hot wax
+                         can damage the chip.
 Emboss                   one blind-emboss die pair (male and female) from
                          pambudi-card-emboss.svg. Black = raised on the front, drawn as
                          seen from the front. The same press gives the deboss on
                          the back, so no second die is needed.
-Type                     Syne Mono, 2.76 mm (7.8 pt), centred, 0 tracking;
+Type                     Syne Mono, 3.00 mm (8.5 pt), centred, 0 tracking;
                          already converted to outlines, no fonts needed.
-Ink                      #49483f for the name and contact lines, #7f7e74 for
-                         "ui & brand designer". Warm dark greys given as screen
-                         colours: please match on a proof (CMYK or a spot).
+Ink                      black, every line: 100% K (one plate, not rich black).
 
 Files (all 1:1, in millimetres, the card's top-left at 0, 0)
-  pambudi-card-production.pdf   3 pages: front print, emboss pattern, die-cut line.
-                          Die-cut is a CutContour spot (magenta, 0.25 pt);
-                          emboss is an "Emboss" spot. Neither is to be printed.
+  pambudi-card-production.pdf   4 pages: front print, back print, emboss pattern,
+                          die-cut line. Die-cut is a CutContour spot (magenta,
+                          0.25 pt); emboss is an "Emboss" spot; the wax seal's
+                          and NFC chip's places are an "NFC-Guide" spot (cyan,
+                          dashed). None of them is to be printed.
   pambudi-card-front.svg        front print with the die-cut line
+  pambudi-card-back.svg         back print with the seal and chip outlines and the
+                          die-cut line, seen from the back (die line mirrored)
   pambudi-card-emboss.svg       emboss pattern with the die-cut line
   pambudi-card-die-cut.svg      die-cut line only
   pambudi-card-mockup-front.png / -back.png   how it should look
