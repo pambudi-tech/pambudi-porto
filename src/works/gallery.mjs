@@ -829,20 +829,30 @@ export class WorksGallery {
     this.scroller.scrollLeft = this.scroller.scrollTop = 0;
     this.updateRow();
     this.updateVeils();
+    // Each card's roll at its new place, set now, so every move below runs to
+    // it and a rolled card keeps its curve all the way, never flattening.
+    this.taper();
     let longest = EXPLORATION_VIEW.move;
     if (!this.reduced) {
       const { move, leave, enter, stagger } = EXPLORATION_VIEW;
       const ease = 'cubic-bezier(.22, 1, .36, 1)', screen = { width: innerWidth, height: innerHeight };
+      // Every frame has the same functions, the roll last and unchanged, so
+      // only the offset and size between ease; all about the card's middle.
+      const at = (dx, dy, sx = 1, sy = 1, roll = '') => `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})${roll ? ` ${roll}` : ''}`;
+      const middle = rect => [rect.left + rect.width / 2, rect.top + rect.height / 2];
       let settling = 0;
       for (const entry of this.shown) {
         const from = before.get(entry), to = entry.item.getBoundingClientRect();
         const kind = cardMove(from, to, screen);
         if (kind === 'none') continue;
-        const held = from && `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`;
+        const roll = entry.tapered || '', origin = '50% 50%';
+        const [tx, ty] = middle(to);
+        const held = from && (([fx, fy]) => at(fx - tx, fy - ty, from.width / to.width, from.height / to.height, roll))(middle(from));
+        const rest = at(0, 0, 1, 1, roll), lowered = at(0, 10, 1, 1, roll);
         if (kind === 'glide') {
           entry.item.animate([
-            { transformOrigin: '0 0', transform: held },
-            { transformOrigin: '0 0', transform: 'none' },
+            { transformOrigin: origin, transform: held },
+            { transformOrigin: origin, transform: rest },
           ], { duration: move, easing: ease });
           continue;
         }
@@ -851,11 +861,11 @@ export class WorksGallery {
         const delay = (from && from.width ? leave : 0) + settling++ * stagger, total = delay + enter;
         const frames = [];
         if (from && from.width && cardMove(from, from, screen) !== 'none') {
-          frames.push({ offset: 0, opacity: 1, transformOrigin: '0 0', transform: held, easing: 'ease' },
-            { offset: leave / total, opacity: 0, transformOrigin: '0 0', transform: held });
-        } else frames.push({ offset: 0, opacity: 0, transformOrigin: '0 0', transform: 'translateY(10px)' });
-        frames.push({ offset: delay / total, opacity: 0, transformOrigin: '0 0', transform: 'translateY(10px)', easing: ease },
-          { offset: 1, opacity: 1, transformOrigin: '0 0', transform: 'none' });
+          frames.push({ offset: 0, opacity: 1, transformOrigin: origin, transform: held, easing: 'ease' },
+            { offset: leave / total, opacity: 0, transformOrigin: origin, transform: held });
+        } else frames.push({ offset: 0, opacity: 0, transformOrigin: origin, transform: lowered });
+        frames.push({ offset: delay / total, opacity: 0, transformOrigin: origin, transform: lowered, easing: ease },
+          { offset: 1, opacity: 1, transformOrigin: origin, transform: rest });
         entry.item.animate(frames, { duration: total });
         longest = Math.max(longest, total);
       }
