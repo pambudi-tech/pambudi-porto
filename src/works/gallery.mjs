@@ -20,15 +20,15 @@ export const WORKS_MOTION = Object.freeze({ fade: 280 });
 export const WHEEL_GLIDE = 140;
 // How far a pressed card gives, and the least time a press shows.
 export const CARD_PRESS = Object.freeze({ scale: .97, hold: 120 });
-// Exploration's two views: the `row`, sideways, and the `sheet`, the same
-// stamps wrapped into lines that scroll down. On the sheet a line holds about
+// The two views of either collection: the `row`, sideways, and the `sheet`,
+// the same stamps wrapped into lines that scroll down. On the sheet a line holds about
 // `columns` 4:3 stamps for the screen's width. Changing view or filter, cards
 // that go fade out over `leave` ms first. A card with only a short way to its
 // new place glides there over `move` ms; one going further than `far` of the
 // screen's diagonal, or coming from off screen, fades out where it was and
 // settles in at its new place over `enter` ms, `stagger` ms after the last.
 export const EXPLORATION_VIEW = Object.freeze({
-  initial: 'sheet', move: 560, leave: 180, enter: 380, stagger: 28, far: .28,
+  initial: 'row', move: 560, leave: 180, enter: 380, stagger: 28, far: .28,
   columns: { phone: 2, tablet: 3, desktop: 4 },
 });
 
@@ -100,9 +100,10 @@ export class WorksGallery {
     this.active = null;
     this.collections = collections;
     this.collection = 'works';
-    // Exploration's view and the tag it is filtered to, kept for the visit.
+    // The view, shared by both collections, and the tag exploration is
+    // filtered to, kept for the visit. Selected works has no filter.
     this.view = EXPLORATION_VIEW.initial;
-    this.filter = null;
+    this.explorationFilter = null;
     this.items = collections.works.map((work, index) => this.createItem(work, index));
     this.shown = this.items;
     // Each collection's cards are made once and kept.
@@ -118,7 +119,12 @@ export class WorksGallery {
     this.nav.querySelector('.works-nav-back').addEventListener('click', () => this.close());
     this.toggles = [...this.nav.querySelectorAll('[data-collection]')];
     for (const toggle of this.toggles) toggle.addEventListener('click', () => this.show(toggle.dataset.collection));
-    // Under it, for exploration: the row or the sheet, and a filter by tag.
+    // The chosen collection's ink pill slides between them, as the view
+    // switch's does.
+    this.togglePill = Object.assign(document.createElement('span'), { className: 'works-nav-toggle-pill' });
+    this.togglePill.setAttribute('aria-hidden', 'true');
+    this.toggles[0].parentElement.prepend(this.togglePill);
+    // Beside it the row or the sheet, and under it a filter by tag.
     this.tools = this.makeTools();
     // Above the clock: a dot per stamp, the current one filled; a dot glides
     // the row to its stamp.
@@ -138,7 +144,8 @@ export class WorksGallery {
     }, { signal });
     addEventListener('resize', () => {
       if (!this.isOpen) return;
-      if (this.collection === 'exploration') this.markView();
+      this.placeViews();
+      this.markView();
       this.layout();
     }, { signal });
     // The row scrolls sideways, freely. It lies over the cloth without taking
@@ -154,8 +161,10 @@ export class WorksGallery {
   }
 
   get reduced() { return this.motionPreference.matches; }
-  // Exploration on its sheet, which scrolls down rather than sideways.
-  get sheet() { return this.collection === 'exploration' && this.view === 'sheet'; }
+  // On the sheet, which scrolls down rather than sideways.
+  get sheet() { return this.view === 'sheet'; }
+  get filter() { return this.collection === 'exploration' ? this.explorationFilter : null; }
+  set filter(tag) { this.explorationFilter = tag; }
   get scrollAxis() { return this.sheet ? 'scrollTop' : 'scrollLeft'; }
   get scrollMax() { return this.sheet ? this.scroller.scrollHeight - this.scroller.clientHeight : this.scroller.scrollWidth - this.scroller.clientWidth; }
   get closeupOpen() { return Object.values(this.closeups ?? {}).some(closeup => closeup.isOpen()); }
@@ -267,12 +276,17 @@ export class WorksGallery {
     this.busy = true;
     if (history && location.hash !== '#works') window.history.pushState({ works: true }, '', '#works');
     this.scene.setPaperPresent(false);
+    this.scene.setBirdAway?.(true, { immediate: instant });
     this.paper.inert = true;
     this.paper.dispatchEvent(new CustomEvent('paperflipstart'));
     if (!instant) await this.turnPaper('away');
     this.paper.style.visibility = 'hidden';
     this.isOpen = true;
     this.root.hidden = false;
+    this.placeViews();
+    this.markView();
+    this.placeTogglePill();
+    this.placeTogglePill();
     this.layout();
     this.scroller.scrollLeft = this.scroller.scrollTop = 0;
     this.paint();
@@ -293,10 +307,10 @@ export class WorksGallery {
   // for the promise it returns.
   async openProject(id, shown) {
     await this.open({ history: false, instant: true });
-    const index = this.items.findIndex(entry => entry.work.id === id && workHref(entry.work));
+    const index = this.shown.findIndex(entry => entry.work.id === id && workHref(entry.work));
     if (index < 0) { shown(); return; }
-    const entry = this.items[index], card = this.cards[index];
-    this.scroller.scrollLeft = clamp(card.x + card.w / 2 - innerWidth / 2, 0, this.scroller.scrollWidth - innerWidth);
+    const entry = this.shown[index];
+    this.jumpTo(index);
     this.updateRow();
     this.paint();
     // The card's dithered photo flies home with the stamp; wait a moment for it.
@@ -323,6 +337,7 @@ export class WorksGallery {
     this.paper.style.visibility = '';
     this.scene.restPaper?.();
     this.scene.relightPaper?.();
+    this.scene.setBirdAway?.(false);
     await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
@@ -340,6 +355,9 @@ export class WorksGallery {
     for (const toggle of this.toggles) toggle.setAttribute('aria-pressed', String(toggle.dataset.collection === collection));
     this.activate(null);
     this.closeFilter();
+    this.root.classList.toggle('is-exploration', collection === 'exploration');
+    this.placeTogglePill();
+    if (collection === 'exploration') this.renderFilter();
     this.root.classList.add('is-swapping');
     this.keepPainting(WORKS_MOTION.fade + 100);
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
@@ -347,11 +365,8 @@ export class WorksGallery {
     this.items = this.built[collection] ??= this.collections[collection].map((work, index) => this.createItem(work, index));
     for (const entry of this.items) this.wall.append(entry.item);
     this.gliding = false;
-    this.root.classList.toggle('is-exploration', collection === 'exploration');
     this.root.classList.toggle('is-sheet', this.sheet);
-    if (collection === 'exploration') this.renderFilter();
     this.layout();
-    if (collection === 'exploration') this.markView();
     this.scroller.scrollLeft = this.scroller.scrollTop = 0;
     // Let the new cards be drawn hidden once, so they arrive in turn.
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
@@ -389,8 +404,7 @@ export class WorksGallery {
 
     const clockTop = view.y + (Math.floor((height - view.y) / pitch) - (stacked ? 21 : 7)) * pitch;
     // Only the cards the filter keeps are laid out; the rest are hidden.
-    const shown = this.collection === 'exploration' && this.filter
-      ? this.items.filter(entry => entry.work.tags.includes(this.filter)) : this.items;
+    const shown = this.filter ? this.items.filter(entry => entry.work.tags.includes(this.filter)) : this.items;
     for (const entry of this.items) entry.item.hidden = !shown.includes(entry);
     this.shown = shown;
     // The dots sit three rows above the clock, and the stamps stop three rows
@@ -400,9 +414,11 @@ export class WorksGallery {
 
     // Cards lean to the top or the bottom of the space between the top bar
     // and the clock, each at its own height there; all share one size.
-    // Exploration's tools add a second bar under the first.
-    const bar = this.collection === 'exploration' ? this.tools : this.nav;
-    const top = snapRow(bar.getBoundingClientRect().bottom + (stacked ? 16 : 24));
+    // Exploration's filter, under the bar, extends it; so does the view
+    // switch, which sits there on phones.
+    const under = this.collection === 'exploration' || this.stacked;
+    const barBottom = Math.max(this.nav.getBoundingClientRect().bottom, under ? this.tools.getBoundingClientRect().bottom : 0);
+    const top = snapRow(barBottom + (stacked ? 16 : 24));
     if (this.sheet) {
       this.layoutSheet({ top, clockTop, pitch, stacked, snapCol, quiet, dither });
       return;
@@ -525,13 +541,16 @@ export class WorksGallery {
     const outlines = new Map();
     const outlineOf = w => outlines.get(w) ?? outlines.set(w, stampOutline(w, h, perf)).get(w);
     for (const entry of shown) {
-      entry.w = Math.min(Math.floor(room / perf) * perf, ownShapeWidth(entry.work.width / entry.work.height, h, inset, perf));
+      // Exploration's pieces keep their own shape; works keep the 4:3 window
+      // their project's cover shares.
+      const own = ownShape(entry.work);
+      entry.w = Math.min(Math.floor(room / perf) * perf, ownShapeWidth(own ? entry.work.width / entry.work.height : STAMP.window, h, inset, perf));
       const outline = outlineOf(entry.w);
       entry.stamp.setAttribute('viewBox', `0 0 ${entry.w} ${h}`);
       entry.stamp.lastChild.setAttribute('d', outline);
       entry.picture.style.clipPath = `path('${outline}')`;
       entry.frame.style.setProperty('--inset', `${inset}px`);
-      entry.frame.style.setProperty('--photo-overscan', '1');
+      if (own) entry.frame.style.setProperty('--photo-overscan', '1');
       entry.frame.style.height = `${h}px`;
     }
     const lines = wrapLines(shown.map(entry => entry.w), room, gap);
@@ -543,14 +562,16 @@ export class WorksGallery {
     for (const line of lines) {
       const lineWidth = line.reduce((sum, index) => sum + shown[index].w, 0) + gap * (line.length - 1);
       let x = snapCol((width - lineWidth) / 2, Math.round);
+      // A passcode label hangs under its stamp; its line leaves it room.
+      const tail = line.some(index => shown[index].work.passwordProtected) ? Math.ceil(CARD_GUARD.label / pitch) * pitch : 0;
       for (const index of line) {
         const entry = shown[index];
         entry.item.dataset.shelf = 'top';
         Object.assign(entry.item.style, { left: `${x}px`, top: `${y}px`, width: `${entry.w}px` });
-        this.cards[index] = { x, y, w: entry.w, h, tail: 0, shelf: 'top' };
+        this.cards[index] = { x, y, w: entry.w, h, tail: entry.work.passwordProtected ? CARD_GUARD.label : 0, shelf: 'top' };
         x = snapCol(x + entry.w + gap, Math.round);
       }
-      y += h + lineGap;
+      y += h + tail + lineGap;
     }
     this.wall.style.width = `${width}px`;
     this.wall.style.height = `${y - lineGap + pitch * 3}px`;
@@ -559,23 +580,26 @@ export class WorksGallery {
     this.paint();
   }
 
-  // The second bar, under the top one, shown with exploration: a switch
-  // between the row and the sheet, its ink pill sliding to the view chosen,
-  // and a pill that opens a list of the collection's tags to filter by.
+  // Beside the collection toggle, a switch between the row and the sheet,
+  // its ink pill sliding to the view chosen; under the bar, a pill that opens
+  // a list of the collection's tags to filter by. On phones, too narrow for
+  // the switch beside the toggle, it moves down beside the filter.
   makeTools() {
-    const tools = Object.assign(document.createElement('div'), { className: 'works-tools' });
-    tools.setAttribute('role', 'toolbar');
-    tools.setAttribute('aria-label', 'Exploration view');
-    tools.innerHTML = '<div class="works-views" role="group" aria-label="View">'
-      + '<span class="works-views-pill" aria-hidden="true"></span>'
+    this.views = Object.assign(document.createElement('div'), { className: 'works-views' });
+    this.views.setAttribute('role', 'group');
+    this.views.setAttribute('aria-label', 'View');
+    this.views.innerHTML = '<span class="works-views-pill" aria-hidden="true"></span>'
       + '<button type="button" data-view="row">row</button>'
-      + '<button type="button" data-view="sheet">sheet</button></div>'
-      + '<div class="works-filter">'
+      + '<button type="button" data-view="sheet">sheet</button>';
+    const tools = Object.assign(document.createElement('div'), { className: 'works-tools' });
+    tools.innerHTML = '<div class="works-filter">'
       + '<button class="works-filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="works-filter-list">'
       + '<span class="works-filter-label">all</span><span class="works-filter-caret" aria-hidden="true"></span></button>'
       + '<div class="works-filter-list" id="works-filter-list" role="menu" aria-label="Filter by tag" hidden></div></div>';
     this.nav.after(tools);
-    this.viewButtons = [...tools.querySelectorAll('[data-view]')];
+    this.tools = tools;
+    this.placeViews();
+    this.viewButtons = [...this.views.querySelectorAll('[data-view]')];
     for (const button of this.viewButtons) button.addEventListener('click', () => this.setView(button.dataset.view));
     this.filterButton = tools.querySelector('.works-filter-button');
     this.filterList = tools.querySelector('.works-filter-list');
@@ -593,24 +617,37 @@ export class WorksGallery {
       items[(at + step + items.length) % items.length].focus();
     });
     this.markView();
+    this.renderFilter();
     return tools;
+  }
+
+  placeTogglePill() {
+    const chosen = this.toggles.find(toggle => toggle.dataset.collection === this.collection);
+    const group = chosen.parentElement;
+    group.style.setProperty('--pill-left', `${chosen.offsetLeft - this.toggles[0].offsetLeft}px`);
+    group.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
+  }
+
+  // The view switch: in the top bar, or on phones under it, before the filter.
+  placeViews() {
+    if (this.stacked) { if (this.views.parentElement !== this.tools) this.tools.prepend(this.views); }
+    else if (this.views.parentElement !== this.nav) this.nav.append(this.views);
   }
 
   markView() {
     for (const button of this.viewButtons) button.setAttribute('aria-pressed', String(button.dataset.view === this.view));
     const chosen = this.viewButtons.find(button => button.dataset.view === this.view);
-    const views = chosen.parentElement;
-    views.style.setProperty('--pill-left', `${chosen.offsetLeft - this.viewButtons[0].offsetLeft}px`);
-    views.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
+    this.views.style.setProperty('--pill-left', `${chosen.offsetLeft - this.viewButtons[0].offsetLeft}px`);
+    this.views.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
   }
 
-  // The tag list: all, then each tag with how many pieces carry it.
+  // Exploration's tag list: all, then each tag with how many pieces carry it.
   renderFilter() {
     const works = this.collections.exploration;
     const option = (tag, count) => {
       const item = Object.assign(document.createElement('button'), { type: 'button', className: 'works-filter-item' });
       item.setAttribute('role', 'menuitemradio');
-      item.setAttribute('aria-checked', String(tag === this.filter));
+      item.setAttribute('aria-checked', String(tag === this.explorationFilter));
       item.innerHTML = '<span class="works-filter-name"></span><span class="works-filter-count"></span>';
       item.firstChild.textContent = tag ?? 'all';
       item.lastChild.textContent = String(count);
@@ -618,8 +655,8 @@ export class WorksGallery {
       return item;
     };
     this.filterList.replaceChildren(option(null, works.length), ...tagCounts(works).map(([tag, count]) => option(tag, count)));
-    this.filterButton.querySelector('.works-filter-label').textContent = this.filter ?? 'all';
-    this.filterButton.setAttribute('aria-label', `Filter: ${this.filter ?? 'all pieces'}`);
+    this.filterButton.querySelector('.works-filter-label').textContent = this.explorationFilter ?? 'all';
+    this.filterButton.setAttribute('aria-label', `Filter: ${this.explorationFilter ?? 'all'}`);
   }
 
   openFilter() {
@@ -978,6 +1015,15 @@ export class WorksGallery {
     const full = clockLabel(work);
     const fits = clockTextLayout(full, { width: innerWidth, height: innerHeight, view: this.scene.view }).lines.length === 1;
     return fits ? full : clockLabel(work, true);
+  }
+
+  // Every card shown again, at once, for a project moved to on its page
+  // whose card the filter hides, so "back" has a card to fly home to.
+  showAll() {
+    if (!this.filter) return;
+    this.filter = null;
+    this.renderFilter();
+    this.layout();
   }
 
   choose(entry, event) {

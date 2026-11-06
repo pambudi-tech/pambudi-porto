@@ -387,9 +387,8 @@ export async function transitionToProject(gallery, entry, { history = true, seal
     for (const [image, shown] of [[flightPhotos[0], entry.image], [flightPhotos[1], targetImage]]) image.src = shown.currentSrc || shown.src;
     // The row waits behind on its card, for the flight home, and its pill
     // takes the new name, ready to morph back from it.
-    const card = gallery.cards[gallery.items.indexOf(entry)];
-    gallery.gliding = false;
-    gallery.scroller.scrollLeft = Math.max(0, Math.min(gallery.scroller.scrollWidth - innerWidth, card.x + card.w / 2 - innerWidth / 2));
+    if (!gallery.shown.includes(entry)) gallery.showAll();
+    gallery.jumpTo(gallery.shown.indexOf(entry));
     gallery.updateRow();
     navMorph.restore();
     navMorph = createProjectNavMorph(gallery, entry.work);

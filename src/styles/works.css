@@ -255,7 +255,7 @@
 .works-dot:hover::before { opacity: .5; }
 .works-dot[aria-current]::before { opacity: 1; scale: 1.2; }
 .works-dot:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; border-radius: 50%; }
-.works-nav button {
+:is(.works-nav > button, .works-nav-toggle button) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -273,9 +273,9 @@
   transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 /* Hover darkens an unchosen label; the chosen one keeps its white on ink. */
-.works-nav button:hover:not(:disabled, [aria-pressed="true"]) { color: var(--ink); }
-.works-nav button:disabled { opacity: .45; cursor: not-allowed; }
-.works-nav button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:is(.works-nav > button, .works-nav-toggle button):hover:not(:disabled, [aria-pressed="true"]) { color: var(--ink); }
+:is(.works-nav > button, .works-nav-toggle button):disabled { opacity: .45; cursor: not-allowed; }
+:is(.works-nav > button, .works-nav-toggle button):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .works-nav-back,
 .works-nav-toggle {
   border: 1px solid rgb(73 72 63 / .14);
@@ -294,11 +294,25 @@
 }
 .works-nav .works-nav-back:hover { background: #f4f3f0; }
 .works-nav-toggle { display: flex; padding: 3px; gap: 2px; }
+/* The chosen collection's ink pill slides to it, as the view switch's does. */
+.works-nav-toggle { position: relative; }
+.works-nav-toggle button { position: relative; z-index: 1; transition: color 300ms ease; }
 .works-nav-toggle button[aria-pressed="true"] {
-  background: var(--ink);
   color: #ffffff;
   cursor: default;
 }
+.works-nav-toggle-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: calc(3px + var(--pill-left, 0px));
+  width: var(--pill-width, 0px);
+  border-radius: 999px;
+  background: var(--ink);
+  transition: left 260ms var(--ease-out), width 260ms var(--ease-out);
+}
+/* Opening a project, the bar's morph draws its own pill. */
+.works-nav-morph .works-nav-toggle-pill { display: none; }
 
 .works-item.is-active { z-index: 3; }
 
@@ -311,15 +325,16 @@
 @media (max-width: 540px) {
   .works-scroll { pointer-events: auto; touch-action: pan-x; }
   .works-nav { gap: 6px; }
-  .works-nav button { padding-inline: 10px; }
+  :is(.works-nav > button, .works-nav-toggle button) { padding-inline: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .works-item, .works-nav, .works-window img, .works-frame { transition: none; }
 }
 
-/* Exploration's second bar, under the first: the row or the sheet, and a
-   filter by tag (gallery.mjs makeTools). Shown only with exploration. */
+/* The view switch, in the top bar beside the collection toggle, and under
+   the bar the filter by tag (gallery.mjs makeTools), for either collection.
+   On phones, too narrow for the switch in the bar, it sits beside the filter. */
 .works-tools {
   position: absolute;
   top: calc(16px + 36px + 8px + env(safe-area-inset-top, 0px));
@@ -331,10 +346,17 @@
   translate: -50% -4px;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 260ms ease, translate 360ms var(--ease-out);
+  transition: opacity 300ms ease, translate 360ms var(--ease-out);
 }
-.works-gallery.is-open.is-exploration .works-tools { opacity: 1; translate: -50% 0; pointer-events: auto; }
-.works-gallery.is-navigating .works-tools { opacity: 0; pointer-events: none; }
+.works-gallery.is-open .works-tools { opacity: 1; translate: -50% 0; pointer-events: auto; }
+/* Selected works has no filter: on wider screens its bar stays away, and on
+   phones only the view switch shows there. */
+.works-gallery.is-open:not(.is-exploration) .works-tools { opacity: 0; translate: -50% -4px; pointer-events: none; }
+@media (max-width: 540px) {
+  .works-gallery.is-open:not(.is-exploration) .works-tools { opacity: 1; translate: -50% 0; pointer-events: auto; }
+  .works-gallery:not(.is-exploration) .works-filter { display: none; }
+}
+.works-gallery.is-navigating .works-tools,
 .closeup-open .works-gallery.is-open .works-tools { opacity: 0; pointer-events: none; }
 .works-views,
 .works-filter-button {
@@ -448,5 +470,5 @@
   .works-gallery.is-sheet .works-scroll { pointer-events: auto; touch-action: pan-y; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .works-tools, .works-views-pill, .works-filter-caret { transition: none; }
+  .works-tools, .works-views-pill, .works-nav-toggle-pill, .works-filter-caret { transition: none; }
 }

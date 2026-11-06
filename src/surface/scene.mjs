@@ -77,6 +77,8 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   let motifExpiryTimer = null;
   const motifBag = new MotifBag();
   let frame = null, sceneDirty = true, clothDirty = true;
+  // While the works view is open the dove stays away (setBirdAway).
+  let birdAway = false;
   let corners = [];
   let bird = null;
   // The wordmark's own holes. The dove flies in front of the wordmark: the
@@ -393,6 +395,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       if (!surfaceOnly) bird = new BirdFlight(renderer.width, renderer.height, view, {
         paused: motionPreference.matches, seed: Math.floor(Math.random() * 2 ** 32), sky: birdSky(),
       });
+      if (birdAway) bird?.setVisible(false, { immediate: true });
       running = true;
       releaseEntrance(now);
       requestFrame({ stitches: true });
@@ -456,7 +459,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       if (animate && brandingDeparture) brandingDeparture.reverse(started);
       else brandingDeparture = null;
       wordmark?.restore(animate, started);
-      bird?.setVisible(true, { immediate: !animate || motionPreference.matches });
+      bird?.setVisible(!birdAway, { immediate: !animate || motionPreference.matches });
       requestFrame({ stitches: true });
     },
     // Before the sheet turns back into view, so it arrives already lit.
@@ -471,6 +474,15 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       scene.paper = present ? sheet : null;
       scene.hover = null;
       requestFrame();
+    },
+    // The dove leaves while the works view is open, its stitches unpicking
+    // from the middle out as the branding's do, and sews back in as it closes.
+    setBirdAway(away, { immediate = false } = {}) {
+      if (birdAway === away) return;
+      birdAway = away;
+      const instant = immediate || motionPreference.matches;
+      bird?.setVisible(!away, away ? { duration: BRAND_UNPICK_SWEEP + UNPICK_STITCH, immediate: instant } : { immediate: instant });
+      requestFrame({ stitches: true });
     },
     setMessage(message = '') {
       clock?.setMessage(message);
