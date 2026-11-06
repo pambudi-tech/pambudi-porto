@@ -1,0 +1,27 @@
+IVAN PAMBUDI - BUSINESS CARD - PRODUCTION NOTES
+
+Size (die-cut, shaped)   67.75 x 85.00 mm (width x height), portrait
+Shape                    custom die-cut outline: pambudi-card-die-cut.svg
+Stock                    white, uncoated (confirm weight and thickness on a proof)
+Front                    blind emboss (no ink) + printed type
+Back                     no print; shows the emboss recessed (debossed)
+Emboss                   one blind-emboss die pair (male and female) from
+                         pambudi-card-emboss.svg. Black = raised on the front, drawn as
+                         seen from the front. The same press gives the deboss on
+                         the back, so no second die is needed.
+Type                     Syne Mono, 2.76 mm (7.8 pt), centred, 0 tracking;
+                         already converted to outlines, no fonts needed.
+Ink                      #49483f for the name and contact lines, #7f7e74 for
+                         "ui & brand designer". Warm dark greys given as screen
+                         colours: please match on a proof (CMYK or a spot).
+
+Files (all 1:1, in millimetres, the card's top-left at 0, 0)
+  pambudi-card-production.pdf   3 pages: front print, emboss pattern, die-cut line.
+                          Die-cut is a CutContour spot (magenta, 0.25 pt);
+                          emboss is an "Emboss" spot. Neither is to be printed.
+  pambudi-card-front.svg        front print with the die-cut line
+  pambudi-card-emboss.svg       emboss pattern with the die-cut line
+  pambudi-card-die-cut.svg      die-cut line only
+  pambudi-card-mockup-front.png / -back.png   how it should look
+
+Live preview: https://card.pambudi.xyz

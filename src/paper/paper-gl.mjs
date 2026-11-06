@@ -10,14 +10,15 @@ import { hardwareWebGL2 } from '../shared/gpu.mjs';
 // SVG units of paper around it (measured against the frame's edges).
 export const RELIEF_MARGIN = Object.freeze({ x: 47, y: 50 });
 
-// Each face's relief, flat paper colour (sampled from its photograph) and
-// where its emboss sits in that photograph: the red back's is pressed 2 px
-// right and 8 px higher than the registration. The white back is the red
-// back's deboss on the front's white stock (the card page's back).
+// Each face's relief, flat paper colour and where its emboss sits on the
+// paper image. Every face's image is drawn by tools/build-card-paper.py,
+// cut by the supplied die line, with its emboss right on the registration.
+// (The red back's original photograph had its deboss 2 px right and 8 px up.)
+// The white back is the card page's.
 export const PAPER_FACES = Object.freeze({
   white: { relief: '/assets/paper-front-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0] },
-  red: { relief: '/assets/paper-back-relief.webp', colour: [186.7, 42.6, 46.3], offset: [2, -8] },
-  whiteBack: { relief: '/assets/paper-back-relief.webp', colour: [232.7, 232.6, 232], offset: [2, -8] },
+  red: { relief: '/assets/paper-back-relief.webp', colour: [186.7, 42.6, 46.3], offset: [0, 0] },
+  whiteBack: { relief: '/assets/paper-back-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0] },
 });
 
 export const PAPER_LIGHT = Object.freeze({

@@ -14,20 +14,25 @@ html, body { height: 100%; margin: 0; }
 body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.space { display: grid; place-items: center; height: 100dvh; padding: 16px; }
-.card { position: relative; }
+/* Pinched and dragged by the page's own zoom, never the browser's. */
+.space { position: relative; height: 100dvh; touch-action: none; }
+html.pannable .space { cursor: grab; }
+html.panning .space { cursor: grabbing; }
+/* In the middle of the window, even when larger than it; panned and, while
+   a zoom moves, scaled on the compositor. */
+.card { position: absolute; left: 50%; top: 50%; translate: -50% -50%; will-change: transform; }
 .paper.spinning { cursor: grabbing; }
 
 /* The card, as the homepage's paper: the pose on the outer element, the
    turn inside it carrying both faces. */
 .paper {
-  /* At its printed size: the cut card is 85 mm tall, and is 1330 of the
-     image's 1402 px (its outline's height), so the image is 85 mm × 1122 /
-     1330 wide. CSS millimetres follow the display's settings (96 CSS px to
+  /* At its printed size: the cut card is 85 mm tall, and is 1310.08 of
+     the paper image's 1376 px (its die line's height), so the image is
+     85 mm × 1122 / 1310.08 wide. CSS millimetres follow the display's settings (96 CSS px to
      the inch), so this is real size as far as the screen reports it, on a
      phone as on a monitor: it never shrinks to fit. */
   --card-height: 85mm;
-  width: calc(var(--card-height) * 1122 / 1330);
+  width: calc(var(--card-height) * 1122 / 1310.08);
   perspective: 1400px;
   cursor: grab;
   outline: none;
@@ -41,7 +46,7 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
   --thickness: max(2px, .56cqw);
 }
 .paper:focus-visible .paper-turn { outline: 2px solid var(--accent); outline-offset: 12px; border-radius: 4px; }
-.paper-turn { position: relative; aspect-ratio: 1122 / 1402; transform-style: preserve-3d; will-change: transform; }
+.paper-turn { position: relative; aspect-ratio: 1122 / 1376; transform-style: preserve-3d; will-change: transform; }
 .paper-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .paper-front { transform: translateZ(calc(var(--thickness) / 2)); }
 .paper-back { transform: rotateY(180deg) translateZ(calc(var(--thickness) / 2)); }
@@ -54,8 +59,8 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
   position: absolute;
   inset: 0;
   background: #d9d8d3;
-  -webkit-mask: url("/assets/embossed-paper-frame-800w.webp") center / 100% 100% no-repeat;
-  mask: url("/assets/embossed-paper-frame-800w.webp") center / 100% 100% no-repeat;
+  -webkit-mask: url("/assets/card-front-paper-800w.webp") center / 100% 100% no-repeat;
+  mask: url("/assets/card-front-paper-800w.webp") center / 100% 100% no-repeat;
   /* Spread inside the faces, never level with them (they would flicker). */
   transform: translateZ(calc(var(--thickness) * (.5 - (var(--i) + .5) / 8)));
 }
@@ -73,15 +78,14 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
     drop-shadow(var(--sx, 0px) var(--sy, 1.5px) var(--blur, 6px) rgb(58 55 50 / calc(var(--shadow, .016) * 4)));
 }
 /* Dimension lines, drawn on each face to the sheet's cut outline within its
-   image (its alpha's bounds: front 45–1075 × 37–1367, back 40–1080 ×
-   35–1367, of 1122 × 1402). Being on the faces, they tilt, spin and turn
-   over with the card. */
-.paper-back .dims { --left: 3.565%; --right: 3.743%; --top: 2.496%; --bottom: 2.496%; }
+   image: the supplied die line, 36.94–1082.13 × 36.40–1346.48 of 1122 ×
+   1376 on both faces (tools/build-card-paper.py prints these). Being on the faces, they tilt, spin and
+   turn over with the card. */
 .dims {
-  --left: 4.011%;
-  --right: 4.189%;
-  --top: 2.639%;
-  --bottom: 2.496%;
+  --left: 3.293%;
+  --right: 3.553%;
+  --top: 2.645%;
+  --bottom: 2.145%;
   --offset: 22px;
   --tick: 16px;
   position: absolute;
@@ -168,21 +172,81 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .card-copy p { display: flex; flex-direction: column; align-items: center; margin: 0; }
 .card-who span:not(.card-name) { color: #7f7e74; }
 
-/* —— Calibration: matching a bank card, so the card shows at true size —— */
-.calibrate-open {
+/* —— Controls: zoom, and calibration —— */
+.controls {
   position: fixed;
   left: 50%;
   bottom: calc(18px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
+  /* Above the card and its menu over it. */
+  z-index: 2;
+  /* Download in the middle, under the card; zoom and calibration either side. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: var(--paper);
+  font: 12px/1 var(--mono);
+  white-space: nowrap;
+}
+.controls button {
   padding: 6px 10px;
   border: 0;
   background: none;
   color: var(--muted);
-  font: 12px/1 var(--mono);
+  font: inherit;
   cursor: pointer;
 }
-.calibrate-open:hover { color: var(--ink); }
-.calibrate-open:focus-visible, .calibrate button:focus-visible, .calibrate input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.controls button:hover:not(:disabled) { color: var(--ink); }
+.controls button:disabled { opacity: .35; cursor: default; }
+/* The two sides fill equal columns (1fr each), so zoom and calibrate match in width. */
+.zoom { display: flex; align-items: center; justify-content: space-between; justify-self: stretch; }
+.calibrate-open { justify-self: stretch; text-align: center; }
+.zoom [data-zoom] { padding-inline: 8px; font-size: 14px; }
+/* Its own width, so the buttons hold still as the figure changes. */
+.zoom-level { min-width: 6ch; font-variant-numeric: tabular-nums; }
+.controls button:focus-visible, .calibrate button:focus-visible, .calibrate input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* The download menu opens upward from its button, and closes the way it came. */
+.download { position: relative; }
+.download-menu {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  width: max-content;
+  min-width: 220px;
+  padding: 12px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 12px 40px rgb(58 55 50 / .12);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 6px);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms;
+}
+.download[data-open] .download-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s;
+}
+.download-title { margin: 0 10px 8px; color: var(--muted); font-size: 11px; }
+.download-menu ul { margin: 0; padding: 0; list-style: none; }
+.download-menu a {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.download-menu a span { color: var(--muted); }
+.download-menu a:hover, .download-menu a:focus-visible { background: rgb(73 72 63 / .06); outline: none; }
+.download-open[aria-expanded="true"] { color: var(--ink); }
 .calibrate {
   --scale: 1;
   width: min(420px, calc(100vw - 32px));
@@ -232,5 +296,5 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .paper-gl[data-material-ready] { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-  .paper-gl { transition: none; }
+  .paper-gl, .download-menu, .download[data-open] .download-menu { transition: none; }
 }
