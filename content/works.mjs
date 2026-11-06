@@ -59,9 +59,11 @@ export const WORKS = [
 // Exploration: personal studies and play, shown by the row's toggle. None
 // has a page: a card opens its piece large over the row, at its own shape
 // (`width` and `height`, the image's pixels), and steps through the rest.
-// They carry no dates, so their cards show no years.
+// They carry no dates, so their cards show no years. `preview` is a smaller
+// copy their cards are dithered from (tools/exploration-previews.py);
+// `image`, the original, loads only up close.
 const exploration = (id, title, tags, width, height, alt) =>
-  ({ id, title, tags, width, height, alt, image: `/assets/exploration/${id}.webp` });
+  ({ id, title, tags, width, height, alt, image: `/assets/exploration/${id}.webp`, preview: `/assets/exploration/preview/${id}.webp` });
 
 export const EXPLORATION = [
   exploration('alpha-basketball-academy', 'alpha basketball academy', ['brand identity'], 1920, 1440,
