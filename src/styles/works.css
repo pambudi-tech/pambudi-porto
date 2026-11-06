@@ -280,10 +280,10 @@
 .works-nav-toggle {
   border: 1px solid rgb(73 72 63 / .14);
   border-radius: 999px;
-  background: rgb(255 255 255 / .92);
+  background: #ffffff;
   box-shadow: 0 1px 2px rgb(0 0 0 / .05);
 }
-.works-nav .works-nav-back { gap: 6px; height: 36px; padding: 0 14px 0 13px; border: 1px solid rgb(73 72 63 / .14); background: rgb(255 255 255 / .92); color: var(--ink); }
+.works-nav .works-nav-back { gap: 6px; height: 36px; padding: 0 14px 0 13px; border: 1px solid rgb(73 72 63 / .14); background: #ffffff; color: var(--ink); }
 /* The size of the project pill's caret, as on every back button. */
 .works-back-icon {
   width: 10px;
@@ -362,7 +362,7 @@
 .works-filter-button {
   border: 1px solid rgb(73 72 63 / .14);
   border-radius: 999px;
-  background: rgb(255 255 255 / .92);
+  background: #ffffff;
   box-shadow: 0 1px 2px rgb(0 0 0 / .05);
 }
 /* The view switch, as the project gallery's: an ink pill slides to the view. */
@@ -460,11 +460,9 @@
 .works-filter-count { color: var(--muted); font-size: 11px; }
 .works-filter-item[aria-checked="true"]::after { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 
-/* The sheet: the band scrolls down, fading under the bar; no dots. */
+/* The sheet scrolls down, under the bar's solid pills; no dots. */
 .works-gallery.is-sheet .works-scroll {
   overflow: hidden auto;
-  /* Soft under the bar only; at the bottom the stamps run off the screen. */
-  mask-image: linear-gradient(transparent, #000 20px);
 }
 .works-gallery.is-sheet .works-dots { display: none; }
 @media (pointer: coarse), (max-width: 540px) {

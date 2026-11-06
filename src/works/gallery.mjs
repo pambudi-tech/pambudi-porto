@@ -526,14 +526,14 @@ export class WorksGallery {
   }
 
   // The sheet: the same stamps, at one height, wrapped into lines centred
-  // across the screen, in a band from under the bar to the bottom of the
-  // screen, where the clock was, that scrolls down.
+  // across the screen, filling it from under the bar and scrolling down.
   layoutSheet({ top, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
-    // With the clock away, the band runs to the bottom of the screen, where
-    // the stamps scroll off its edge.
-    const bottom = innerHeight;
-    Object.assign(this.scroller.style, { top: `${top}px`, bottom: `${Math.max(0, innerHeight - bottom)}px` });
+    // The sheet fills the screen: its first line starts under the bar, and
+    // the stamps scroll up under the bar's solid pills and off the bottom
+    // edge, where the clock was.
+    this.scroller.style.removeProperty('top');
+    this.scroller.style.removeProperty('bottom');
     const perf = STAMP.perf * pitch, inset = Math.round(perf * STAMP.margin);
     const side = snapCol(stacked ? 16 : Math.max(48, width * .06), Math.round);
     const room = width - side * 2;
@@ -561,10 +561,10 @@ export class WorksGallery {
       entry.frame.style.height = `${h}px`;
     }
     const lines = wrapLines(shown.map(entry => entry.w), room, gap);
-    // Lines sit a whole number of stitches apart, from a stitch below the
-    // band's top, so at rest every stamp is on the holes.
+    // Lines sit a whole number of stitches apart, from under the bar, so at
+    // rest every stamp is on the holes.
     const lineGap = Math.round(gap / pitch) * pitch;
-    let y = pitch * 2;
+    let y = top;
     this.cards = new Array(shown.length);
     for (const line of lines) {
       const lineWidth = line.reduce((sum, index) => sum + shown[index].w, 0) + gap * (line.length - 1);
