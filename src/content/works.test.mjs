@@ -36,12 +36,12 @@ test('a case study keeps its own text; one without gallery images has its cover 
   assert.equal(ocean.title, 'Ocean by BCA');
   assert.equal(ocean.images[0].src, WORKS.find(entry => entry.id === 'ocean').image);
   assert.equal(ocean.images.length, 4);
-  const mandalika = projectPage('mandalika');
-  const work = WORKS.find(entry => entry.id === 'mandalika');
-  assert.equal(mandalika.title, 'Mandalika GP Website');
-  assert.equal(mandalika.name, work.title);
-  assert.equal(mandalika.images[0].src, work.image);
-  assert.equal(mandalika.images.length, 1);
+  const runrise = projectPage('runrise');
+  const work = WORKS.find(entry => entry.id === 'runrise');
+  assert.equal(runrise.title, 'Runrise Running Club Identity');
+  assert.equal(runrise.name, work.title);
+  assert.equal(runrise.images[0].src, work.image);
+  assert.equal(runrise.images.length, 1);
 });
 
 test('a password-protected work is locked: its page has the cover alone', () => {

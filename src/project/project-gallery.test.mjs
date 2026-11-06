@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEPTH, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, SHEET } from './project-gallery.mjs';
+import { DEPTH, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, stampSize, SHEET } from './project-gallery.mjs';
 import { fitRect, panTo, zoomAt, CLOSEUP } from './project-closeup.mjs';
 
 const SCREENS = {
@@ -142,4 +142,11 @@ test('up close, the image fills the room at its own shape, and zoom keeps it cov
   assert.deepEqual(panTo({ scale: 2, x: 50, y: -1e6 }, box), { scale: 2, x: 0, y: -box.height });
   assert.equal(zoomAt(fit, { x: 0, y: 0 }, 99, box).scale, CLOSEUP.most);
   assert.equal(zoomAt(zoomed, { x: 0, y: 0 }, .2, box).scale, 1);
+});
+
+test('a stamp keeps its photo\'s own shape, as large as fits the 4:3 box', () => {
+  assert.deepEqual(stampSize(4 / 3, 400, 300), { w: 400, h: 300 });
+  assert.deepEqual(stampSize(4 / 5, 400, 300), { w: 240, h: 300 });
+  assert.deepEqual(stampSize(2, 400, 300), { w: 400, h: 200 });
+  assert.deepEqual(stampSize(undefined, 400, 300), { w: 400, h: 300 });
 });

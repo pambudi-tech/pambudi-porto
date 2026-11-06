@@ -142,6 +142,15 @@ export function sheetLayout(count, { width, height, top = SHEET.top, bottom = SH
   return { columns, width: w, height: h, cells };
 }
 
+// A stamp's size: its photo's own shape, as large as fits the gallery's 4:3
+// box, `w` by `h`, and centred in it. A 4:3 photo fills the box; a taller or
+// wider one keeps its shape, uncropped, so every stamp still takes the same
+// room in the depth and on the sheet.
+export function stampSize(aspect, w, h) {
+  if (!(aspect > 0)) return { w, h };
+  return aspect >= w / h ? { w, h: Math.round(w / aspect) } : { w: Math.round(h * aspect), h };
+}
+
 // How far one stamp is on its way to the sheet, 0–1, when the whole move is
 // `progress` of the way: each sets off `stagger` after the one before.
 export function sheetProgress(progress, index, count, { duration = SHEET.duration, stagger = SHEET.stagger } = {}) {
@@ -338,7 +347,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
       choose();
     });
     root.append(element);
-    return { element, paper, media, photo, soft, dim, decoded, spot: index, sheetX: 0, sheetY: 0, sheetScale: 1 };
+    return { element, paper, media, photo, soft, dim, decoded, aspect: item.width / item.height, spot: index, sheetX: 0, sheetY: 0, sheetScale: 1 };
   });
   const dots = Object.assign(document.createElement('nav'), { className: 'project-depth-dots' });
   dots.setAttribute('aria-label', 'Gallery');
@@ -420,12 +429,13 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
 
   function layout() {
     const { width, height, narrow, w, h, perf } = measure();
-    const outline = stampOutline(w, h, perf);
+    // Each stamp in its photo's own shape, within the shared box (stampSize).
     stamps.forEach(stamp => {
-      Object.assign(stamp.element.style, { width: `${w}px`, height: `${h}px`, marginLeft: `${-w / 2}px`, marginTop: `${-h / 2}px` });
-      drawPostageStamp(stamp.paper, w, h, perf, { whole: true });
-      stamp.media.style.clipPath = `path('${outline}')`;
-      prepareSoft(stamp, { w, h, perf });
+      const size = stampSize(stamp.aspect, w, h);
+      Object.assign(stamp.element.style, { width: `${size.w}px`, height: `${size.h}px`, marginLeft: `${-size.w / 2}px`, marginTop: `${-size.h / 2}px` });
+      drawPostageStamp(stamp.paper, size.w, size.h, perf, { whole: true });
+      stamp.media.style.clipPath = `path('${stampOutline(size.w, size.h, perf)}')`;
+      prepareSoft(stamp, { w: size.w, h: size.h, perf });
     });
     stage = { width, height, w, h };
     const grid = sheetLayout(stamps.length, narrow ? { width, height, side: 16, gap: 16 } : { width, height });
