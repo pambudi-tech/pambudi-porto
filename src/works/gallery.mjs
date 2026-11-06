@@ -29,7 +29,10 @@ export const CARD_PRESS = Object.freeze({ scale: .97, hold: 120 });
 // settles in at its new place over `enter` ms, `stagger` ms after the last.
 export const EXPLORATION_VIEW = Object.freeze({
   initial: 'row', move: 560, leave: 180, enter: 380, stagger: 28, far: .28,
-  columns: { phone: 2, tablet: 3, desktop: 4 },
+  // On the sheet, as many columns as `most`, down to `fewest`, as keep each
+  // stamp at least `narrowest` px wide, so it stays clear to see; phones
+  // always show `phone`.
+  columns: { most: 4, fewest: 2, narrowest: 280, phone: 2 },
 });
 
 // How a card moves between two layouts, given where it was and where it is
@@ -66,6 +69,16 @@ export const SHEET_TAPER = Object.freeze({ roll: 1.2, perspective: 1000 });
 export function rollAt(past, radius) {
   const angle = Math.min(Math.PI / 2 - .001, past / radius);
   return { angle, slide: past - radius * Math.sin(angle), sink: radius * (1 - Math.cos(angle)) };
+}
+
+// How many columns the sheet takes in `room` px with `gap` between them: the
+// most that keep each at least `narrowest` px wide once rounded down to
+// whole `step`s (perforations).
+export function sheetColumns(room, gap, { most, fewest, narrowest, step = 1 } = EXPLORATION_VIEW.columns) {
+  for (let count = most; count > fewest; count--) {
+    if (Math.floor((room - gap * (count - 1)) / count / step) * step >= narrowest) return count;
+  }
+  return fewest;
 }
 
 // The tags of `works`, most used first, then by name, with their counts.
@@ -576,12 +589,14 @@ export class WorksGallery {
     const room = width - side * 2;
     const gap = Math.max(pitch, Math.round((stacked ? 14 : 28) / pitch) * pitch);
     const { columns } = EXPLORATION_VIEW;
-    const count = stacked ? columns.phone : width <= CARD_GUARD.tabletUpTo ? columns.tablet : columns.desktop;
-    // One height for every card: a 4:3 piece fills a column's width.
+    const count = stacked ? columns.phone : sheetColumns(room, gap, { ...columns, step: perf });
+    // One size for every card: a 4:3 stamp filling a column's width. Wider
+    // screens round its width down to whole perforations, so a line never
+    // runs past the room, and its height to the nearest.
     const column = (room - gap * (count - 1)) / count;
-    // Rounded down, so whole perforations never push a 4:3 card past its column.
+    const cardWidth = exact ? column : Math.floor(column / perf) * perf;
     const h = exact ? (column - inset * 2) / STAMP.window + inset * 2
-      : Math.max(perf * 4, Math.floor(((column - inset * 2) / STAMP.window + inset * 2) / perf) * perf);
+      : Math.max(perf * 4, Math.round(((cardWidth - inset * 2) / STAMP.window + inset * 2) / perf) * perf);
     this.window = stampShape(Math.round(column / perf) * perf, h, perf);
     const outlines = new Map();
     const outlineOf = w => outlines.get(w) ?? outlines.set(w, stampOutline(w, h, perf)).get(w);
@@ -590,8 +605,7 @@ export class WorksGallery {
       // shape filling it as a cover does; up close it shows whole again.
       const own = ownShape(entry.work);
       const aspect = STAMP.window;
-      entry.w = exact ? Math.min(room, (h - inset * 2) * aspect + inset * 2)
-        : Math.min(Math.floor(room / perf) * perf, ownShapeWidth(aspect, h, inset, perf));
+      entry.w = exact ? Math.min(room, (h - inset * 2) * aspect + inset * 2) : cardWidth;
       const outline = outlineOf(entry.w);
       entry.stamp.setAttribute('viewBox', `0 0 ${entry.w} ${h}`);
       entry.stamp.lastChild.setAttribute('d', outline);

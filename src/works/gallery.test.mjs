@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ownShapeWidth, tagCounts, wrapLines, cardMove, rollAt } from './gallery.mjs';
+import { ownShapeWidth, tagCounts, wrapLines, cardMove, rollAt, sheetColumns } from './gallery.mjs';
 import { EXPLORATION } from '../content/works.mjs';
 
 test('a card that keeps its photo\'s shape: the window takes its aspect at the shared height, in whole perforations', () => {
@@ -48,4 +48,18 @@ test('a stamp rolling over the edge keeps tilting the further it goes, up to edg
   // Past a quarter turn it stays edge-on.
   assert.ok(rollAt(2000, radius).angle < Math.PI / 2);
   assert.ok(Math.abs(rollAt(2000, radius).angle - rollAt(5000, radius).angle) < 1e-9);
+});
+
+test('the sheet takes four columns only while each stays at least 280 px wide', () => {
+  const room = width => width - 2 * Math.max(48, width * .06);
+  assert.equal(sheetColumns(room(1920), 28), 4);
+  assert.equal(sheetColumns(room(1440), 28), 4);
+  assert.equal(sheetColumns(room(1366), 28), 3);
+  assert.equal(sheetColumns(room(1280), 28), 3);
+  assert.equal(sheetColumns(room(1024), 28, { most: 4, fewest: 2, narrowest: 280, step: 18 }), 2);
+  assert.equal(sheetColumns(room(900), 28), 2);
+  for (const width of [900, 1024, 1280, 1366, 1440, 1920]) {
+    const count = sheetColumns(room(width), 28);
+    assert.ok((room(width) - 28 * (count - 1)) / count >= 280 || count === 2, `${width}`);
+  }
 });
