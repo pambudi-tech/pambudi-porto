@@ -3,14 +3,14 @@ import { EASE_OUT } from '../shared/motion.mjs';
 import { stampOutline } from '../works/postage-stamp.mjs';
 
 // A gallery image seen up close, as under a loupe: it grows out of its stamp
-// to fill the screen, and shrinks back into it. A click zooms in where it
-// lands and out again; a drag or the wheel pans; a pinch zooms by degrees.
-// The arrows, the side buttons or a swipe go to the next image, and Escape
-// or "back" returns to the gallery.
+// to fill the screen, and shrinks back into it. A tap anywhere closes it
+// (zoomed in, the first tap zooms back out); a pinch, the trackpad or + and
+// - zoom by degrees, and a drag or the wheel pans. The arrows, the side
+// buttons or a swipe go to the next image, endlessly, round from the last to
+// the first, and Escape or "back" returns to the gallery.
 export const CLOSEUP = Object.freeze({
   duration: 640, // ms the image takes to grow out of its stamp, or back
   swap: 280,     // ms one image takes to give way to the next
-  zoom: 2.5,     // the furthest a click zooms in
   most: 4,       // the furthest a pinch or the wheel zooms in
   swipe: 60,     // px a swipe travels to go to the next image
   drag: 4,       // px a press travels before it is a drag, not a click
@@ -113,8 +113,7 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
   function label() {
     count.textContent = `${active + 1} / ${images.length}`;
     root.setAttribute('aria-label', `Image ${active + 1} of ${images.length}`);
-    steps[0].disabled = active <= 0;
-    steps[1].disabled = active >= images.length - 1;
+    steps[0].disabled = steps[1].disabled = images.length < 2;
   }
 
   function open(index) {
@@ -166,9 +165,11 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
 
   // The image gives way to its neighbour, sliding off the way it came from,
   // and the frame takes the new one's shape.
+  // Endless both ways: after the last comes the first, before the first the
+  // last.
   function step(direction) {
-    const next = active + direction;
-    if (active < 0 || closing || next < 0 || next >= images.length) return;
+    if (active < 0 || closing || images.length < 2) return;
+    const next = (active + direction + images.length) % images.length;
     const old = image, from = rectOf(frame);
     sourceOf(active).classList.remove('is-closeup-source');
     active = next;
@@ -191,8 +192,9 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     return { x: event.clientX - left, y: event.clientY - top };
   };
 
-  // One finger or the mouse: a click zooms, a drag pans when zoomed and
-  // swipes to a neighbour when not. Two fingers pinch.
+  // One finger or the mouse: a tap closes, or zooms back out first when
+  // zoomed in; a drag pans when zoomed and swipes to a neighbour when not.
+  // Two fingers pinch.
   const pointers = new Map();
   let press = null, pinch = null;
   frame.addEventListener('pointerdown', event => {
@@ -233,8 +235,8 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     press = null;
     if (event.type === 'pointercancel') { image.style.translate = ''; return; }
     if (!moved) {
-      // A click zooms in where it lands, or back out.
-      show(view.scale > 1.01 ? FIT : zoomAt(view, pointIn(event), CLOSEUP.zoom, box), true);
+      if (view.scale > 1.01) show(FIT, true);
+      else close();
       return;
     }
     if (before.scale > 1.01) return;
@@ -273,6 +275,8 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
   });
 
   back.addEventListener('click', close);
+  // A tap anywhere around the image closes it too.
+  backdrop.addEventListener('click', close);
   steps.forEach(button => button.addEventListener('click', () => step(Number(button.dataset.step))));
   addEventListener('resize', () => { if (active >= 0 && !closing) { place(); show(FIT); } });
 
