@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ownShapeWidth, tagCounts, wrapLines, cardMove } from './gallery.mjs';
+import { ownShapeWidth, tagCounts, wrapLines, cardMove, rollAt } from './gallery.mjs';
 import { EXPLORATION } from '../content/works.mjs';
 
 test('a card that keeps its photo\'s shape: the window takes its aspect at the shared height, in whole perforations', () => {
@@ -34,4 +34,18 @@ test('a card glides only a short way; far or from out of sight, it settles in pl
   assert.equal(cardMove(rect(2400, 100), rect(300, 300), screen), 'settle');
   assert.equal(cardMove(null, rect(300, 300), screen), 'settle');
   assert.equal(cardMove(rect(100, 100), rect(100, 1400), screen), 'none');
+});
+
+test('a stamp rolling over the edge keeps tilting the further it goes, up to edge-on', () => {
+  const radius = 250;
+  let last = rollAt(0, radius);
+  assert.deepEqual([last.angle, last.slide, last.sink].map(n => +n.toFixed(6)), [0, 0, 0]);
+  for (const past of [50, 150, 300, 380]) {
+    const next = rollAt(past, radius);
+    assert.ok(next.angle > last.angle && next.sink > last.sink && next.slide >= last.slide, `at ${past}`);
+    last = next;
+  }
+  // Past a quarter turn it stays edge-on.
+  assert.ok(rollAt(2000, radius).angle < Math.PI / 2);
+  assert.ok(Math.abs(rollAt(2000, radius).angle - rollAt(5000, radius).angle) < 1e-9);
 });

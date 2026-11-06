@@ -52,11 +52,21 @@ export const SHEET_PHONE_SIDE = 16;
 export const WORKS_VEIL = Object.freeze({
   layers: [{ blur: 5, split: 3, reach: 1 }],
 });
-// Stamps on the sheet taper toward its top and bottom edges, as if the sheet
-// curved away there: past the middle of the first line's place at rest, a
-// stamp tilts back by up to `tilt` degrees, seen from `perspective` px away,
-// its outer edge narrowing, and shrinks by up to `shrink`.
-export const SHEET_TAPER = Object.freeze({ tilt: 38, shrink: .12, perspective: 900 });
+// The sheet rolls away at its top and bottom edges, as if wrapped over a
+// cylinder there: past where the first line's middle rests, a stamp follows
+// the curve, tilting back further the further it goes, sliding along the arc
+// and sinking away, seen from `perspective` px. The cylinder's radius makes
+// a stamp at the screen's edge `roll` radians round (about 70°); it is
+// edge-on just beyond.
+export const SHEET_TAPER = Object.freeze({ roll: 1.2, perspective: 1000 });
+
+// Where a stamp `past` px beyond the curl's start lies on a cylinder of
+// `radius`: its tilt (radians, up to a quarter turn), how far it slides back
+// toward the curl's start along the screen, and how far it sinks away.
+export function rollAt(past, radius) {
+  const angle = Math.min(Math.PI / 2 - .001, past / radius);
+  return { angle, slide: past - radius * Math.sin(angle), sink: radius * (1 - Math.cos(angle)) };
+}
 
 // The tags of `works`, most used first, then by name, with their counts.
 export function tagCounts(works) {
@@ -1095,32 +1105,33 @@ export class WorksGallery {
     else this.painted = null;
   }
 
-  // Tapers the stamps nearing the sheet's top and bottom edges, from the
-  // sheet's own sums: where each card was laid out and how far the sheet has
-  // scrolled. Anywhere else, and off the sheet, they lie flat.
+  // Rolls the stamps nearing the sheet's top and bottom edges over their
+  // cylinders (SHEET_TAPER), from the sheet's own sums: where each card was
+  // laid out and how far the sheet has scrolled. Anywhere else, and off the
+  // sheet, they lie flat.
   taper() {
-    const { tilt, shrink, perspective } = SHEET_TAPER;
+    const { roll, perspective } = SHEET_TAPER;
     const zone = this.sheet && !this.reduced ? this.taperZone ?? 0 : 0;
-    const at = zone ? this.scroller.scrollTop : 0, height = innerHeight;
+    const at = zone ? this.scroller.scrollTop : 0, height = innerHeight, radius = zone / roll;
     const shown = new Map(this.shown.map((entry, index) => [entry, this.cards?.[index]]));
     for (const entry of this.items) {
-      let transform = '', origin = '';
+      let transform = '';
       const card = zone && shown.get(entry);
       if (card) {
         const centre = card.y - at + card.h / 2;
-        const up = clamp((zone - centre) / zone, 0, 1), down = clamp((centre - (height - zone)) / zone, 0, 1);
-        const t = Math.max(up, down);
-        if (t > 0) {
-          const eased = t * t * (3 - 2 * t), away = up >= down;
-          // Hinged on its side toward the middle, its outer edge tips away.
-          transform = `perspective(${perspective}px) rotateX(${((away ? 1 : -1) * tilt * eased).toFixed(2)}deg) scale(${(1 - shrink * eased).toFixed(4)})`;
-          origin = away ? '50% 100%' : '50% 0';
+        const up = zone - centre, down = centre - (height - zone);
+        const past = Math.max(up, down);
+        if (past > 0) {
+          const { angle, slide, sink } = rollAt(past, radius);
+          // Over the top its top edge tips away; over the bottom, its bottom.
+          const sign = up >= down ? 1 : -1;
+          transform = `perspective(${perspective}px) translate3d(0, ${(sign * slide).toFixed(2)}px, ${(-sink).toFixed(2)}px) rotateX(${(sign * angle * 180 / Math.PI).toFixed(2)}deg)`;
         }
       }
       if (entry.tapered === transform) continue;
       entry.tapered = transform;
       entry.item.style.transform = transform;
-      entry.item.style.transformOrigin = origin;
+      entry.item.style.transformOrigin = transform ? '50% 50%' : '';
     }
   }
 
