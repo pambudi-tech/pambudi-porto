@@ -481,28 +481,36 @@ body.works-open.works-sheet .portfolio-clock { opacity: 0; }
   body.works-open .portfolio-clock { transition: none; }
 }
 
-/* The veil behind the bar on the sheet (gallery.mjs makeVeil): stamps
-   scrolling under the bar blur, their colours parting a little at the edges,
-   fading out toward the stamps below. It shows once the sheet has scrolled. */
+/* The veils on the sheet (gallery.mjs makeVeils): stamps scrolling under
+   the bar, or off the bottom edge, blur and part their colours, most at the
+   very edge, each of three layers fading out by its own reach. The top ones
+   show once the sheet has scrolled, the bottom ones while more lies below. */
 .works-veil {
   position: absolute;
-  top: 0;
   /* A little past both sides, so the colours' parting never leaves a bare
      fringe at the screen's edges. */
-  left: -16px;
-  right: -16px;
+  left: -24px;
+  right: -24px;
   z-index: 1;
   height: var(--veil-height, 120px);
   pointer-events: none;
   opacity: 0;
   transition: opacity 240ms ease;
-  background: linear-gradient(rgb(255 255 255 / .38), rgb(255 255 255 / 0));
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(#000 45%, transparent);
-  mask-image: linear-gradient(#000 45%, transparent);
 }
-.works-veil.is-aberrant { backdrop-filter: blur(5px) url(#works-aberration); }
-.works-gallery.is-sheet.is-scrolled .works-veil { opacity: 1; }
-.closeup-open .works-veil { opacity: 0; }
+.works-veil[data-edge="top"] {
+  top: 0;
+  -webkit-mask-image: linear-gradient(#000 calc(var(--veil-reach) * .4), transparent var(--veil-reach));
+  mask-image: linear-gradient(#000 calc(var(--veil-reach) * .4), transparent var(--veil-reach));
+}
+.works-veil[data-edge="bottom"] {
+  bottom: 0;
+  -webkit-mask-image: linear-gradient(to top, #000 calc(var(--veil-reach) * .4), transparent var(--veil-reach));
+  mask-image: linear-gradient(to top, #000 calc(var(--veil-reach) * .4), transparent var(--veil-reach));
+}
+/* The lightest layer also lifts the stamps toward white a little. */
+.works-veil[data-edge="top"][data-level="0"] { background: linear-gradient(rgb(255 255 255 / .38), rgb(255 255 255 / 0)); }
+.works-veil[data-edge="bottom"][data-level="0"] { background: linear-gradient(to top, rgb(255 255 255 / .38), rgb(255 255 255 / 0)); }
+.works-gallery.is-sheet.is-scrolled .works-veil[data-edge="top"],
+.works-gallery.is-sheet.has-more .works-veil[data-edge="bottom"] { opacity: 1; }
+.closeup-open .works-veil { opacity: 0 !important; }
 .works-veil-filters { position: absolute; width: 0; height: 0; }

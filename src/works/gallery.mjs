@@ -43,8 +43,18 @@ export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far
   return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
 }
 
-// The veil under the bar on the sheet: how far its colours part, in pixels.
-export const WORKS_VEIL = Object.freeze({ split: 3 });
+// The veils at the sheet's top and bottom edges, each three layers deep: a
+// light one across the whole band, then stronger ones nearer the edge, so
+// the stamps distort most where they leave the screen. Each layer blurs by
+// `blur` px, parts red and blue `split` px either way (Chromium), and fades
+// out by `reach` of the band's depth, measured from the edge.
+export const WORKS_VEIL = Object.freeze({
+  layers: [
+    { blur: 3, split: 2, reach: 1 },
+    { blur: 8, split: 5, reach: .62 },
+    { blur: 16, split: 10, reach: .32 },
+  ],
+});
 
 // The tags of `works`, most used first, then by name, with their counts.
 export function tagCounts(works) {
@@ -129,7 +139,7 @@ export class WorksGallery {
     this.toggles[0].parentElement.prepend(this.togglePill);
     // Beside it the row or the sheet, and under it a filter by tag.
     this.tools = this.makeTools();
-    this.veil = this.makeVeil();
+    this.veils = this.makeVeils();
     // Above the clock: a dot per stamp, the current one filled; a dot glides
     // the row to its stamp.
     this.dots = Object.assign(document.createElement('nav'), { className: 'works-dots' });
@@ -163,9 +173,7 @@ export class WorksGallery {
     // A native scroll (a swipe, or the keyboard) is drawn in the same frame loop.
     this.scroller.addEventListener('scroll', () => {
       this.paint();
-      // The veil under the bar shows once the sheet has scrolled under it.
-      const scrolled = this.sheet && this.scroller.scrollTop > 2;
-      if (scrolled !== this.scrolled) this.root.classList.toggle('is-scrolled', this.scrolled = scrolled);
+      this.updateVeils();
     }, { passive: true });
   }
 
@@ -538,8 +546,8 @@ export class WorksGallery {
   // across the screen, filling it from under the bar and scrolling down.
   layoutSheet({ top, pitch, stacked, snapCol, quiet, dither }) {
     const width = innerWidth, shown = this.shown;
-    // The veil reaches from the top to where the first line starts.
-    this.veil.style.setProperty('--veil-height', `${top}px`);
+    // The veils reach from each edge as deep as the first line starts.
+    for (const veil of this.veils) veil.style.setProperty('--veil-height', `${top}px`);
     // The sheet fills the screen: its first line starts under the bar, and
     // the stamps scroll up under the bar's solid pills and off the bottom
     // edge, where the clock was.
@@ -593,6 +601,7 @@ export class WorksGallery {
     }
     this.wall.style.width = `${width}px`;
     this.wall.style.height = `${y - lineGap + pitch * 3}px`;
+    requestAnimationFrame(() => this.updateVeils());
     if (quiet) return;
     if (dither) for (const entry of shown) this.ditherCard(entry);
     this.paint();
@@ -653,30 +662,53 @@ export class WorksGallery {
     group.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
   }
 
-  // Behind the bar on the sheet, a band that blurs the stamps passing under
-  // it and parts their colours a little at the edges, as a lens does, fading
-  // out toward the stamps below. Where a filter cannot work on what lies
-  // behind it (Safari, Firefox), the band only blurs.
-  makeVeil() {
-    const veil = Object.assign(document.createElement('div'), { className: 'works-veil' });
-    veil.setAttribute('aria-hidden', 'true');
-    this.nav.before(veil);
+  // At the sheet's top and bottom edges, bands that blur the stamps passing
+  // under the bar or off the screen and part their colours, as a lens does at
+  // its rim, most at the very edge and fading out toward the stamps between
+  // (WORKS_VEIL). Each layer is its own element: one wrapping them, faded,
+  // would cut them off from what lies behind. Where a filter cannot work on
+  // what lies behind (Safari, Firefox), they only blur.
+  makeVeils() {
     const chromium = navigator.userAgentData?.brands?.some(brand => brand.brand === 'Chromium');
-    if (chromium && !document.getElementById('works-aberration')) {
+    if (chromium && !document.getElementById('works-aberration-0')) {
       const defs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       defs.setAttribute('class', 'works-veil-filters');
       defs.setAttribute('aria-hidden', 'true');
       const channel = (row, offset, name) => `<feColorMatrix in="SourceGraphic" type="matrix" values="${row}" result="${name}"/>`
         + (offset ? `<feOffset in="${name}" dx="${offset}" result="${name}"/>` : '');
-      defs.innerHTML = '<filter id="works-aberration" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">'
-        + channel('1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0', -WORKS_VEIL.split, 'red')
+      defs.innerHTML = WORKS_VEIL.layers.map(({ split }, level) =>
+        `<filter id="works-aberration-${level}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">`
+        + channel('1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0', -split, 'red')
         + channel('0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0', 0, 'green')
-        + channel('0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0', WORKS_VEIL.split, 'blue')
-        + '<feBlend in="red" in2="green" mode="screen" result="rg"/><feBlend in="rg" in2="blue" mode="screen"/></filter>';
+        + channel('0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0', split, 'blue')
+        + '<feBlend in="red" in2="green" mode="screen" result="rg"/><feBlend in="rg" in2="blue" mode="screen"/></filter>').join('');
       document.body.append(defs);
     }
-    if (chromium) veil.classList.add('is-aberrant');
-    return veil;
+    const veils = [];
+    for (const edge of ['top', 'bottom']) {
+      WORKS_VEIL.layers.forEach(({ blur, reach }, level) => {
+        const veil = Object.assign(document.createElement('div'), { className: 'works-veil' });
+        veil.setAttribute('aria-hidden', 'true');
+        veil.dataset.edge = edge;
+        veil.dataset.level = String(level);
+        veil.style.setProperty('--veil-reach', `${reach * 100}%`);
+        const filter = `blur(${blur}px)${chromium ? ` url(#works-aberration-${level})` : ''}`;
+        veil.style.backdropFilter = filter;
+        veil.style.webkitBackdropFilter = `blur(${blur}px)`;
+        this.nav.before(veil);
+        veils.push(veil);
+      });
+    }
+    return veils;
+  }
+
+  // The veils show where the sheet runs on under them: the top one once it
+  // has scrolled under the bar, the bottom one while there is more below.
+  updateVeils() {
+    const at = this.scroller.scrollTop, max = this.scroller.scrollHeight - this.scroller.clientHeight;
+    const above = this.sheet && at > 2, below = this.sheet && at < max - 2;
+    if (above !== this.scrolled) this.root.classList.toggle('is-scrolled', this.scrolled = above);
+    if (below !== this.more) this.root.classList.toggle('has-more', this.more = below);
   }
 
   // The view switch: in the top bar, or on phones under it, before the filter.
@@ -736,8 +768,6 @@ export class WorksGallery {
       this.view = view;
       this.markView();
       this.root.classList.toggle('is-sheet', this.sheet);
-      this.root.classList.remove('is-scrolled');
-      this.scrolled = false;
       this.syncClock();
     });
   }
@@ -770,6 +800,7 @@ export class WorksGallery {
     this.layout({ dither: false });
     this.scroller.scrollLeft = this.scroller.scrollTop = 0;
     this.updateRow();
+    this.updateVeils();
     let longest = EXPLORATION_VIEW.move;
     if (!this.reduced) {
       const { move, leave, enter, stagger } = EXPLORATION_VIEW;
