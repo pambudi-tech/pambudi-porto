@@ -14,6 +14,10 @@
 }
 .project-closeup-frame[data-zoomed] { cursor: grab; }
 .project-closeup-frame.is-dragging { cursor: grabbing; }
+/* With a mouse, a zoomed image follows the pointer, and a click zooms out. */
+@media (hover: hover) and (pointer: fine) {
+  .project-closeup-frame[data-zoomed], .project-closeup-frame[data-zoomed].is-dragging { cursor: zoom-out; }
+}
 .project-closeup-paper img { position: absolute; inset: -1px; display: block; width: calc(100% + 2px); height: calc(100% + 2px); object-fit: cover; transform-origin: 0 0; -webkit-user-drag: none; }
 .project-closeup-bar { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; display: flex; gap: 8px; align-items: center; translate: -50% 0; }
 .project-closeup-back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 13px; border: 1px solid rgb(73 72 63 / .14); border-radius: 999px; background: rgb(255 255 255 / .92); color: var(--ink); font: 12px/1 "Syne Mono", monospace; }

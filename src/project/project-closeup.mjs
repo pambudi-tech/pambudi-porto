@@ -14,6 +14,7 @@ export const CLOSEUP = Object.freeze({
   most: 4,       // the furthest a pinch or the wheel zooms in
   swipe: 60,     // px a swipe travels to go to the next image
   zoom: 2.5,     // the furthest a click zooms in
+  follow: 180,   // ms a zoomed image takes to follow the mouse
   drag: 4,       // px a press travels before it is a drag, not a click
   perf: 18,      // px between perforations up close; `perfPhone` on phones
   perfPhone: 14,
@@ -95,9 +96,11 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
   const aspectOf = index => images[index].width / images[index].height;
   const place = () => { box = fitRect(aspectOf(active), closeupRoom(innerWidth, innerHeight)); Object.assign(frame.style, px(box)); };
 
+  // `animated`: true eases over 420 ms, a number over that many ms.
   function show(next, animated = false) {
     view = next;
-    image.style.transition = animated && !reduced() ? `transform 420ms ${EASE}` : 'none';
+    const duration = animated === true ? 420 : animated || 0;
+    image.style.transition = duration && !reduced() ? `transform ${duration}ms ${EASE}` : 'none';
     image.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
     frame.toggleAttribute('data-zoomed', view.scale > 1.01);
   }
@@ -193,8 +196,9 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
     return { x: event.clientX - left, y: event.clientY - top };
   };
 
-  // One finger or the mouse: a click zooms, a drag pans when zoomed and
-  // swipes to a neighbour when not. Two fingers pinch.
+  // One finger or the mouse: a click zooms, a drag pans when zoomed (a
+  // finger; the mouse pans by hovering, below) and swipes to a neighbour
+  // when not. Two fingers pinch.
   const pointers = new Map();
   let press = null, pinch = null;
   frame.addEventListener('pointerdown', event => {
@@ -208,7 +212,22 @@ export function mountCloseup({ images, motionPreference, sourceOf, onIndex, onCl
       press = null;
     }
   });
+  // A mouse over a zoomed image moves the view with it, no dragging: where
+  // the pointer is across the frame, that much of the way across the image
+  // shows, so its edge comes into view at the frame's edge. From the fitted
+  // image this is exactly where a click zooms in, so nothing jumps.
+  const follow = event => {
+    const point = pointIn(event), scale = view.scale;
+    const across = clamp(point.x / box.width, 0, 1), down = clamp(point.y / box.height, 0, 1);
+    show(panTo({ scale, x: -(scale - 1) * box.width * across, y: -(scale - 1) * box.height * down }, box), CLOSEUP.follow);
+  };
   frame.addEventListener('pointermove', event => {
+    if (event.pointerType === 'mouse' && image && !closing && !pinch && view.scale > 1.01) {
+      follow(event);
+      // A press that travels is not a click: it does not zoom out.
+      if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) >= CLOSEUP.drag) press.moved = true;
+      return;
+    }
     if (!pointers.has(event.pointerId)) return;
     pointers.set(event.pointerId, event);
     if (pinch && pointers.size === 2) {
