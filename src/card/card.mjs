@@ -18,7 +18,7 @@ const motion = matchMedia('(prefers-reduced-motion: reduce)');
 const paper = document.querySelector('.paper');
 const turn = paper.querySelector('.paper-turn');
 const sheets = [...paper.querySelectorAll('.sheet')];
-const faces = [new PaperGL(sheets[0], 'white'), new PaperGL(sheets[1], 'red')];
+const faces = [new PaperGL(sheets[0], 'white'), new PaperGL(sheets[1], 'whiteBack')];
 
 const pointer = { x: 0, y: 0, hovered: false, lit: false, pressed: false };
 const target = () => paperTarget({ ...pointer, reduced: motion.matches });

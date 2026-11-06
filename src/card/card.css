@@ -47,7 +47,7 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 .paper-back { transform: rotateY(180deg) translateZ(calc(var(--thickness) / 2)); }
 
 /* The cut edge: thin layers of the sheet's own outline between its faces,
-   white stock toward the front and red toward the back. Static, so the
+   white stock all through, like both faces. Static, so the
    spin and the turn move them on the compositor alone. */
 .paper-edge { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
 .edge {
@@ -59,7 +59,6 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
   /* Spread inside the faces, never level with them (they would flicker). */
   transform: translateZ(calc(var(--thickness) * (.5 - (var(--i) + .5) / 8)));
 }
-.edge:nth-child(n + 5) { background: #9d2429; }
 .sheet {
   display: block;
   width: 100%;

@@ -12,10 +12,12 @@ export const RELIEF_MARGIN = Object.freeze({ x: 47, y: 50 });
 
 // Each face's relief, flat paper colour (sampled from its photograph) and
 // where its emboss sits in that photograph: the red back's is pressed 2 px
-// right and 8 px higher than the registration.
+// right and 8 px higher than the registration. The white back is the red
+// back's deboss on the front's white stock (the card page's back).
 export const PAPER_FACES = Object.freeze({
   white: { relief: '/assets/paper-front-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0] },
   red: { relief: '/assets/paper-back-relief.webp', colour: [186.7, 42.6, 46.3], offset: [2, -8] },
+  whiteBack: { relief: '/assets/paper-back-relief.webp', colour: [232.7, 232.6, 232], offset: [2, -8] },
 });
 
 export const PAPER_LIGHT = Object.freeze({
