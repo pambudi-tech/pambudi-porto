@@ -11,6 +11,7 @@ import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
 import { DITHER_LOCKED, DITHER_NONE, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
+import { bitmapOf } from '../shared/bitmap.mjs';
 import { SheetRoller, copiesOf, rollerRadius, rollsSmoothly } from './sheet-roller.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
@@ -49,6 +50,16 @@ export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far
   const distance = Math.hypot(from.left - to.left, from.top - to.top);
   return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
 }
+
+// Only a pointer that hovers glitches the cards; on a touch screen there is
+// no glitch to ready.
+const hovering = globalThis.matchMedia?.('(hover: hover)');
+
+// Whether a photo decoded from its file uploads the very pixels its <img>
+// does: measured so in Chromium, texel for texel, colour-managed covers too.
+// Other engines are not measured, so there the glitch is not readied and a
+// first hover uploads the <img>, as it always has.
+const decodesAlike = () => Boolean(globalThis.navigator?.userAgentData?.brands?.some(brand => brand.brand === 'Chromium'));
 
 // On phones the sheet's stamps keep this far, in px, from the screen's sides.
 export const SHEET_PHONE_SIDE = 16;
@@ -345,6 +356,9 @@ export class WorksGallery {
   async open({ history = true, instant = false } = {}) {
     if (this.isOpen || this.busy) return;
     this.busy = true;
+    // The details seals wake while the row is still out of sight, so the
+    // first frame shown carries nothing of their time away.
+    this.sealsAway(false);
     if (history && location.hash !== '#works') window.history.pushState({ works: true }, '', '#works');
     this.scene.setPaperPresent(false);
     this.scene.setBirdAway?.(true, { immediate: instant });
@@ -370,6 +384,9 @@ export class WorksGallery {
     this.keepPainting(this.shown.length * 80 + 700);
     this.busy = false;
     (this.shown.find(entry => workHref(entry.work)) ?? this.shown[0])?.link.focus({ preventScroll: true, focusVisible: false });
+    // A project opened at its own address shows over the row; its glitch is
+    // readied once the visitor is back on it (departing).
+    if (!instant) this.readyGlitch(this.shown.length * 80 + 700);
   }
 
   // A project's own address, opened directly: the row opens at once on the
@@ -408,6 +425,10 @@ export class WorksGallery {
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
     this.root.hidden = true;
     this.isOpen = false;
+    // Out of sight, the seals rest until the row opens again, and the
+    // photos readied for the glitch are let go.
+    this.sealsAway(true);
+    this.dropGlitch();
     this.syncWheel();
     this.paper.style.visibility = '';
     this.scene.restPaper?.();
@@ -458,6 +479,7 @@ export class WorksGallery {
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
     this.keepPainting(this.shown.length * 80 + 700);
     this.busy = false;
+    this.readyGlitch(this.shown.length * 80 + 700);
   }
 
   // Half of the paper's own turn: it accelerates into edge-on and vanishes,
@@ -483,10 +505,18 @@ export class WorksGallery {
     const snapRow = (y, round = Math.ceil) => view.y + round((y - view.y) / pitch) * pitch;
     const snapCol = (x, round = Math.round) => view.x + round((x - view.x) / pitch) * pitch;
 
-    // The details seals match the homepage's seal, size and lettering.
+    // Everything measured first, then everything written: a measure taken
+    // between writes would have the browser lay the page out again for it.
+    // None of these depends on what is written below (the cards and the
+    // seals' size live apart from the homepage seal, the bar and the filter).
     const label = this.frontSeal.querySelector('.works-seal-label');
-    this.root.style.setProperty('--seal-width', `${this.frontSeal.offsetWidth}px`);
-    this.root.style.setProperty('--seal-label-size', getComputedStyle(label).fontSize);
+    const sealWidth = this.frontSeal.offsetWidth, labelSize = getComputedStyle(label).fontSize;
+    const barBottom = this.nav.getBoundingClientRect().bottom;
+    const dock = this.sheet ? this.filterDock.offsetHeight : 0;
+
+    // The details seals match the homepage's seal, size and lettering.
+    this.root.style.setProperty('--seal-width', `${sealWidth}px`);
+    this.root.style.setProperty('--seal-label-size', labelSize);
 
     const clockTop = view.y + (Math.floor((height - view.y) / pitch) - (stacked ? 21 : 7)) * pitch;
     // Only the cards the filter keeps are laid out; the rest are hidden.
@@ -495,11 +525,10 @@ export class WorksGallery {
     this.shown = shown;
     // Cards lean to the top or the bottom of the space between the top bar
     // and the clock, each at its own height there; all share one size.
-    const barBottom = this.nav.getBoundingClientRect().bottom;
     const top = snapRow(barBottom + (stacked ? 16 : 24));
     // The sheet (exploration) runs down to the screen's bottom, where its
     // filter lies (WORKS_FILTER.edge px up); the row stops above the clock.
-    const floor = this.sheet ? height - WORKS_FILTER.edge - this.filterDock.offsetHeight : clockTop;
+    const floor = this.sheet ? height - WORKS_FILTER.edge - dock : clockTop;
     if (this.sheet) {
       this.layoutSheet({ top, bar: barBottom, floor, pitch, stacked, snapCol, quiet, dither });
       return;
@@ -972,6 +1001,7 @@ export class WorksGallery {
   // left to draw. Opened first, the row dithers what is left as ever.
   async warm() {
     if (this.isOpen) return;
+    this.sealsAway(true);
     this.root.style.visibility = 'hidden';
     this.root.hidden = false;
     this.layout({ quiet: true });
@@ -987,6 +1017,14 @@ export class WorksGallery {
       if (this.isOpen) return;
       this.ditherCard(entry, { width, height });
     }
+  }
+
+  // The cards' details seals follow the pointer over the whole page, each
+  // measuring its place as it moves. While the row is out of sight they are
+  // put away: they rest as at first and measure nothing, and wake as it opens.
+  // Shown, every one stays awake, so its light eases in as ever.
+  sealsAway(away) {
+    for (const entry of Object.values(this.built).flat()) entry.seal?.wax.setSuspended(away);
   }
 
   // Whether this visitor holds the PIN's pass (server/works-pass.mjs). With
@@ -1076,7 +1114,12 @@ export class WorksGallery {
       canvas.setAttribute('aria-hidden', 'true');
       canvas.style.translate = image.style.translate;
       entry.picture.append(canvas);
-      this.glitcher.show(entry.photo, image.clientWidth, image.clientHeight, Math.min(devicePixelRatio || 1, 2), this.ditherOf(entry));
+      // The photo decoded ahead (readyGlitch), if it is still the one shown.
+      const ready = this.glitchReady?.get(entry);
+      this.glitchReady?.delete(entry);
+      const pixels = ready?.src === (entry.photo.currentSrc || entry.photo.src) ? ready.pixels : entry.photo;
+      this.glitcher.show(entry.photo, image.clientWidth, image.clientHeight, Math.min(devicePixelRatio || 1, 2), this.ditherOf(entry), pixels);
+      ready?.pixels.close();
     }
     clearTimeout(this.glitchSettle);
     this.glitchSettle = setTimeout(() => this.unglitch(entry), GLITCH.settle);
@@ -1096,6 +1139,52 @@ export class WorksGallery {
     canvas.classList.add('is-glitching');
   }
 
+  // Set while a project is on its way or open over the row, until its card
+  // has flown home (project-transition.mjs). Meanwhile the photos readied for
+  // the glitch are let go, so none is decoded during the flight or held
+  // through the project's page; back on the row, once the card has landed,
+  // they are readied again.
+  get departing() { return this.leaving; }
+  set departing(leaving) {
+    this.leaving = leaving;
+    if (leaving) this.dropGlitch();
+    else this.readyGlitch(700);
+  }
+
+  // Readies the glitch for the works row once its cards have settled in
+  // (`after` ms) and the page is quiet: its WebGL is made now rather than on
+  // the first hover, and each card's photo is decoded off the main thread, so
+  // its first hover only copies the pixels up instead of decoding the photo
+  // again there. Each decoded photo is kept only until it is uploaded, or
+  // until a project is chosen, or the row closes or turns to exploration,
+  // whose pieces glitch as they always have.
+  async readyGlitch(after = 0) {
+    this.dropGlitch();
+    if (this.laidOut !== 'works' || this.reduced || !hovering?.matches || !decodesAlike()) return;
+    const ready = this.glitchReady = new Map();
+    const current = () => this.glitchReady === ready && this.isOpen;
+    await new Promise(resolve => setTimeout(resolve, after));
+    await new Promise(resolve => (window.requestIdleCallback ?? setTimeout)(resolve));
+    if (!current()) return;
+    this.glitcher ??= createGlitch() ?? false;
+    if (!this.glitcher) return;
+    for (const entry of this.built.works) {
+      const { photo } = entry, src = photo.currentSrc || photo.src;
+      if (!photo.complete || !photo.naturalWidth || this.glitcher.holds(photo) || entry.ownShape) continue;
+      const pixels = await bitmapOf(photo);
+      if (pixels === photo) continue;
+      if (!current()) { pixels.close(); return; }
+      // Hovered while it was decoding, it has its texture already.
+      if (this.glitcher.holds(photo)) { pixels.close(); continue; }
+      ready.set(entry, { src, pixels });
+    }
+  }
+
+  dropGlitch() {
+    for (const { pixels } of this.glitchReady?.values() ?? []) pixels.close();
+    this.glitchReady = null;
+  }
+
   unglitch(entry) {
     if (this.glitched !== entry) return;
     clearTimeout(this.glitchSettle);
@@ -1111,7 +1200,11 @@ export class WorksGallery {
       for (const entry of this.shown) entry.image.style.translate = '';
       return;
     }
-    const centre = this.scroller.scrollLeft + innerWidth / 2;
+    // The scroll is read before the photos are slid: read after, it would have
+    // the browser restyle the row first, every frame. Sliding a photo inside
+    // its window, which clips it, changes neither.
+    const at = this.scroller.scrollLeft, max = this.scroller.scrollWidth - this.scroller.clientWidth;
+    const centre = at + innerWidth / 2;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     this.cards.forEach((card, index) => {
       const entry = this.shown[index];
@@ -1122,7 +1215,6 @@ export class WorksGallery {
     });
     // The current stamp is the one nearest the middle, except at either end
     // of the row, where it is the first or the last.
-    const max = this.scroller.scrollWidth - this.scroller.clientWidth, at = this.scroller.scrollLeft;
     let current = 0;
     if (max > 0 && at >= max - 1) current = this.cards.length - 1;
     else if (at > 1) {
@@ -1167,16 +1259,17 @@ export class WorksGallery {
       }
       this.scroller[this.scrollAxis] = this.glidePosition;
     }
-    this.updateRow();
     this.roll();
     let moving = this.gliding || now < (this.paintUntil ?? 0);
     // Only a card hovered, pressed or still settling moves; the rest lie flat
-    // and are not measured. Read those cards' places before writing
-    // transforms. Native images travel with their paper frame without a
-    // separate rendering layer.
+    // and are not measured. Read those cards' places before writing anything
+    // this frame, the photos' slide included (a card's place is its own, not
+    // its photo's), so nothing has to be restyled to answer. Native images
+    // travel with their paper frame without a separate rendering layer.
     const resting = entry => entry !== this.active && !entry.pressed && !entry.pose.rx && !entry.pose.ry && entry.pose.scale === 1;
     const live = this.items.filter(entry => !resting(entry));
     const places = new Map(live.map(entry => [entry, entry.item.getBoundingClientRect()]));
+    this.updateRow();
     live.forEach(entry => {
       const anchor = places.get(entry);
       const hovered = entry === this.active;
@@ -1226,6 +1319,12 @@ export class WorksGallery {
   roll() {
     const loop = this.sheet && this.cards ? this.loop : null;
     if (!this.sheet || !this.cards || !(loop || this.curl)) return;
+    // A sheet that does not run on round, whose strips either all run or do
+    // not run at all, has nothing that changes with the scroll: no copy comes
+    // round and no ghost shows. Once placed for its layout (its cards), it is
+    // left as it is.
+    const still = !loop && (!this.roller.rolling || this.roller.rolling.always);
+    if (still && this.rolled === this.cards) return;
     const scroll = this.scroller.scrollTop, height = innerHeight;
     // Between the curl lines while the edges roll; else the whole screen.
     const edges = this.roller.rolling ? this.curl : { top: 0, bottom: height };
@@ -1252,6 +1351,7 @@ export class WorksGallery {
       this.roller.ghost(entry, card, loop ? copies.filter(copy => copy !== kept).map(([copy]) => card.y + copy * loop.period) : []);
     });
     this.roller.place(scroll, loop?.period ?? 0);
+    this.rolled = still ? this.cards : null;
   }
 
   keepPainting(duration) {

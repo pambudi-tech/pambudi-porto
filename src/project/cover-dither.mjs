@@ -124,6 +124,10 @@ export function coverDither(img, from, { reduced = false } = {}) {
     return plain;
   }
   const { gl, uniforms, upload } = renderer;
+  // Once the canvas has gone, nothing draws on it again: its context and the
+  // two photos it holds are let go of at once, not whenever the page next
+  // collects its garbage.
+  const release = () => gl.getExtension('WEBGL_lose_context')?.loseContext();
   // Over the photo exactly: its box, which overscans the stamp, to the
   // fraction of a pixel (offsetLeft and the like round it away).
   const place = () => {
@@ -161,6 +165,7 @@ export function coverDither(img, from, { reduced = false } = {}) {
     // A photo that cannot be read for the canvas is simply shown.
     console.warn('Cover dither unavailable; showing the photograph.', error);
     canvas.remove();
+    release();
     return 'plain';
   });
   const run = () => ready.then(outcome => outcome === 'plain' ? undefined : new Promise(resolve => {
@@ -175,6 +180,7 @@ export function coverDither(img, from, { reduced = false } = {}) {
       canvas.animate([{ opacity: 1 }, { opacity: 0 }], { duration: COVER_DITHER.handover, easing: 'ease', fill: 'forwards' }).finished.finally(() => {
         removeEventListener('resize', place);
         canvas.remove();
+        release();
         resolve();
       });
     };

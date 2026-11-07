@@ -1,6 +1,7 @@
 // One pose writer keeps the dark loader paper aligned with the real sheet
 // throughout their crossfade, including its placement and existing tilt.
-export function applyPaperPose(element, current, placement) {
+// `frames` are those that cast the shadow: by default, all the sheet's.
+export function applyPaperPose(element, current, placement, frames = element.querySelectorAll('.portfolio-frame')) {
   const values = { ...current };
   if (placement) {
     values.scale *= placement.scale;
@@ -10,7 +11,7 @@ export function applyPaperPose(element, current, placement) {
   for (const key of ['rx', 'ry']) element.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}deg`);
   element.style.setProperty('--paper-scale', values.scale.toFixed(5));
   // The shadow on the frames that cast it, as the pose doesn't pass down.
-  for (const frame of element.querySelectorAll('.portfolio-frame')) {
+  for (const frame of frames) {
     for (const key of ['sx', 'sy', 'blur']) frame.style.setProperty(`--paper-${key}`, `${values[key].toFixed(4)}px`);
     frame.style.setProperty('--paper-shadow-opacity', values.opacity.toFixed(4));
   }

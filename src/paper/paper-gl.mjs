@@ -133,6 +133,21 @@ function linked(gl, program, shaders) {
 const idle = () => new Promise(resolve => (window.requestIdleCallback
   ? requestIdleCallback(resolve, { timeout: 2000 }) : setTimeout(resolve, 200)));
 
+// The sheet's picture as its texture takes it: its file's own pixels, with
+// no colour conversion and its alpha left as it is. Uploading the <img>
+// itself that way has Chrome decode the whole picture again, on the main
+// thread while the welcome plays; decoded from its file, it is decoded off
+// it, to the same texels. The <img> serves where that is not possible.
+export async function paperTexels(image) {
+  try {
+    const response = await fetch(image.currentSrc || image.src);
+    if (!response.ok) throw new Error(`${response.status}`);
+    return await createImageBitmap(await response.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  } catch {
+    return image;
+  }
+}
+
 export class PaperGL {
   constructor(image, face) {
     this.image = image;
@@ -141,13 +156,40 @@ export class PaperGL {
     this.canvas.className = 'paper-material paper-gl';
     this.canvas.setAttribute('aria-hidden', 'true');
   }
+  // Its relief and its own picture, fetched and decoded off the main thread;
+  // a sheet that will not be lit after all lets them go at once, rather than
+  // leave them for the collector.
+  pictures() {
+    const relief = fetch(this.face.relief).then(response => {
+      if (!response.ok) throw new Error(`Paper relief: ${response.status}`);
+      return response.blob();
+    }).then(blob => createImageBitmap(blob));
+    const texels = this.image.decode().then(() => paperTexels(this.image));
+    // A failure while the sheet waits is its failure once it goes on, not
+    // one reported before.
+    for (const decoded of [relief, texels]) decoded.catch(() => {});
+    const letGo = () => { for (const decoded of [relief, texels]) decoded.then(bitmap => { if (bitmap !== this.image) bitmap.close?.(); }, () => {}); };
+    return { relief, texels, letGo };
+  }
   // Rejects when WebGL 2 is unavailable or fails, before the canvas is shown.
-  async prepare() {
+  // With `after`, its context and shaders wait until that is fulfilled, and
+  // are never made should it fail; its pictures come meanwhile.
+  async prepare({ after } = {}) {
     // After the page has settled: nothing here may hold up its first paint.
     await idle();
+    // Put away while it waited (paper-interaction.mjs): nothing more is made.
+    const away = () => new Error('Paper lighting: put away');
+    if (this.discarded) throw away();
+    let pictures = null;
+    if (after) {
+      pictures = this.pictures();
+      try { await after; } catch (error) { pictures.letGo(); throw error; }
+      if (this.discarded) { pictures.letGo(); throw away(); }
+    }
     // Only on a graphics card; otherwise the photograph's own relief (PaperMaterial).
-    const gl = hardwareWebGL2(this.canvas, { premultipliedAlpha: true, antialias: false });
-    if (!gl) throw new Error('WebGL 2 on a graphics card unavailable');
+    // One flat quad and no depth test, so no depth buffer the sheet's size.
+    const gl = hardwareWebGL2(this.canvas, { premultipliedAlpha: true, antialias: false, depth: false });
+    if (!gl) { pictures?.letGo(); throw new Error('WebGL 2 on a graphics card unavailable'); }
     this.gl = gl;
     const program = gl.createProgram();
     const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]].map(([type, source]) => {
@@ -159,18 +201,18 @@ export class PaperGL {
     });
     gl.bindAttribLocation(program, 0, 'position');
     gl.linkProgram(program);
-    const relief = fetch(this.face.relief).then(response => {
-      if (!response.ok) throw new Error(`Paper relief: ${response.status}`);
-      return response.blob();
-    }).then(blob => createImageBitmap(blob));
-    const [reliefImage] = await Promise.all([relief, linked(gl, program, shaders), this.image.decode()]);
+    pictures ??= this.pictures();
+    const [reliefImage, , mask] = await Promise.all([pictures.relief, linked(gl, program, shaders), pictures.texels])
+      .catch(error => { pictures.letGo(); throw error; });
+    if (this.discarded) { pictures.letGo(); throw away(); }
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     this.texture(0, reliefImage);
-    this.texture(1, this.image);
+    this.texture(1, mask);
+    if (mask !== this.image) mask.close?.();
     const u = this.uniforms = Object.fromEntries(['uReliefMap', 'uMask', 'uLight', 'uColour', 'uRect', 'uTexel', 'uAspect',
       'uRelief', 'uContrast', 'uShadow', 'uShadowLength'].map(name => [name, gl.getUniformLocation(program, name)]));
     // The master's shape: with srcset, natural sizes are divided by the chosen density.
@@ -191,16 +233,26 @@ export class PaperGL {
     // Its displayed size, read once now and again as layout settles, never in
     // a draw: there it would force the pose just written through layout again.
     this.size = [this.image.offsetWidth, this.image.offsetHeight];
-    new ResizeObserver(() => {
+    this.observer = new ResizeObserver(() => {
       this.size = [this.image.offsetWidth, this.image.offsetHeight];
       this.draw(this.last ?? {});
-    }).observe(this.image);
+    });
+    this.observer.observe(this.image);
     this.ready = true;
     this.draw(this.last ?? {});
     this.image.after(this.canvas);
     // Settle its hidden style first, so it fades in over the photograph.
     getComputedStyle(this.canvas).opacity;
     this.canvas.dataset.materialReady = 'true';
+  }
+  // Taken off a sheet that will not be lit after all, with its context.
+  // Its preparation, if still under way, stops where it has got to.
+  discard() {
+    this.discarded = true;
+    this.ready = false;
+    this.observer?.disconnect();
+    this.canvas.remove();
+    this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
   }
   texture(unit, image) {
     const gl = this.gl;

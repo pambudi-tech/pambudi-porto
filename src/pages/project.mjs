@@ -39,6 +39,9 @@ else {
   document.querySelector('.project-welcome-clock')?.remove();
 }
 const track = task => welcome?.track(task) ?? task;
+// The typeface is asked for at once, alongside a protected project's pass
+// below rather than after it; the page waits for both before it is built.
+const fonts = track(document.fonts.load('16px "Syne Mono"'));
 // A protected project opens at once for a visitor with a pass; otherwise its
 // seal waits, out of the scene's reach, behind the PIN panel.
 const seal = document.querySelector('.project-gallery-seal');
@@ -58,8 +61,11 @@ const locked = document.body.classList.contains('project-locked');
 const work = WORKS.find(entry => entry.id === id);
 if (project.passcode && !locked) project.images[0].src = fullCover(work);
 
-await track(document.fonts.load('16px "Syne Mono"'));
+await fonts;
 const detail = mountProjectDetail({ ...project, locked });
+// The cloth is readied while the hero lays itself out and its cover decodes,
+// not after: it measures only the screen and the seal, never the hero.
+const sceneReady = preparePortfolio({ surfaceOnly: true, surfaceNavigation: false, stitching: false });
 // The pill moves between projects. Over the works row, the next one takes
 // this one's place on the same cloth (project-transition.mjs); opened on its
 // own, the page goes.
@@ -82,11 +88,16 @@ function cuePreparing() {
 }
 window.projectLeaving = () => { preparing?.stop(); preparing = null; };
 // The next project lies over this one at its own top, so a page scrolled
-// down glides back up first, and holds still there until it has gone.
-let leaving = false;
-const holdStill = event => { if (leaving) event.preventDefault(); };
-addEventListener('wheel', holdStill, { passive: false });
-addEventListener('touchmove', holdStill, { passive: false });
+// down glides back up first, and holds still there until it has gone. Only
+// then does it listen to hold the wheel and a finger: a listener that may
+// hold them makes every scroll wait on the page's script first.
+const holdStill = event => event.preventDefault();
+const holding = on => {
+  for (const type of ['wheel', 'touchmove']) {
+    if (on) addEventListener(type, holdStill, { passive: false });
+    else removeEventListener(type, holdStill);
+  }
+};
 const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 function scrollHome() {
   const from = scrollY;
@@ -112,7 +123,7 @@ const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch
       // This project's words leave at once, not when the next has loaded:
       // a tap gives no hover to have readied it ahead.
       document.body.classList.add('project-switching', 'project-arriving');
-      leaving = true;
+      holding(true);
       preparing = cuePreparing();
       scrollHome().then(() => toParent('project-route-switch', { id: next }));
     } else location.assign(workHref(WORKS.find(work => work.id === next)));
@@ -120,7 +131,11 @@ const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch
   prepare: (next, { now = false } = {}) => { if (preview) toParent('project-route-prepare', { id: next, now }); },
 });
 window.addEventListener('project-route-switch-failed', () => {
-  leaving = false;
+  holding(false);
+  // Staying, it is no longer preparing anything: the sewing stops and the
+  // word goes.
+  preparing?.stop();
+  preparing = null;
   document.body.classList.remove('project-switching', 'project-arriving');
   projectSwitch.settle();
 });
@@ -154,7 +169,7 @@ new IntroInkHover(document.querySelector('.project-opening'), matchMedia('(prefe
 // On a phone, a title too long for its line travels along it.
 mountTitleMarquee(document.querySelector('.project-intro h1'), { motionPreference: matchMedia('(prefers-reduced-motion: reduce)') });
 await track(Promise.allSettled([detail.ready, detail.cover.querySelector('img').decode()]));
-const scene = await preparePortfolio({ surfaceOnly: true, surfaceNavigation: false, stitching: false });
+const scene = await sceneReady;
 scene.start();
 document.getElementById('surface').setAttribute('aria-busy', 'false');
 if (preview) {

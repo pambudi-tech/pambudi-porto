@@ -61,37 +61,53 @@ export const WORKS = [
 // (`width` and `height`, the image's pixels), and steps through the rest.
 // They carry no dates, so their cards show no years. `preview` is a smaller
 // copy their cards are dithered from (tools/exploration-previews.py);
-// `image`, the original, loads only up close.
-const exploration = (id, title, tags, width, height, alt) =>
-  ({ id, title, tags, width, height, alt, image: `/assets/exploration/${id}.webp`, preview: `/assets/exploration/preview/${id}.webp` });
+// `image`, the original, loads only up close. Both are named in full rather
+// than built from the id, so a build can version each one
+// (build/asset-versions.mjs) and it is cached as long as every other image.
+const exploration = (id, title, tags, width, height, alt, image, preview) =>
+  ({ id, title, tags, width, height, alt, image, preview });
 
 export const EXPLORATION = [
   exploration('alpha-basketball-academy', 'alpha basketball academy', ['brand identity'], 1920, 1440,
-    'Alpha Basketball Academy moodboard: “where Champions are made” in red script over a hoop on a cream wall, the ball-seam crest in cream on black, a red court from above, a pile of basketballs and the academy name in heavy capitals'),
+    'Alpha Basketball Academy moodboard: “where Champions are made” in red script over a hoop on a cream wall, the ball-seam crest in cream on black, a red court from above, a pile of basketballs and the academy name in heavy capitals',
+    '/assets/exploration/alpha-basketball-academy.webp', '/assets/exploration/preview/alpha-basketball-academy.webp'),
   exploration('bellingham-card', 'bellingham card', ['card design'], 2000, 1500,
-    'A gold player card for Jude Bellingham, rated 86 as a central midfielder, with his six stats and the England, LaLiga and Real Madrid badges'),
+    'A gold player card for Jude Bellingham, rated 86 as a central midfielder, with his six stats and the England, LaLiga and Real Madrid badges',
+    '/assets/exploration/bellingham-card.webp', '/assets/exploration/preview/bellingham-card.webp'),
   exploration('player-of-the-match', 'player of the match', ['sports graphics'], 2000, 1500,
-    'Three Euro 2024 Player of the Match cards, for N’Golo Kanté, Cody Gakpo and Jude Bellingham, each in its team’s colours with the match, score and minutes played'),
+    'Three Euro 2024 Player of the Match cards, for N’Golo Kanté, Cody Gakpo and Jude Bellingham, each in its team’s colours with the match, score and minutes played',
+    '/assets/exploration/player-of-the-match.webp', '/assets/exploration/preview/player-of-the-match.webp'),
   exploration('hurts-mvp', 'hurts mvp', ['poster'], 1600, 2000,
-    'Super Bowl LIX MVP poster for Jalen Hurts: his face and two throwing poses in Eagles green, his name in grainy white and green script, and his passing and rushing stats down the side'),
+    'Super Bowl LIX MVP poster for Jalen Hurts: his face and two throwing poses in Eagles green, his name in grainy white and green script, and his passing and rushing stats down the side',
+    '/assets/exploration/hurts-mvp.webp', '/assets/exploration/preview/hurts-mvp.webp'),
   exploration('jerusalem', 'jerusalem', ['poster', 'lettering'], 2000, 1500,
-    'A framed poster leaning on a wall: the Dome of the Rock mirrored top and bottom in black ink, “Jerusalem” as a turquoise blackletter ambigram across the middle, and its coordinates in each corner'),
+    'A framed poster leaning on a wall: the Dome of the Rock mirrored top and bottom in black ink, “Jerusalem” as a turquoise blackletter ambigram across the middle, and its coordinates in each corner',
+    '/assets/exploration/jerusalem.webp', '/assets/exploration/preview/jerusalem.webp'),
   exploration('dari-langit', 'dari langit', ['album cover'], 1954, 1492,
-    'An album cover held up in one hand: two engraved portraits cut out over old Indonesian banknotes, with “DAR 1L4N617” typed on a folded note'),
+    'An album cover held up in one hand: two engraved portraits cut out over old Indonesian banknotes, with “DAR 1L4N617” typed on a folded note',
+    '/assets/exploration/dari-langit.webp', '/assets/exploration/preview/dari-langit.webp'),
   exploration('leaderboard', 'leaderboard', ['app design'], 2000, 1512,
-    'Two phones showing a football training leaderboard: the top three on silver, gold and bronze shields, the ranks below, and the viewer’s own place at number 8 in purple'),
+    'Two phones showing a football training leaderboard: the top three on silver, gold and bronze shields, the ranks below, and the viewer’s own place at number 8 in purple',
+    '/assets/exploration/leaderboard.webp', '/assets/exploration/preview/leaderboard.webp'),
   exploration('logofolio', 'logofolio', ['logo design'], 1330, 1022,
-    'Logofolio: eight glowing white marks on black, among them a ball-seam crest, a flame, a flowing R and a tall monogram, under “Logofolio” in dark blackletter'),
+    'Logofolio: eight glowing white marks on black, among them a ball-seam crest, a flame, a flowing R and a tall monogram, under “Logofolio” in dark blackletter',
+    '/assets/exploration/logofolio.webp', '/assets/exploration/preview/logofolio.webp'),
   exploration('lusail-circuit', 'lusail circuit', ['web design'], 2000, 1500,
-    'A Formula 1 GP Qatar 2025 web page for the Lusail International Circuit: the track drawn in glowing red over the circuit’s name, with its length, corners and lap record'),
+    'A Formula 1 GP Qatar 2025 web page for the Lusail International Circuit: the track drawn in glowing red over the circuit’s name, with its length, corners and lap record',
+    '/assets/exploration/lusail-circuit.webp', '/assets/exploration/preview/lusail-circuit.webp'),
   exploration('campeon', 'campeón', ['social media'], 2000, 1500,
-    'Three campeón news posts on a pink gradient: Chelsea’s new shirt sponsor, the Racing Bulls’ magenta Miami livery and Kaká in Adidas and Kith, each with a photo cut on the diagonal above a condensed headline'),
+    'Three campeón news posts on a pink gradient: Chelsea’s new shirt sponsor, the Racing Bulls’ magenta Miami livery and Kaká in Adidas and Kith, each with a photo cut on the diagonal above a condensed headline',
+    '/assets/exploration/campeon.webp', '/assets/exploration/preview/campeon.webp'),
   exploration('natuno-design-academy', 'natuno design academy', ['sticker design'], 2000, 1500,
-    'Natuno Design Academy stickers in orange and green: a varsity arch badge, an N block, a “Class of AI” pennant, a script “Academy” and a hexagonal monogram badge'),
+    'Natuno Design Academy stickers in orange and green: a varsity arch badge, an N block, a “Class of AI” pennant, a script “Academy” and a hexagonal monogram badge',
+    '/assets/exploration/natuno-design-academy.webp', '/assets/exploration/preview/natuno-design-academy.webp'),
   exploration('padel-booking', 'padel booking', ['app design'], 2000, 1500,
-    'Two phones showing a padel court booking app in dark green: picking a day, time and court, then a booking review with the match option, a split bill and the subtotal'),
+    'Two phones showing a padel court booking app in dark green: picking a day, time and court, then a booking review with the match option, a split bill and the subtotal',
+    '/assets/exploration/padel-booking.webp', '/assets/exploration/preview/padel-booking.webp'),
   exploration('squircle-flags', 'squircle flags', ['icon design'], 2000, 1511,
-    'Four glossy squircle flag icons, Germany, Scotland, Hungary and Switzerland, over a pale script letter'),
+    'Four glossy squircle flag icons, Germany, Scotland, Hungary and Switzerland, over a pale script letter',
+    '/assets/exploration/squircle-flags.webp', '/assets/exploration/preview/squircle-flags.webp'),
   exploration('direction-matters', 'direction matters', ['sticker design', 'motion'], 1000, 800,
-    'Animated: the Direction Matters sticker pack, its title on an orange label, then a horse in sunglasses saying “don’t ride blind”, a pixel cursor reaching a hand, and a tarot-style “The Navigator”'),
+    'Animated: the Direction Matters sticker pack, its title on an orange label, then a horse in sunglasses saying “don’t ride blind”, a pixel cursor reaching a hand, and a tarot-style “The Navigator”',
+    '/assets/exploration/direction-matters.webp', '/assets/exploration/preview/direction-matters.webp'),
 ];

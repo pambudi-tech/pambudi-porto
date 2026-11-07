@@ -105,6 +105,45 @@ export function clockTextLayout(text, { width, height, view, safeBottom = 0 }) {
   return { lines, glyphs, cells: clockGlyphCells(glyphs) };
 }
 
+// The canvas spans the screen's width but only the rows the clock draws,
+// with a row's room above and below: a few rows to clear and composite each
+// second, not the whole screen. Its top and foot fall on whole CSS, canvas
+// and device pixels, so each dot lands on exactly the pixels it would on a
+// canvas the size of the screen. The nearest such edge at or beyond `y`,
+// going `direction` (-1 up, 1 down), within 64 px; null if there is none
+// (a ratio such as 1.1 never lands whole).
+export function wholePixelEdge(y, direction, ratios) {
+  let at = direction < 0 ? Math.floor(y) : Math.ceil(y);
+  for (let step = 0; step < 64; step++, at += direction) {
+    if (ratios.every(ratio => Number.isInteger(at * ratio))) return at;
+  }
+  return null;
+}
+
+// The band, [top, bottom) in CSS px, for rows `top` to `bottom` of the dots
+// on a screen `width` by `height` px, drawn at `dpr` canvas pixels a CSS px
+// and shown at `ratio` device pixels a CSS px. Null where a band could not
+// be shown to land exactly as the screen's own canvas does: a screen that is
+// not a whole number of canvas pixels across, or a canvas the browser scales
+// on its way to the screen (a ratio over 2; dpr stops there), where moved
+// by a fraction of a pixel (the colophon's pull) the scaled band and the
+// scaled screen can round a dot's edge one level apart.
+export function clockBand(rows, { view, width, height, dpr, ratio }) {
+  if (dpr !== ratio || !Number.isInteger(width * dpr) || !Number.isInteger(height * dpr) || !(rows.top <= rows.bottom)) return null;
+  const pitch = GRID * view.scale;
+  const ratios = [dpr, ratio];
+  const top = wholePixelEdge(view.y + (rows.top - 1) * pitch, -1, ratios);
+  const bottom = wholePixelEdge(view.y + (rows.bottom + 1) * pitch, 1, ratios);
+  if (top == null || bottom == null) return null;
+  // The screen's own edges are the whole canvas's edges, whole or not.
+  const band = { top: Math.min(Math.max(top, 0), height), bottom: Math.min(Math.max(bottom, 0), height) };
+  return band.bottom > band.top ? band : { top: 0, bottom: 0 };
+}
+
+// The rows a board's glyphs cover, each five tall.
+const glyphRows = (slots, rows = { top: Infinity, bottom: -Infinity }) => slots.reduce((span, slot) =>
+  ({ top: Math.min(span.top, slot.row), bottom: Math.max(span.bottom, slot.row + 4) }), rows);
+
 // Local time as 24-hour HH:MM:SS, as Intl.DateTimeFormat('en-GB', h23) writes
 // it; that formatter takes ~15 ms to make, in the welcome's first moments.
 const LOCAL_TIME = Object.freeze({
@@ -122,6 +161,29 @@ export class DotClock {
       if (this.motionPreference.matches) this.settle();
     });
     this.formatter = LOCAL_TIME;
+    // The clock's box as laid out, without asking for layout: the band is
+    // used only where the box is the window's height, as the canvas's own
+    // pixels then are (clockBand). It is taken to be that height until the
+    // observer reports, which it does before the frame paints: on starting,
+    // and on each resize, which observes the box afresh (resize). With no
+    // observer to report it, the canvas is always the screen's.
+    this.boxHeight = NaN;
+    if (typeof ResizeObserver === 'function') {
+      this.boxHeight = undefined;
+      this.observer = new ResizeObserver(([entry]) => {
+        this.boxHeight = entry.borderBoxSize?.[0]?.blockSize ?? NaN;
+        this.refit();
+      });
+      this.observer.observe(element);
+    }
+    // Nor while the page is pinch-zoomed, which scales the canvas on screen.
+    const zoom = globalThis.visualViewport;
+    this.zoomed = Boolean(zoom && zoom.scale !== 1);
+    zoom?.addEventListener('resize', () => {
+      if ((zoom.scale !== 1) === this.zoomed) return;
+      this.zoomed = !this.zoomed;
+      this.refit();
+    });
     document.addEventListener('visibilitychange', () => {
       clearTimeout(this.timer);
       if (document.hidden) this.settle();
@@ -134,10 +196,63 @@ export class DotClock {
     this.height = height;
     this.view = { ...view };
     this.dpr = Math.min(devicePixelRatio || 1, 2);
+    this.ratio = devicePixelRatio || 1;
+    // The box's last report is of the old size: rather than fit the screen
+    // to it and then the band to the next, it is taken to match until it is
+    // reported again. Observed afresh, it is reported before this frame
+    // paints, even at the size it had, and the canvas goes back to the
+    // screen's then if the box is not the window's height.
+    if (this.observer) {
+      this.boxHeight = undefined;
+      this.observer.unobserve(this.element);
+      this.observer.observe(this.element);
+    }
     this.canvas.width = Math.round(width * this.dpr);
-    this.canvas.height = Math.round(height * this.dpr);
-    this.board.finish(this.layout().glyphs);
+    const { glyphs } = this.layout();
+    // The band starts at the rows this text takes, and grows to whatever
+    // another takes (a hover message on two lines) until the next resize.
+    this.rows = glyphRows(glyphs);
+    this.placed = null;
+    this.board.finish(glyphs);
     this.paint();
+  }
+  // Fits the canvas to the rows `slots` take, if they go beyond the band;
+  // true if it moved (and so was cleared).
+  place(slots) {
+    this.rows = glyphRows(slots, this.rows);
+    const exact = !this.held && !this.zoomed && (this.boxHeight === undefined || this.boxHeight === this.height);
+    const band = exact ? clockBand(this.rows, this) : null;
+    const placed = band ? `${band.top} ${band.bottom}` : 'screen';
+    if (placed === this.placed) return false;
+    this.placed = placed;
+    const { canvas, dpr } = this;
+    if (band) {
+      canvas.style.top = `${band.top}px`;
+      canvas.style.height = `${band.bottom - band.top}px`;
+      canvas.height = Math.round((band.bottom - band.top) * dpr);
+      this.offset = Math.round(band.top * dpr);
+    } else {
+      canvas.style.top = '';
+      canvas.style.height = '';
+      canvas.height = Math.round(this.height * dpr);
+      this.offset = 0;
+    }
+    return true;
+  }
+  // Placed again where the box or the zoom changed, before the frame paints,
+  // and drawn just as it last was.
+  refit() {
+    if (this.view && this.place(this.board.sample(this.painted))) this.paint(this.painted);
+  }
+  // The screen's canvas, whole, while `held`: the colophon's pull moves the
+  // clock by fractions of a pixel, and moved so, the band and the screen's
+  // canvas can be drawn a colour level apart. Held from the moment the pull
+  // begins to the moment the page is home, both at rest, where the two
+  // canvases show alike, and drawn again at once just as it last was.
+  holdWhole(held) {
+    if (Boolean(this.held) === held) return;
+    this.held = held;
+    this.refit();
   }
   tick() {
     clearTimeout(this.timer);
@@ -211,11 +326,15 @@ export class DotClock {
   }
   paint(now = performance.now()) {
     if (!this.view) return;
+    this.painted = now;
+    const slots = this.board.sample(now);
+    this.place(slots);
     const { context: ctx, canvas, view, dpr } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const cells = clockGlyphCells(this.board.sample(now));
+    // The band's top is the canvas's first row.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, -this.offset);
+    const cells = clockGlyphCells(slots);
     const dotsIn = this.dotsIn && now - this.dotsIn.start;
     if (this.dotsIn && dotsIn >= CLOCK_DOTS_IN.delay + CLOCK_DOTS_IN.spread + CLOCK_DOTS_IN.dot) this.dotsIn = null;
     if (!this.dotsIn) drawActiveDots(ctx, cells, view);

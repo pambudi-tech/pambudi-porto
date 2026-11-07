@@ -218,9 +218,14 @@ export function createGlitch() {
     let scale = 1;
     return {
       canvas,
+      // Whether `photo` is uploaded already, so has no need of its pixels.
+      holds: photo => textures.has(photo),
       // Readies the glitch over a photo shown at `width` × `height` CSS
-      // pixels, dithered as its card is.
-      show(photo, width, height, dpr, { cell = DITHER.cell, levels = DITHER.levels } = {}) {
+      // pixels, dithered as its card is. Its first time, the photo's pixels
+      // are uploaded from `pixels`: the photo itself, which the browser
+      // decodes again here, on the main thread; or the same picture decoded
+      // ahead of time, off it (bitmapOf), which is only copied.
+      show(photo, width, height, dpr, { cell = DITHER.cell, levels = DITHER.levels } = {}, pixels = photo) {
         scale = dpr;
         const w = Math.max(1, Math.round(width * dpr)), h = Math.max(1, Math.round(height * dpr));
         if (canvas.width !== w) canvas.width = w;
@@ -229,7 +234,7 @@ export function createGlitch() {
         if (textures.has(photo)) gl.bindTexture(gl.TEXTURE_2D, textures.get(photo));
         else {
           textures.set(photo, createTexture(gl));
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, photo);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
         }
         gl.uniform2f(uniforms.box, w, h);
         gl.uniform2f(uniforms.imageSize, photo.naturalWidth, photo.naturalHeight);

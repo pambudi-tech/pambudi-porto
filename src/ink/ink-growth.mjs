@@ -2,34 +2,45 @@ import { createNativeInkLayer } from './native-ink.mjs';
 
 // Each glyph has independent ink deposits. This field controls an alpha mask;
 // the visible lettering always remains the original browser-rendered text.
+// Numbers in typed arrays rather than an object a pixel, the same sums in the
+// same order and the same draws: it runs over every pixel of the lettering,
+// on the main thread while the welcome plays.
 export function growthField(rgba, width, height, glyphs, random = Math.random) {
   const arrival = new Float32Array(width * height).fill(1);
   const covered = new Uint8Array(width * height);
+  const xs = new Int32Array(width * height), ys = new Int32Array(width * height), at = new Int32Array(width * height);
+  const distances = new Float64Array(width * height);
   for (const glyph of glyphs) {
-    const points = [];
+    let count = 0;
     for (let y = Math.max(0, glyph.top); y < Math.min(height, glyph.bottom); y++) {
       for (let x = Math.max(0, glyph.left); x < Math.min(width, glyph.right); x++) {
         const index = y * width + x;
-        if (rgba[index * 4 + 3]) points.push({ x, y, index });
+        if (rgba[index * 4 + 3]) { xs[count] = x; ys[count] = y; at[count++] = index; }
       }
     }
-    if (!points.length) continue;
-    const seeds = Array.from({ length: Math.min(3, Math.max(1, Math.ceil(points.length / 90))) }, () => points[Math.floor(random() * points.length)]);
-    const distances = points.map(point => Math.min(...seeds.map(seed => Math.hypot(point.x - seed.x, point.y - seed.y))));
-    const maximum = Math.max(1, ...distances);
-    points.forEach((point, i) => {
+    if (!count) continue;
+    const seeds = Array.from({ length: Math.min(3, Math.max(1, Math.ceil(count / 90))) }, () => Math.floor(random() * count));
+    let maximum = 1;
+    for (let i = 0; i < count; i++) {
+      let nearest = Infinity;
+      for (const seed of seeds) nearest = Math.min(nearest, Math.hypot(xs[i] - xs[seed], ys[i] - ys[seed]));
+      distances[i] = nearest;
+      maximum = Math.max(maximum, nearest);
+    }
+    for (let i = 0; i < count; i++) {
       const value = .035 + distances[i] / maximum * .79 + random() * .065;
-      arrival[point.index] = Math.min(arrival[point.index], value);
-      covered[point.index] = 1;
-    });
+      arrival[at[i]] = Math.min(arrival[at[i]], value);
+      covered[at[i]] = 1;
+    }
   }
-  const pixels = [];
+  const pixels = new Uint32Array(width * height);
+  let inked = 0;
   for (let index = 0; index < arrival.length; index++) {
     if (!rgba[index * 4 + 3]) continue;
     if (!covered[index]) arrival[index] = .15 + random() * .65;
-    pixels.push(index);
+    pixels[inked++] = index;
   }
-  return { pixels: Uint32Array.from(pixels), arrival, source: rgba };
+  return { pixels: pixels.slice(0, inked), arrival, source: rgba };
 }
 
 export function revealInk(target, field, progress) {
@@ -86,31 +97,42 @@ export function createInkLayer(paragraph, { shapeText = false } = {}) {
   return inkLayerFrom(paragraph, canvas, glyphs, dpr);
 }
 
+// The ink's density mask for lettering `width` × `height` device pixels
+// across (`rgba`, each letter's box in `glyphs`), with `padding` device
+// pixels of room on every side: white, more opaque where the ink arrives
+// sooner.
+export function inkDensity(rgba, width, height, glyphs, dpr, random = Math.random) {
+  const field = growthField(rgba, width, height, glyphs, random);
+  const padding = Math.ceil(8 * dpr);
+  const densityWidth = width + padding * 2, densityHeight = height + padding * 2;
+  const pixels = new Uint8ClampedArray(densityWidth * densityHeight * 4);
+  // Each column's and row's wave once, not once a pixel.
+  const across = Float64Array.from({ length: densityWidth }, (_, x) => Math.sin(x / (9 * dpr)));
+  const down = Float64Array.from({ length: densityHeight }, (_, y) => Math.sin(y / (7 * dpr)));
+  for (let y = 0; y < densityHeight; y++) for (let x = 0; x < densityWidth; x++) {
+    const col = x - padding, row = y - padding;
+    const index = row * width + col;
+    const inside = col >= 0 && row >= 0 && col < width && row < height;
+    // Flamboyant script strokes can extend outside their measured glyph box.
+    // Give those areas a continuous growth field too, rather than a late pop.
+    const fallback = .25 + .2 * (1 + across[x] * down[y]);
+    const arrival = inside && field.arrival[index] < 1 ? field.arrival[index] : fallback;
+    const offset = (y * densityWidth + x) * 4;
+    pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
+    pixels[offset + 3] = Math.round((1 - arrival) * 255);
+  }
+  return { pixels, width: densityWidth, height: densityHeight, padding };
+}
+
 // Lettering drawn on `canvas` as `element` shows it, and each letter's box
 // on it: the ink's density mask, laid over the element.
 function inkLayerFrom(element, canvas, glyphs, dpr) {
   const source = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-  const field = growthField(source.data, canvas.width, canvas.height, glyphs);
-  const padding = Math.ceil(8 * dpr);
+  const { pixels, width, height, padding } = inkDensity(source.data, canvas.width, canvas.height, glyphs, dpr);
   const density = document.createElement('canvas');
-  density.width = canvas.width + padding * 2;
-  density.height = canvas.height + padding * 2;
-  const densityContext = density.getContext('2d');
-  const mask = densityContext.createImageData(density.width, density.height);
-  const maskData = mask.data;
-  for (let y = 0; y < density.height; y++) for (let x = 0; x < density.width; x++) {
-    const col = x - padding, row = y - padding;
-    const index = row * canvas.width + col;
-    const inside = col >= 0 && row >= 0 && col < canvas.width && row < canvas.height;
-    // Flamboyant script strokes can extend outside their measured glyph box.
-    // Give those areas a continuous growth field too, rather than a late pop.
-    const fallback = .25 + .2 * (1 + Math.sin(x / (9 * dpr)) * Math.sin(y / (7 * dpr)));
-    const arrival = inside && field.arrival[index] < 1 ? field.arrival[index] : fallback;
-    const offset = (y * density.width + x) * 4;
-    maskData[offset] = maskData[offset + 1] = maskData[offset + 2] = 255;
-    maskData[offset + 3] = Math.round((1 - arrival) * 255);
-  }
-  densityContext.putImageData(mask, 0, 0);
+  density.width = width;
+  density.height = height;
+  density.getContext('2d').putImageData(new ImageData(pixels, width, height), 0, 0);
   return createNativeInkLayer(element, density.toDataURL(), {
     width: canvas.width / dpr, height: canvas.height / dpr, padding: padding / dpr,
   });

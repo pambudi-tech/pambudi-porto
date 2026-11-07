@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BirdFlight, StitchTransitions, projectPose } from './bird.mjs';
+import { BirdFlight, StitchTransitions, projectPose, samplePose } from './bird.mjs';
 import { BIRD_POSES, BIRD_COLUMNS, BIRD_ROWS, BIRD_COLOR } from './bird-data.mjs';
 import { ENTRANCE } from '../stitch/stitch-entrance.mjs';
 import { articulatePose, bodyMotionAt, moveBirdPoint } from './bird-motion.mjs';
 import { buildWingPoses, wingPoint } from './wing-motion.mjs';
 import { WING_POSES } from './wing-poses.mjs';
+import { PERCH_POSE } from './perch.mjs';
 
 test('refined wings retain the raised figure, head and tail on the same bounded stitch grid', () => {
   assert.deepEqual(WING_POSES[0], BIRD_POSES[0]);
@@ -330,4 +331,23 @@ test('resting, the dove holds its perched figure at the perch and stops asking f
 
 test('the poses built ahead are the poses the wings make', () => {
   assert.deepEqual(WING_POSES, buildWingPoses(), 'run node tools/build-wing-poses.mjs');
+});
+
+test('a dove whose figure was prepared ahead flies, reveals and rests exactly as one made from scratch', () => {
+  const view = { x: 611, y: 297, scale: 7.25 / 22 }, sky = { top: 0, bottom: 640, avoid: { left: 400, top: 160, width: 420, height: 360 } };
+  // A size no other test uses: the first dove samples its figure itself.
+  const fresh = new BirdFlight(1222, 777, view, { seed: 77, sky });
+  assert.deepEqual(fresh.frames, WING_POSES.map(pose => samplePose(pose, fresh.columns, fresh.rows)));
+  assert.deepEqual(fresh.perchFrame, samplePose(PERCH_POSE, fresh.columns, fresh.rows));
+  BirdFlight.prepare(1222, 777, view);
+  const prepared = new BirdFlight(1222, 777, view, { seed: 77, sky });
+  assert.equal(prepared.frames, fresh.frames, 'the prepared figure is used, not sampled again');
+  assert.deepEqual(prepared.entrance.offsets, fresh.entrance.offsets);
+  assert.deepEqual(prepared.toes, fresh.toes);
+  for (let time = 0; time <= 6000; time += 16) {
+    if (time === 3000) { fresh.setIdle(true); prepared.setIdle(true); }
+    assert.equal(prepared.update(time), fresh.update(time));
+    assert.deepEqual(prepared.position, fresh.position);
+    assert.deepEqual([...prepared.cells], [...fresh.cells]);
+  }
 });

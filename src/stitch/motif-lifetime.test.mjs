@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { StitchModel } from './model.mjs';
-import { stampMotif } from './motifs.mjs';
+import { stampMotif, MOTIFS } from './motifs.mjs';
+import { seededRandom } from '../bird/flight-path.mjs';
 import { MotifLifetimes, MOTIF_LIFETIME } from './motif-lifetime.mjs';
 
 function scene(entries = [['-1000,0', '#353630']]) {
@@ -88,4 +89,50 @@ test('expiry rebases a free stroke that is still being drawn', () => {
   assert.equal(model.stitches.get('0,0'), '#4433ff');
   model.commit(); model.undo();
   assert.equal(model.stitches.has('0,0'), false);
+});
+
+// The lifetimes as they ran before: the history synced and every record
+// checked on every frame.
+function everyFrame(lifetime) {
+  lifetime.historyMoved = () => true;
+  Object.defineProperty(lifetime, 'soonest', { get: () => -Infinity, set() {} });
+  return lifetime;
+}
+
+test('syncing only when the history moves keeps every frame exactly as syncing every frame did', () => {
+  const ids = MOTIFS.map(motif => motif.id);
+  for (let run = 0; run < 40; run++) {
+    const random = seededRandom(run + 1);
+    const sides = [scene(), scene()];
+    everyFrame(sides[1].lifetime);
+    const state = ({ model, animations, lifetime }) => JSON.stringify([
+      [...model.stitches], model.undoStack.map(t => t.changes), model.redoStack.map(t => t.changes),
+      [...animations], [...lifetime.journal.values()], [...lifetime.records.values()].map(record => record.deadline),
+    ]);
+    let time = 0;
+    for (let step = 0; step < 160; step++) {
+      const action = random(), at = Math.floor(random() * 20), reduced = random() < .2, color = ['#113355', '#4433ff', undefined][Math.floor(random() * 3)];
+      const id = ids[Math.floor(random() * ids.length)], strokes = Math.floor(random() * 4) + 1;
+      time += Math.floor(random() * (random() < .1 ? 20_000 : 600));
+      const results = sides.map(({ model, animations, lifetime, place }) => {
+        if (action < .18) place(id, time, { col: at, row: at % 7, seed: step, reduced });
+        else if (action < .36) {
+          model.begin();
+          for (let i = 0; i < strokes; i++) model.put(at + i, at % 5, color);
+          if (action < .33) model.commit();
+        } else if (action < .46) model.undo();
+        else if (action < .54) model.redo();
+        else if (action < .56) {
+          model.undoStack = [];
+          model.redoStack = [];
+          lifetime.records.clear();
+          lifetime.journal.clear();
+          animations.clear();
+        } else if (action < .58) lifetime.syncHistory();
+        return lifetime.update(time, reduced);
+      });
+      assert.equal(results[0], results[1], `run ${run} step ${step}`);
+      assert.equal(state(sides[0]), state(sides[1]), `run ${run} step ${step}`);
+    }
+  }
 });

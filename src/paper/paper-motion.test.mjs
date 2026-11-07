@@ -82,7 +82,7 @@ test('touch press, release, and pointer cancellation never leave the paper stuck
       current: paperTarget(), target: paperTarget(), pointerId: null,
       bounds: { left: 0, top: 0, width: 100, height: 100 },
       mask: { width: 1, height: 1, alpha: new Uint8Array([255]) },
-      write() {}, requestFrame() {},
+      write() {}, writeState() {}, requestFrame() {},
     });
     const event = { pointerId: 7, pointerType: 'touch', clientX: 70, clientY: 30 };
     paper.press(event);

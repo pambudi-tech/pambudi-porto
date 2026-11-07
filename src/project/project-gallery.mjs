@@ -117,6 +117,11 @@ export function gallerySpotOf(index, near, count) {
   return before >= 0 && near - before <= before + count - near ? before : before + count;
 }
 
+// The order the stamps are painted in, nearest last, from each one's depth
+// in whole pixels: further first, and a tie in their order in the page, as
+// stamps of equal z-index paint.
+export const depthOrder = depths => depths.map((depth, index) => index).sort((a, b) => depths[a] - depths[b] || a - b);
+
 // The sheet's stamps, nearly as large as the screen allows: of the column
 // counts that give a stamp within `fuller` of the widest, the one with the
 // fewest rows, then the fewest empty cells, since full rows read as a sheet.
@@ -446,11 +451,18 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
     render();
   }
 
+  // The order the stamps are painted in, nearest last, and which one is in
+  // front, as last written: each is rewritten only when it changes, so a
+  // flight does not reorder the stamps' layers, or retouch every stamp's
+  // focus and cursor, on every frame.
+  let paintOrder = '', shownFront = '';
+
   // Each stamp is drawn where it is between its place in the depth and its
   // cell on the sheet. One passed by the camera sets off from just behind it,
   // never through it.
   function render() {
     const lerp = (a, b, t) => a + (b - a) * t;
+    const depths = [];
     stamps.forEach((stamp, index) => {
       const { spot: at, z } = galleryMeeting(index, camera, stamps.length);
       const from = Math.min(z, DEPTH.pass);
@@ -472,18 +484,30 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
       stamp.element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${depth.toFixed(1)}px) scale(${scale.toFixed(4)})`;
       stamp.element.style.opacity = opacity.toFixed(3);
       stamp.element.style.visibility = opacity > 0 ? 'visible' : 'hidden';
-      // The nearer over the further, whichever time round each is.
-      stamp.element.style.zIndex = String(5000 + Math.round(depth));
+      depths.push(Math.round(depth));
     });
+    // The nearer over the further, whichever time round each is: ranked by
+    // depth, a tie by their order in the page (depthOrder), just as their
+    // depths themselves stacked them. The depth stacks on its own, so only
+    // their order counts, not the numbers.
+    const order = depthOrder(depths);
+    if (order.join() !== paintOrder) {
+      paintOrder = order.join();
+      order.forEach((index, rank) => { stamps[index].element.style.zIndex = String(rank + 1); });
+    }
     const now = galleryCurrent(camera, stamps.length);
     if (now !== current) {
       current = now;
       [...dots.children].forEach((dot, index) => index === now ? dot.setAttribute('aria-current', 'true') : dot.removeAttribute('aria-current'));
     }
-    stamps.forEach((stamp, index) => {
-      stamp.element.classList.toggle('is-current', index === now);
-      stamp.element.tabIndex = open && (view === 'sheet' || index === now) ? 0 : -1;
-    });
+    const front = `${now} ${open} ${view}`;
+    if (front !== shownFront) {
+      shownFront = front;
+      stamps.forEach((stamp, index) => {
+        stamp.element.classList.toggle('is-current', index === now);
+        stamp.element.tabIndex = open && (view === 'sheet' || index === now) ? 0 : -1;
+      });
+    }
   }
 
   // Straight to a stamp, unseen: under the close-up, or on the sheet. It is
@@ -571,21 +595,30 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
     const duration = reduced() ? 0 : DEPTH.duration;
     const at = z => `perspective(${DEPTH.perspective}px) translateZ(${z}px)`;
     if (direction === 'normal') {
-      layers = LAYERS.flatMap(({ selector, z, fade, blur }) => [...document.querySelectorAll(selector)].map(element => {
-        const box = element.getBoundingClientRect();
+      const parts = LAYERS.flatMap(layer => [...document.querySelectorAll(layer.selector)].map(element => ({ ...layer, element })));
+      // Each layer's place and its own filter are all read before any layer
+      // is changed, so the page lays itself out once, not once for each.
+      // No layer holds another, so none moves another's place.
+      const seen = parts.map(({ element }) => ({ box: element.getBoundingClientRect(), own: getComputedStyle(element).filter }));
+      layers = parts.map(({ element, z, fade, blur }, index) => {
+        const { box, own } = seen[index];
         element.style.transformOrigin = `${innerWidth / 2 - box.left}px ${innerHeight / 2 - box.top}px`;
         // Its own filter, the stamp paper's shadow, is kept under the blur.
-        const own = getComputedStyle(element).filter, base = own === 'none' ? '' : `${own} `;
+        const base = own === 'none' ? '' : `${own} `;
         const focus = amount => `${base}blur(${amount}px)`;
         return element.animate([
           { transform: at(0), opacity: 1, filter: focus(0) },
           { opacity: 0, filter: focus(blur), offset: fade },
           { transform: at(z), opacity: 0, filter: focus(blur) },
         ], { duration, easing: 'cubic-bezier(.55, 0, .45, 1)', fill: 'both' });
-      }));
+      });
     } else layers.forEach(animation => animation.reverse());
     return Promise.all(layers.map(animation => animation.finished));
   }
+
+  // Where the hero is, for the title's travel (title-marquee.mjs): 'parting'
+  // for the depth, 'parted' and out of sight, 'returning', or 'whole' again.
+  const heroIs = state => dispatchEvent(new CustomEvent('project-hero', { detail: { state } }));
 
   function settle(isOpen) {
     open = isOpen;
@@ -608,9 +641,12 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
         layout();
         settle(true);
         target = 0;
+        heroIs('parting');
         await Promise.all([partHero('normal'), travel(-DEPTH.spacing * DEPTH.approach, 0, 0, 1)]);
+        heroIs('parted');
       } else {
         settle(false);
+        heroIs('returning');
         // From the sheet, the sheet itself draws back and fades as the hero
         // returns, as the depth would, without becoming the depth first.
         if (sheet > 0) {
@@ -647,6 +683,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
     appear = 0;
     busy = false;
     settle(false);
+    heroIs('whole');
     document.documentElement.classList.remove('gallery-active');
     render();
   }

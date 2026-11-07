@@ -207,10 +207,20 @@ function mountScrollFades() {
   fades.forEach(fade => fade.setAttribute('aria-hidden', 'true'));
   document.body.append(...fades);
   const root = document.documentElement;
+  // Each fade's strength is kept on the fade itself, and set only when it
+  // changes: kept on the page's root, every element on the page would take
+  // it up again on every scroll.
+  const strengths = ['', ''];
+  const strength = (index, edge, amount) => {
+    const value = amount.toFixed(3);
+    if (value === strengths[index]) return;
+    strengths[index] = value;
+    fades[index].style.setProperty(`--fade-${edge}`, value);
+  };
   const update = () => {
     const below = root.scrollHeight - innerHeight - scrollY;
-    root.style.setProperty('--fade-top', Math.min(1, Math.max(0, scrollY) / 48).toFixed(3));
-    root.style.setProperty('--fade-bottom', Math.min(1, Math.max(0, below) / 48).toFixed(3));
+    strength(0, 'top', Math.min(1, Math.max(0, scrollY) / 48));
+    strength(1, 'bottom', Math.min(1, Math.max(0, below) / 48));
   };
   addEventListener('scroll', update, { passive: true });
   addEventListener('resize', update);
