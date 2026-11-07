@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ownShapeWidth, tagCounts, wrapLines, cardMove, sheetColumns } from './gallery.mjs';
+import { ownShapeWidth, tagCounts, wrapLines, cardMove, sheetColumns, WorksGallery } from './gallery.mjs';
 import { EXPLORATION } from '../content/works.mjs';
 
 test('a card that keeps its photo\'s shape: the window takes its aspect at the shared height, in whole perforations', () => {
@@ -48,4 +48,20 @@ test('the sheet takes four columns only while each stays at least 280 px wide', 
     const count = sheetColumns(room(width), 28);
     assert.ok((room(width) - 28 * (count - 1)) / count >= 280 || count === 2, `${width}`);
   }
+});
+
+test('a chosen project lets go of the glitch\'s readied photos, and they are readied again once its card is home', () => {
+  const gallery = Object.create(WorksGallery.prototype);
+  const closed = [];
+  const readied = [];
+  gallery.readyGlitch = after => readied.push(after);
+  gallery.glitchReady = new Map([['a', { pixels: { close: () => closed.push('a') } }], ['b', { pixels: { close: () => closed.push('b') } }]]);
+  gallery.departing = true;
+  assert.equal(gallery.departing, true);
+  assert.deepEqual(closed, ['a', 'b']);
+  assert.equal(gallery.glitchReady, null);
+  assert.deepEqual(readied, []);
+  gallery.departing = false;
+  assert.equal(gallery.departing, false);
+  assert.deepEqual(readied, [700]);
 });

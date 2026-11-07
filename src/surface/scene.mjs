@@ -363,6 +363,9 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
 
   resize();
   scene.controls.update();
+  // The dove's figure is sampled now, behind the welcome, so the dove made
+  // as the page shows (start) only has to set off.
+  if (!surfaceOnly) BirdFlight.prepare(renderer.width, renderer.height, view);
 
   await Promise.allSettled([sheet?.ready, wordmark?.ready, spritesReady, ...waxes.map(wax => wax.ready)].map(task => settleWithin(task)));
   renderer.drawCloth(view);

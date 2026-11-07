@@ -35,6 +35,57 @@ export function samplePose(pose, columns, rows) {
     .map(([key]) => [Math.floor(key / COVERAGE_SPAN) - COVERAGE_BIAS, key % COVERAGE_SPAN - COVERAGE_BIAS]);
 }
 
+// How many stitches wide and high the figure is on this surface: the source
+// chart scaled, reduced further only when it needs to fit a shorter or
+// narrower screen. Its cell count is kept when surface spacing changes.
+function figureSize(width, height, view) {
+  const pitch = GRID * view.scale;
+  const sourceSide = Math.max(BIRD_COLUMNS + 4, BIRD_ROWS + 4);
+  const referencePitch = pitch / surfaceSpacing(width);
+  const maxSide = Math.min(sourceSide * referencePitch, width * .72, height * .55) * FIGURE_SCALE;
+  const side = Math.max(8, Math.round(maxSide / referencePitch));
+  return {
+    columns: Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / sourceSide)),
+    rows: Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide)),
+  };
+}
+
+// The figure at one size: its wing poses and perched pose sampled to the
+// stitch lattice, where its toes are, and the order its reveal sews it in.
+// They depend on the size alone, so each size is worked out once and shared
+// (read only) by every dove of that size; prepare() does it ahead of time.
+const figures = new Map();
+function figureOf(columns, rows) {
+  const id = `${columns}x${rows}`;
+  let figure = figures.get(id);
+  if (figure) return figure;
+  const frames = WING_POSES.map(pose => samplePose(pose, columns, rows));
+  const perchFrame = samplePose(PERCH_POSE, columns, rows);
+  // Plan in bird-local coordinates across every pose and pitch, so the
+  // front travels with the bird and remains coherent while it changes shape.
+  const silhouette = new Map();
+  const pivotX = 28 * columns / (BIRD_COLUMNS + 4), pivotY = 37 * rows / (BIRD_ROWS + 4);
+  for (const angle of [0, -FLIGHT.maxPitch, -FLIGHT.maxPitch / 2, FLIGHT.maxPitch / 2, FLIGHT.maxPitch]) {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    for (const [col, row] of frames.flat()) {
+      const x = Math.round(pivotX + (col - pivotX) * cos - (row - pivotY) * sin);
+      const y = Math.round(pivotY + (col - pivotX) * sin + (row - pivotY) * cos);
+      silhouette.set(keyOf(x, y), [x, y]);
+    }
+  }
+  for (const cell of perchFrame) silhouette.set(keyOf(...cell), cell);
+  for (const [col, row] of [...silhouette.values()]) {
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const x = col + dx, y = row + dy;
+      if (x >= 0 && x < columns && y >= 0 && y < rows) silhouette.set(keyOf(x, y), [x, y]);
+    }
+  }
+  figure = { frames, perchFrame, toes: toesOf(perchFrame, columns), order: flameEntranceOrder([...silhouette.values()], { origin: 'center' }) };
+  if (figures.size >= 4) figures.delete(figures.keys().next().value);
+  figures.set(id, figure);
+  return figure;
+}
+
 export function projectPose(pose, columns, direction, col, row) {
   return pose.map(([x, y]) => [col + (direction === 1 ? x : columns - 1 - x), row + y]);
 }
@@ -103,44 +154,18 @@ export class BirdFlight {
     this.view = { ...view };
     this.sky = sky;
     this.pitch = GRID * view.scale;
-    const sourceSide = Math.max(BIRD_COLUMNS + 4, BIRD_ROWS + 4);
-    // Scale the source chart, reducing it further only when it needs to fit
-    // a shorter or narrower screen. Preserve the pose's cell count when
-    // surface spacing changes.
-    const referencePitch = this.pitch / surfaceSpacing(width);
-    const maxSide = Math.min(sourceSide * referencePitch, width * .72, height * .55) * FIGURE_SCALE;
-    const side = Math.max(8, Math.round(maxSide / referencePitch));
-    this.columns = Math.max(1, Math.round(side * (BIRD_COLUMNS + 4) / sourceSide));
-    this.rows = Math.max(1, Math.round(side * (BIRD_ROWS + 4) / sourceSide));
-    this.frames = WING_POSES.map(pose => samplePose(pose, this.columns, this.rows));
-    this.perchFrame = samplePose(PERCH_POSE, this.columns, this.rows);
-    this.toes = toesOf(this.perchFrame, this.columns);
+    Object.assign(this, figureSize(width, height, view));
+    const figure = figureOf(this.columns, this.rows);
+    this.frames = figure.frames;
+    this.perchFrame = figure.perchFrame;
+    this.toes = figure.toes;
     this.motionSignature = null;
     if (previousStage && this.revealTarget === REVEAL_DURATION) {
       this.revealTime = REVEAL_DURATION;
       this.entrance.finish();
     }
-    // Plan in bird-local coordinates across every pose and pitch, so the
-    // front travels with the bird and remains coherent while it changes shape.
-    const silhouette = new Map();
-    const pivotX = 28 * this.columns / (BIRD_COLUMNS + 4), pivotY = 37 * this.rows / (BIRD_ROWS + 4);
-    for (const angle of [0, -FLIGHT.maxPitch, -FLIGHT.maxPitch / 2, FLIGHT.maxPitch / 2, FLIGHT.maxPitch]) {
-      const cos = Math.cos(angle), sin = Math.sin(angle);
-      for (const [col, row] of this.frames.flat()) {
-        const x = Math.round(pivotX + (col - pivotX) * cos - (row - pivotY) * sin);
-        const y = Math.round(pivotY + (col - pivotX) * sin + (row - pivotY) * cos);
-        silhouette.set(keyOf(x, y), [x, y]);
-      }
-    }
-    for (const cell of this.perchFrame) silhouette.set(keyOf(...cell), cell);
     // Replan on resize too: later reveals use the current surface lattice.
-    for (const [col, row] of [...silhouette.values()]) {
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-        const x = col + dx, y = row + dy;
-        if (x >= 0 && x < this.columns && y >= 0 && y < this.rows) silhouette.set(keyOf(x, y), [x, y]);
-      }
-    }
-    this.entrance.plan([flameEntranceOrder([...silhouette.values()], { origin: 'center' })]);
+    this.entrance.plan([figure.order]);
     this.stage = { width, height, birdWidth: this.columns * this.pitch, birdHeight: this.rows * this.pitch, ...sky };
     if (this.flight) this.flight.resize(this.stage);
     else this.flight = new FlightPath(this.stage, { seed: this.seed, poses: this.frames.length });
@@ -150,6 +175,12 @@ export class BirdFlight {
     this.transitions.setTarget(cells, this.elapsed, true);
     this.cells = this.reveal(this.transitions.sample(this.elapsed));
     this.lastTime = null;
+  }
+  // Works out the figure for a surface ahead of time (behind the welcome),
+  // so a dove made for it later only has to set off.
+  static prepare(width, height, view) {
+    const { columns, rows } = figureSize(width, height, view);
+    figureOf(columns, rows);
   }
   // The perches whose resting figure fits on screen and clear of
   // `keepClear`, with the toes one row above the stitch.

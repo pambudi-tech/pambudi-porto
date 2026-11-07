@@ -11,6 +11,7 @@ import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
 import { DITHER_LOCKED, DITHER_NONE, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
+import { bitmapOf } from '../shared/bitmap.mjs';
 import { SheetRoller, copiesOf, rollerRadius, rollsSmoothly } from './sheet-roller.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
@@ -49,6 +50,16 @@ export function cardMove(from, to, { width, height }, far = EXPLORATION_VIEW.far
   const distance = Math.hypot(from.left - to.left, from.top - to.top);
   return distance > Math.hypot(width, height) * far ? 'settle' : 'glide';
 }
+
+// Only a pointer that hovers glitches the cards; on a touch screen there is
+// no glitch to ready.
+const hovering = globalThis.matchMedia?.('(hover: hover)');
+
+// Whether a photo decoded from its file uploads the very pixels its <img>
+// does: measured so in Chromium, texel for texel, colour-managed covers too.
+// Other engines are not measured, so there the glitch is not readied and a
+// first hover uploads the <img>, as it always has.
+const decodesAlike = () => Boolean(globalThis.navigator?.userAgentData?.brands?.some(brand => brand.brand === 'Chromium'));
 
 // On phones the sheet's stamps keep this far, in px, from the screen's sides.
 export const SHEET_PHONE_SIDE = 16;
@@ -373,6 +384,9 @@ export class WorksGallery {
     this.keepPainting(this.shown.length * 80 + 700);
     this.busy = false;
     (this.shown.find(entry => workHref(entry.work)) ?? this.shown[0])?.link.focus({ preventScroll: true, focusVisible: false });
+    // A project opened at its own address shows over the row; its glitch is
+    // readied once the visitor is back on it (departing).
+    if (!instant) this.readyGlitch(this.shown.length * 80 + 700);
   }
 
   // A project's own address, opened directly: the row opens at once on the
@@ -411,8 +425,10 @@ export class WorksGallery {
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
     this.root.hidden = true;
     this.isOpen = false;
-    // Out of sight, the seals rest until the row opens again.
+    // Out of sight, the seals rest until the row opens again, and the
+    // photos readied for the glitch are let go.
     this.sealsAway(true);
+    this.dropGlitch();
     this.syncWheel();
     this.paper.style.visibility = '';
     this.scene.restPaper?.();
@@ -463,6 +479,7 @@ export class WorksGallery {
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
     this.keepPainting(this.shown.length * 80 + 700);
     this.busy = false;
+    this.readyGlitch(this.shown.length * 80 + 700);
   }
 
   // Half of the paper's own turn: it accelerates into edge-on and vanishes,
@@ -1090,7 +1107,12 @@ export class WorksGallery {
       canvas.setAttribute('aria-hidden', 'true');
       canvas.style.translate = image.style.translate;
       entry.picture.append(canvas);
-      this.glitcher.show(entry.photo, image.clientWidth, image.clientHeight, Math.min(devicePixelRatio || 1, 2), this.ditherOf(entry));
+      // The photo decoded ahead (readyGlitch), if it is still the one shown.
+      const ready = this.glitchReady?.get(entry);
+      this.glitchReady?.delete(entry);
+      const pixels = ready?.src === (entry.photo.currentSrc || entry.photo.src) ? ready.pixels : entry.photo;
+      this.glitcher.show(entry.photo, image.clientWidth, image.clientHeight, Math.min(devicePixelRatio || 1, 2), this.ditherOf(entry), pixels);
+      ready?.pixels.close();
     }
     clearTimeout(this.glitchSettle);
     this.glitchSettle = setTimeout(() => this.unglitch(entry), GLITCH.settle);
@@ -1108,6 +1130,52 @@ export class WorksGallery {
       Math.random() * 1000,
     );
     canvas.classList.add('is-glitching');
+  }
+
+  // Set while a project is on its way or open over the row, until its card
+  // has flown home (project-transition.mjs). Meanwhile the photos readied for
+  // the glitch are let go, so none is decoded during the flight or held
+  // through the project's page; back on the row, once the card has landed,
+  // they are readied again.
+  get departing() { return this.leaving; }
+  set departing(leaving) {
+    this.leaving = leaving;
+    if (leaving) this.dropGlitch();
+    else this.readyGlitch(700);
+  }
+
+  // Readies the glitch for the works row once its cards have settled in
+  // (`after` ms) and the page is quiet: its WebGL is made now rather than on
+  // the first hover, and each card's photo is decoded off the main thread, so
+  // its first hover only copies the pixels up instead of decoding the photo
+  // again there. Each decoded photo is kept only until it is uploaded, or
+  // until a project is chosen, or the row closes or turns to exploration,
+  // whose pieces glitch as they always have.
+  async readyGlitch(after = 0) {
+    this.dropGlitch();
+    if (this.laidOut !== 'works' || this.reduced || !hovering?.matches || !decodesAlike()) return;
+    const ready = this.glitchReady = new Map();
+    const current = () => this.glitchReady === ready && this.isOpen;
+    await new Promise(resolve => setTimeout(resolve, after));
+    await new Promise(resolve => (window.requestIdleCallback ?? setTimeout)(resolve));
+    if (!current()) return;
+    this.glitcher ??= createGlitch() ?? false;
+    if (!this.glitcher) return;
+    for (const entry of this.built.works) {
+      const { photo } = entry, src = photo.currentSrc || photo.src;
+      if (!photo.complete || !photo.naturalWidth || this.glitcher.holds(photo) || entry.ownShape) continue;
+      const pixels = await bitmapOf(photo);
+      if (pixels === photo) continue;
+      if (!current()) { pixels.close(); return; }
+      // Hovered while it was decoding, it has its texture already.
+      if (this.glitcher.holds(photo)) { pixels.close(); continue; }
+      ready.set(entry, { src, pixels });
+    }
+  }
+
+  dropGlitch() {
+    for (const { pixels } of this.glitchReady?.values() ?? []) pixels.close();
+    this.glitchReady = null;
   }
 
   unglitch(entry) {

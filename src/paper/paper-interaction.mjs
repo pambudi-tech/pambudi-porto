@@ -46,23 +46,33 @@ export class PaperInteraction {
     this.measure();
     // The model's relief lit live; without WebGL 2, the photograph's own
     // relief layers as before, and the red back stays unlit as it was.
+    // Both faces are made ready together: the back's pictures come while the
+    // front is made, and its context and shaders follow the front's at once
+    // (never made, as before, should the front not be lit). The sheet is
+    // ready, and the page can show, once both are, the back always lit before
+    // it can first turn into view.
+    const backImage = this.element.querySelector('.paper-back .portfolio-frame');
+    const front = new PaperGL(this.image, 'white'), back = backImage ? new PaperGL(backImage, 'red') : null;
+    const frontReady = front.prepare();
+    const backReady = back?.prepare({ after: frontReady }).then(() => null, error => error ?? new Error('unavailable'));
     try {
-      const material = new PaperGL(this.image, 'white');
-      await material.prepare();
-      this.material = material;
+      await frontReady;
+      this.material = front;
     } catch (error) {
       console.warn('Paper lighting:', error);
+      // The red back stays unlit with it, put away at once, and the
+      // photograph's own relief does not wait for it.
+      back?.discard();
       const material = new PaperMaterial(this.image);
       await material.prepare();
       this.material = material;
       return;
     }
     this.write();
-    const back = this.element.querySelector('.paper-back .portfolio-frame');
     if (!back) return;
-    const material = new PaperGL(back, 'red');
-    await material.prepare().then(() => { this.backMaterial = material; this.write(); },
-      error => console.warn('Paper lighting (back):', error));
+    const failed = await backReady;
+    if (failed) console.warn('Paper lighting (back):', failed);
+    else { this.backMaterial = back; this.write(); }
   }
   measure() {
     // Measure the anchored layout rather than the moving perspective bounds.
