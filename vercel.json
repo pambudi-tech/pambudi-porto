@@ -78,6 +78,9 @@
     },
     "api/work-asset.js": {
       "includeFiles": "private/**"
+    },
+    "api/resume.js": {
+      "includeFiles": "private/**"
     }
   }
 }

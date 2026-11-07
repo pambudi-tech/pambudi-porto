@@ -40,12 +40,13 @@ export function paperCopy() {
 }
 
 export function about() {
-  const { experience, skillset, stack, profile, signature } = SITE.about;
+  const { experience, skillset, stack, profile, resume, signature } = SITE.about;
   const contact = SITE.contacts.find(entry => entry.id === profile);
   return [
     '<header class="about-heading">',
     `  <h1 id="about-name">${escape(SITE.name)}</h1>`,
     `  <p>${escape(SITE.role)}</p>`,
+    `  <a class="about-profile about-resume-link" href="${escape(resume.href)}" download="${escape(resume.filename)}" aria-label="Download ${escape(capitalize(firstName))}’s resume (PDF)"><span class="about-icon about-icon-download" aria-hidden="true"></span><span>${escape(resume.label)}</span></a>`,
     '</header>',
     '<section aria-labelledby="about-experience">',
     '  <h2 id="about-experience">experience</h2>',

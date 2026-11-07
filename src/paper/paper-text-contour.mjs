@@ -78,7 +78,8 @@ export async function mountAboutTextMask(copy) {
     const layout = () => {
       const parent = copy.offsetParent, bounds = textAreaBounds();
       // Enlarge the registered mask 5% around its center. Text remains a straight
-      // column, starting 12% down the enlarged shape; scrolling uses its full height.
+      // column, starting 4% down the enlarged shape (the centered heading fits
+      // the shape's narrow top); scrolling uses its full height.
       const scale = 1.05;
       const mask = {
         left: bounds.left - bounds.width * (scale - 1) / 2,
@@ -89,7 +90,7 @@ export async function mountAboutTextMask(copy) {
       copy.style.top = `${mask.top}%`;
       copy.style.height = `${mask.height}%`;
       copy.style.bottom = 'auto';
-      copy.style.setProperty('--about-content-start', `${mask.height / 100 * parent.clientHeight * .12}px`);
+      copy.style.setProperty('--about-content-start', `${mask.height / 100 * parent.clientHeight * .04}px`);
       copy.style.setProperty('--about-scroll-tail', `${Math.max(24, mask.height / 100 * parent.clientHeight * .10)}px`);
       copy.style.setProperty('--about-mask-size', `${mask.width / 100 * parent.clientWidth}px ${mask.height / 100 * parent.clientHeight}px`);
       copy.style.setProperty('--about-mask-position', `${mask.left / 100 * parent.clientWidth - copy.offsetLeft}px ${mask.top / 100 * parent.clientHeight - copy.offsetTop}px`);

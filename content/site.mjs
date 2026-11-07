@@ -40,6 +40,9 @@ export const SITE = {
     stack: ['figma', 'illustrator', 'claude', 'github', 'vercel'],
     // The profile linked beside the signature, by contact id.
     profile: 'linkedin',
+    // The ATS-friendly resume, printed from tools/resume/resume.html
+    // (node tools/resume/build.mjs) and served behind the works PIN.
+    resume: { href: '/api/resume', filename: 'Ivan-Pambudi-Resume.pdf', label: 'resume' },
     signature: { src: '/assets/ivan-signature.webp', srcset: '/assets/ivan-signature-320w.webp 320w, /assets/ivan-signature.webp 640w', sizes: '160px', width: 640, height: 371, alt: 'Ivan Pambudi’s signature' },
   },
 

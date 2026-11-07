@@ -4,13 +4,14 @@ import unlock from '../api/unlock.js';
 import gallery from '../api/gallery.js';
 import workAsset from '../api/work-asset.js';
 import pass from '../api/pass.js';
+import resume from '../api/resume.js';
 
 // The PIN pass's API (api/, served by Vercel in production) on the dev and
 // preview servers, with WORKS_PIN and WORKS_SECRET read from .env.local.
 //
 // For testing the panel, WORKS_RESET_PASS=1 makes the dev server (only) drop
 // the pass whenever a project page loads, so every refresh asks again.
-const ROUTES = { '/api/unlock': unlock, '/api/gallery': gallery, '/api/work-asset': workAsset, '/api/pass': pass };
+const ROUTES = { '/api/unlock': unlock, '/api/gallery': gallery, '/api/work-asset': workAsset, '/api/pass': pass, '/api/resume': resume };
 
 export function worksApi() {
   const serve = (request, response, next) => {

@@ -1,0 +1,145 @@
+/* The PIN panel (src/project/project-pin.mjs), shared by protected projects
+   and About Me's resume popup, which loads it on the homepage. */
+/* A password-protected project before its PIN (project-pin.mjs): the seal
+   waits hidden, and the PIN panel sits where it would be, in the back
+   button's pill style, with where to ask for the PIN on one line below. */
+.project-locked .project-gallery-seal { visibility: hidden; }
+.project-pin {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0 auto;
+  color: var(--ink);
+  font: 12px/1.4 "Syne Mono", monospace;
+  text-align: center;
+  transition: opacity 360ms ease, translate 420ms var(--ease-out);
+}
+.project-pin-panel {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 20px;
+  background: rgb(255 255 255 / .92);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+/* Five red stitches across the panel's top edge (project-pin.mjs). */
+.project-pin-stitches { position: absolute; left: 50%; z-index: 1; pointer-events: none; }
+.project-pin.is-waiting { opacity: 0; translate: 0 10px; pointer-events: none; }
+.project-pin.is-leaving { opacity: 0; translate: 0 16px; pointer-events: none; }
+.project-route-leaving .project-pin { opacity: 0; }
+/* The PIN field (otp-field.mjs): two threes of slots, and over them all one
+   real input, unseen, that takes the typing; its letters are squeezed so a
+   click lands on the slot beneath. */
+.otp { position: relative; display: flex; align-items: center; gap: 8px; cursor: text; }
+.otp-group { display: flex; gap: 6px; }
+.otp-separator { color: var(--muted); font-size: 18px; }
+.otp-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font: 44px/1 monospace;
+  letter-spacing: -.5em;
+  font-variant-numeric: tabular-nums;
+}
+.otp-input::selection { background: transparent; color: transparent; }
+.otp-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 44px;
+  border: 1px solid rgb(73 72 63 / .2);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 18px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.otp-slot.is-active { z-index: 1; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.otp-caret { display: none; width: 1px; height: 18px; background: var(--ink); animation: otp-caret-blink 1.2s ease-out infinite; }
+.otp-slot.has-caret .otp-char { display: none; }
+.otp-slot.has-caret .otp-caret { display: block; }
+.otp.is-busy .otp-slot { opacity: .5; }
+@keyframes otp-caret-blink { 0%, 70%, 100% { opacity: 1; } 20%, 50% { opacity: 0; } }
+.project-pin-message { min-height: 1.4em; color: var(--muted); }
+.project-pin-message[data-tone="error"] { color: #b4342b; }
+/* A right PIN: its digits settle in ink while it stays a moment. */
+.project-pin-message[data-tone="ok"] { color: var(--ink); }
+.is-unlocked .otp-slot { border-color: var(--ink); transition: border-color 240ms ease; }
+.is-unlocked .otp-slot:nth-child(2) { transition-delay: 40ms; }
+.is-unlocked .otp-slot:nth-child(3) { transition-delay: 80ms; }
+.is-unlocked .otp-group + .otp-separator + .otp-group .otp-slot:nth-child(1) { transition-delay: 120ms; }
+.is-unlocked .otp-group + .otp-separator + .otp-group .otp-slot:nth-child(2) { transition-delay: 160ms; }
+.is-unlocked .otp-group + .otp-separator + .otp-group .otp-slot:nth-child(3) { transition-delay: 200ms; }
+.project-pin-ask { display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+.project-pin-ask a { color: var(--ink); }
+.project-pin-copy {
+  margin-left: 2px;
+  padding: 2px 8px;
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.project-pin-copy:hover { background: rgb(73 72 63 / .06); }
+:is(.project-pin-copy, .project-pin-ask a):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (max-width: 760px) {
+  /* Room at the bottom of the page for the panel instead of the seal. */
+  .project-locked .project-opening { padding-bottom: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .project-pin { transition: none; }
+  .otp-caret { animation: none; }
+}
+
+/* About Me's resume popup (src/paper/about-resume-pin.mjs): the same panel,
+   centred over the dimmed page. */
+.pin-modal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  opacity: 1;
+  transition: opacity 360ms ease;
+}
+.pin-modal:not([open]) { display: none; }
+.pin-modal::backdrop { background: rgb(0 0 0 / .72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: opacity 360ms ease; }
+/* On the black overlay, the line below the panel turns light. */
+.pin-modal .project-pin-ask { color: rgb(255 255 255 / .72); }
+.pin-modal .project-pin-ask a, .pin-modal .project-pin-copy { color: #fff; }
+.pin-modal .project-pin-copy { border-color: rgb(255 255 255 / .32); }
+.pin-modal .project-pin-copy:hover { background: rgb(255 255 255 / .1); }
+.pin-modal :is(.project-pin-copy, .project-pin-ask a):focus-visible { outline-color: #fff; }
+.pin-modal .project-pin { position: static; }
+.pin-modal.is-closing { opacity: 0; }
+.pin-modal.is-closing::backdrop { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .pin-modal { transition: none; }
+}

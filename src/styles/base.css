@@ -303,6 +303,9 @@ body.is-loading .wax-gl { transition: none; }
 .about-resume h1, .about-resume h2, .about-resume p { margin: 0; font: inherit; }
 .about-resume h1 { font-size: 1em; margin-bottom: .5em; }
 .about-resume h2 { font-size: calc(1em - 2pt); letter-spacing: .12em; margin-bottom: .8em; text-transform: uppercase; }
+.about-heading { text-align: center; }
+.about-heading .about-resume-link { margin-top: .6em; }
+.about-resume-link[hidden] { display: none; }
 .about-heading > p { font-size: 14px; opacity: .88; }
 .about-detail { opacity: .7; }
 /* Short lists, no explanations: a row per role, names and dates apart. */
@@ -319,7 +322,7 @@ body.is-loading .wax-gl { transition: none; }
   display: block;
   width: min(160px, 80%);
   height: auto;
-  margin: -.5em 0 0 auto;
+  margin: 1.6em 0 0 auto;
   filter: url('#signature-white');
   pointer-events: none;
   user-select: none;
@@ -346,6 +349,7 @@ body.is-loading .wax-gl { transition: none; }
   mask-repeat: no-repeat;
 }
 .about-icon-linkedin { mask-image: url('/assets/contact/linkedin.svg'); }
+.about-icon-download { mask-image: url('/assets/contact/download.svg'); }
 .about-profile:hover { text-decoration-thickness: 2px; }
 .about-profile:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
 .intro-link::after,
@@ -606,6 +610,7 @@ body.paper-hover #surface { cursor: pointer; }
   .paper-contact img { width: 16px; height: 16px; }
   .works-seal { width: 30%; }
   .works-seal-label { font-size: 14px; }
+  .about-resume h1 { font-size: 14px; }
 }
 
 @media (max-width: 360px) {

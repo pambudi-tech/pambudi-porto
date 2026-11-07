@@ -106,3 +106,15 @@ export async function readJson(request) {
 }
 
 export const queryOf = request => new URL(request.url, 'http://localhost').searchParams;
+
+// The resume behind the same pass (api/resume.js): printed by
+// tools/resume/build.mjs into private/, never published to /downloads.
+export const RESUME = Object.freeze({ file: join(process.cwd(), 'private', 'resume', 'ivan-pambudi-resume.pdf'), name: 'Ivan-Pambudi-Resume.pdf' });
+
+export async function resumeFile() {
+  try {
+    return await readFile(RESUME.file);
+  } catch {
+    return null;
+  }
+}

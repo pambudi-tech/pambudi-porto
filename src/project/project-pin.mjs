@@ -15,7 +15,7 @@ const SUCCESS_HOLD = 1100;
 // A row of red cross-stitches across the top of the panel, the cover frame's
 // size and thread, straddling its edge. They sew in, left to right, with
 // `reveal`.
-function mountPanelStitches(panel) {
+export function mountPanelStitches(panel) {
   const canvas = Object.assign(document.createElement('canvas'), { className: 'project-pin-stitches' });
   canvas.setAttribute('aria-hidden', 'true');
   panel.append(canvas);
@@ -46,11 +46,11 @@ function mountPanelStitches(panel) {
 // six-digit field in two threes (otp-field.mjs), checked as the sixth digit
 // lands. Below the panel, on one line, where to ask for the PIN. It waits
 // unseen until `arrive`. `onUnlock` runs once the PIN is right; then both
-// fold away.
-export function mountPinPanel({ title, onUnlock }) {
+// fold away. About Me's resume popup passes its own `prompt` and `parent`.
+export function mountPinPanel({ title, onUnlock, prompt = PROMPT, parent = document.body }) {
   const root = Object.assign(document.createElement('div'), { className: 'project-pin is-waiting' });
   const panel = Object.assign(document.createElement('form'), { className: 'project-pin-panel', noValidate: true });
-  panel.innerHTML = `<p class="project-pin-message" id="project-pin-message" role="status">${PROMPT}</p>`;
+  panel.innerHTML = `<p class="project-pin-message" id="project-pin-message" role="status">${prompt}</p>`;
   const subject = encodeURIComponent(`PIN request: ${title}`);
   const ask = Object.assign(document.createElement('p'), { className: 'project-pin-ask' });
   ask.innerHTML = `no pin? ask me at <a href="mailto:${SITE.email}?subject=${subject}">${SITE.email}</a>`
@@ -101,7 +101,7 @@ export function mountPinPanel({ title, onUnlock }) {
   }
 
   field.input.addEventListener('input', () => {
-    if (field.value.length < DIGITS && message.dataset.tone === 'error') say(PROMPT);
+    if (field.value.length < DIGITS && message.dataset.tone === 'error') say(prompt);
   });
   panel.addEventListener('submit', event => { event.preventDefault(); check(); });
   copy.addEventListener('click', async () => {
@@ -113,7 +113,7 @@ export function mountPinPanel({ title, onUnlock }) {
     }
     setTimeout(() => { copy.textContent = 'copy'; }, 1600);
   });
-  document.body.append(root);
+  parent.append(root);
   return {
     element: root,
     // Shows it after `delay` ms, at once for reduced motion, and sews its
