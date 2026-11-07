@@ -28,17 +28,18 @@ export const PULL = Object.freeze({
   stiffness: 320,
   // The red's edge is pulled as cloth is, held at one point: it dips under
   // the finger (or the mouse, on a computer), this share deeper than the
-  // page has dropped, never more than this share of the screen: a gentle
+  // page has dropped, never more than this share of the screen: a slight
   // sag, not a drop.
-  dip: .25,
-  dipMax: .08,
+  dip: .12,
+  dipMax: .04,
   // How wide the dip spreads: a share of the screen's width, within these px.
   dipSpread: .28,
   dipSpreadMin: 90,
   dipSpreadMax: 260,
-  // Let go, the dip springs back flat with one small wobble (per s², per s).
-  dipStiffness: 260,
-  dipDamping: 11,
+  // Let go, the dip eases out flat at once: no spring, so it never wobbles,
+  // never passes flat, never dips again. Each ms it keeps e^(-1/dipFade) of
+  // its depth: three quarters gone in one frame, flat in about 50 ms.
+  dipFade: 12,
 });
 
 // How far the page drops for a pull of `distance` px, against a screen `size` px tall:
@@ -102,22 +103,13 @@ export function dipAt(x, depth, center, spread) {
   return depth * Math.exp(-(((x - center) / spread) ** 2));
 }
 
-// One step of the dip's own spring back to flat: lightly damped, so it
-// passes flat once and settles. Depth in px, velocity in px/ms. Long frames
-// are taken in short steps, so a slow frame cannot throw it.
-export function dipStep(depth, velocity, elapsed) {
-  const k = PULL.dipStiffness / 1e6, c = PULL.dipDamping / 1000;
-  let remaining = Math.min(elapsed, 64);
-  while (remaining > 0) {
-    const dt = Math.min(remaining, 16);
-    velocity += (-k * depth - c * velocity) * dt;
-    depth += velocity * dt;
-    remaining -= dt;
-  }
-  return { depth, velocity };
+// The dip `elapsed` ms further on its way out: smaller every frame, straight
+// down to flat, never past it. A long frame counts as at most 64 ms. Under a
+// quarter px it is flat (as setDip draws it), and reads 0.
+export function dipFade(depth, elapsed) {
+  const next = Math.max(0, depth) * Math.exp(-Math.min(elapsed, 64) / PULL.dipFade);
+  return next < .25 ? 0 : next;
 }
-
-export const dipSettled = (depth, velocity) => Math.abs(depth) < .5 && Math.abs(velocity) < .02;
 
 // The red below the colophon's flat edge, as an SVG path: from `top` px above
 // that edge down to the dip, across a screen `width` px wide, a point every

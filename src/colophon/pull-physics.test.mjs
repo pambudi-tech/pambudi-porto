@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled, dipDepth, dipSpread, dipAt, dipStep, dipSettled, dipPath } from './pull-physics.mjs';
+import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled, dipDepth, dipSpread, dipAt, dipFade, dipPath } from './pull-physics.mjs';
 
 test('the page follows a short pull closely and resists a long one', () => {
   assert.equal(rubberBand(0, 800), 0);
@@ -69,18 +69,17 @@ test('the dip is deepest under the finger and fades to flat either side', () => 
   assert.equal(dipSpread(5000), PULL.dipSpreadMax);
 });
 
-test('let go, the dip wobbles past flat and settles', () => {
-  let state = { depth: 120, velocity: 0 }, crossed = 0, previous = 120, frames = 0;
-  while (!dipSettled(state.depth, state.velocity) && frames++ < 400) {
-    state = dipStep(state.depth, state.velocity, 16);
-    if (Math.sign(state.depth) !== Math.sign(previous) && previous !== 0) crossed++;
-    previous = state.depth;
-  }
-  assert.ok(dipSettled(state.depth, state.velocity), 'settles');
-  assert.ok(frames < 120, `within two seconds (${frames} frames)`);
-  assert.ok(crossed >= 1, 'wobbles past flat');
-  const slow = dipStep(120, 0, 200), fast = dipStep(120, 0, 64);
-  assert.deepEqual(slow, fast, 'a long frame counts as at most 64 ms');
+test('let go, the dip eases out flat at once, never past flat or back', () => {
+  let depth = 66, frames = 0;
+  const seen = [depth];
+  while (depth > 0 && frames++ < 100) seen.push(depth = dipFade(depth, 16));
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i] < seen[i - 1] || seen[i] === 0, 'smaller every frame');
+  assert.ok(seen.every(value => value >= 0), 'never past flat');
+  assert.ok(seen[1] < 66 / 2, 'more than half gone in one frame');
+  assert.ok(seen.findIndex(value => value < 1) * 16 <= 64, 'under a px within four frames');
+  assert.equal(depth, 0, 'ends exactly flat');
+  assert.equal(dipFade(66, 200), dipFade(66, 64), 'a long frame counts as at most 64 ms');
+  assert.equal(dipFade(-5, 16), 0);
 });
 
 test('the edge path spans the screen and draws flat when the dip passes above it', () => {

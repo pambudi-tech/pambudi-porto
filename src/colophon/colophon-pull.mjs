@@ -1,4 +1,7 @@
-import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled, dipDepth, dipSpread, dipStep, dipSettled, dipPath } from './pull-physics.mjs';
+import {
+  PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled,
+  dipDepth, dipSpread, dipFade, dipPath,
+} from './pull-physics.mjs';
 
 // The homepage does not scroll; pulled down past its top anyway (a swipe
 // down on a phone, scrolling up with the wheel or trackpad on a computer,
@@ -12,7 +15,7 @@ import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled, 
 // While they are anywhere but home they take no input of their own: the
 // pull's listeners on the window can still catch them. The red's edge is
 // not ruled straight: `lip` draws it dipping under the finger, as cloth
-// held at one point, and it springs flat once let go. `scene` is the
+// held at one point, and it eases out flat once let go. `scene` is the
 // portfolio's (surface/scene.mjs): it says when the page is at rest to pull
 // and lets go of what a pointer was doing on it. `clock`, the dot clock
 // (clock/clock.mjs), draws on the screen's whole canvas while it is moved.
@@ -25,7 +28,6 @@ export class ColophonPull {
     this.lipEdge = lip?.querySelector('path');
     // How deep the red's edge dips below the page's top, and where across.
     this.dip = 0;
-    this.dipVelocity = 0;
     // Where the finger (or mouse) is, and where the dip is drawn: the dip
     // follows the finger, easing over when it already lies elsewhere.
     this.fingerX = null;
@@ -162,7 +164,7 @@ export class ColophonPull {
     if (this.reduced) return;
     this.fingerX = event.clientX;
     this.setLift(rubberBand(touch.from + dy, this.size));
-    // Halfway there each move, so a dip still wobbling when caught eases in.
+    // Halfway there each move, so a dip still easing out when caught eases in.
     this.followFinger(.5);
     this.setDip(this.dip + (dipDepth(this.lift, this.size) - this.dip) * .5);
   }
@@ -243,7 +245,7 @@ export class ColophonPull {
     const amount = 1 - Math.exp(-Math.min(now - last, 64) / 45);
     const lift = this.lift + (wheel.lift - this.lift) * amount;
     this.setLift(Math.abs(wheel.lift - lift) < .5 ? wheel.lift : lift);
-    // The dip glides too, so one still wobbling when caught eases in.
+    // The dip glides too, so one still easing out when caught eases in.
     this.followFinger(amount);
     this.setDip(this.dip + (dipDepth(this.lift, this.size) - this.dip) * amount);
     this.frame = requestAnimationFrame(next => this.glide(next, now));
@@ -277,9 +279,7 @@ export class ColophonPull {
     // Until a finger or the mouse says where, the middle (Page Up).
     this.fingerX ??= this.width / 2;
     this.dipX ??= this.fingerX;
-    // A finger or the wheel holds the dip now; let go, it springs from rest.
-    this.dipVelocity = 0;
-    // Drawn afresh for this width, flat or still wobbling.
+    // Drawn afresh for this width, flat or still easing out.
     this.drawnFlat = false;
     this.setDip(this.dip);
     if (this.lip) {
@@ -356,7 +356,6 @@ export class ColophonPull {
     if (this.reduced) {
       this.setLift(target);
       this.setDip(0);
-      this.dipVelocity = 0;
       if (!target) this.rest();
       return;
     }
@@ -370,18 +369,17 @@ export class ColophonPull {
       const next = springStep(this.lift, this.velocity, target, elapsed);
       this.velocity = next.velocity;
       const lift = Math.max(0, Math.min(next.position, highest));
-      // The dip has its own spring, flat at the end, whichever way the page goes.
-      const dip = dipStep(this.dip, this.dipVelocity, elapsed);
-      this.dipVelocity = dip.velocity;
-      // Going home, the dip is never deeper than the page's drop allows, so
-      // both land together and the page is live the moment it is home.
-      const depth = target ? dip.depth : Math.min(dip.depth, dipDepth(lift, this.size));
+      // Let go, the dip eases out flat at once, whichever way the page goes.
+      // Going home it is never deeper than the page's drop allows either,
+      // so the page is live the moment it is home.
+      const faded = dipFade(this.dip, elapsed);
+      const depth = target ? faded : Math.min(faded, dipDepth(lift, this.size));
       const home = springSettled(lift, this.velocity, target);
-      const flat = !target || dipSettled(depth, dip.velocity);
+      const flat = !target || depth === 0;
       this.setLift(home ? target : lift);
       this.setDip(home && flat ? 0 : depth);
       if (home && flat) {
-        this.velocity = this.dipVelocity = 0;
+        this.velocity = 0;
         this.frame = null;
         if (!target) this.rest();
         return;
@@ -396,7 +394,6 @@ export class ColophonPull {
     this.target = 0;
     this.velocity = 0;
     this.setLift(0);
-    this.dipVelocity = 0;
     this.setDip(0);
     if (this.lip) {
       this.lip.hidden = true;
