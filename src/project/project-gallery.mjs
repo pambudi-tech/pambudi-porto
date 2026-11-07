@@ -37,6 +37,7 @@ export const SHEET = Object.freeze({
   duration: 900, // ms the stamps take to move between the depth and the sheet
   stagger: 70,   // ms each stamp sets off after the one before
   fuller: .85,   // of the widest stamp, the least a fuller sheet may give
+  settle: 140,   // px behind its cell from which an unseen stamp settles into it
   top: 84, bottom: 116, side: 32, gap: 28,
 });
 
@@ -162,6 +163,14 @@ export function sheetProgress(progress, index, count, { duration = SHEET.duratio
   const gap = count > 1 ? Math.min(stagger, duration / 2 / (count - 1)) : 0;
   return ease(clamp((progress * duration - index * gap) / (duration - (count - 1) * gap)));
 }
+
+// A stamp shows in the depth, however many do, while any of it is drawn: it
+// flies to the sheet from where it is seen. One that does not show, deep in
+// the fog, would rush out of nowhere from far off if it flew; instead it
+// settles into its cell from just behind it, fading in, `t` of the way
+// there. Run backward, it fades and draws back where it lay on the sheet.
+export const sheetSeen = z => depthOpacity(z) > 0;
+export const sheetSettle = t => ({ opacity: t, depth: t < 1 ? -SHEET.settle * (1 - t) : 0 });
 
 // Tells each new scroll of the wheel from the momentum trailing the last one.
 // A trackpad keeps sending a scroll's momentum long after the fingers lift,
@@ -352,7 +361,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
       choose();
     });
     root.append(element);
-    return { element, paper, media, photo, soft, dim, decoded, aspect: item.width / item.height, spot: index, sheetX: 0, sheetY: 0, sheetScale: 1 };
+    return { element, paper, media, photo, soft, dim, decoded, aspect: item.width / item.height, spot: index, seen: true, sheetX: 0, sheetY: 0, sheetScale: 1 };
   });
   const dots = Object.assign(document.createElement('nav'), { className: 'project-depth-dots' });
   dots.setAttribute('aria-label', 'Gallery');
@@ -470,12 +479,26 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
       const t = sheetProgress(sheet, index, stamps.length);
       // Placed by its spot, so each time round it sits somewhere new.
       const spot = stage ? galleryOffset(at, from, stage) : { x: 0, y: 0 };
-      const x = lerp(spot.x, stamp.sheetX, t), y = lerp(spot.y, stamp.sheetY, t);
       const back = leavingFrom === null ? 0 : camera - leavingFrom;
-      const depth = lerp(from, 0, t) + t * back, scale = lerp(1, stamp.sheetScale, t);
-      const opacity = lerp(depthOpacity(z), 1, t) * appear;
-      // Out of focus by depth, in spacings behind: a little by one, much by `softest`.
-      const behind = (lerp(depthBlur(z), 0, t) + t * depthBlur(back)) / DEPTH.blur;
+      let x, y, depth, scale, opacity, behind;
+      if (stamp.seen) {
+        x = lerp(spot.x, stamp.sheetX, t);
+        y = lerp(spot.y, stamp.sheetY, t);
+        depth = lerp(from, 0, t) + t * back;
+        scale = lerp(1, stamp.sheetScale, t);
+        opacity = lerp(depthOpacity(z), 1, t) * appear;
+        // Out of focus by depth, in spacings behind: a little by one, much by `softest`.
+        behind = (lerp(depthBlur(z), 0, t) + t * depthBlur(back)) / DEPTH.blur;
+      } else {
+        // Unseen, it settles into its cell (sheetSettle).
+        const leg = sheetSettle(t);
+        x = stamp.sheetX;
+        y = stamp.sheetY;
+        depth = leg.depth + t * back;
+        scale = stamp.sheetScale;
+        opacity = leg.opacity * appear;
+        behind = t * depthBlur(back) / DEPTH.blur;
+      }
       // The dotted photo comes over the sharp one, which stays whole beneath
       // it, so the stamp never thins as the dots come and go.
       stamp.soft[0].style.opacity = clamp(behind).toFixed(3);
@@ -522,6 +545,9 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
   // The stamps move between the depth and the sheet, from wherever they are.
   function morphTo(to, length = SHEET.duration) {
     cancelAnimationFrame(morph);
+    // Which stamps are seen is settled as the move sets off, from wherever
+    // the camera rests, so none changes its way partway (sheetSeen).
+    stamps.forEach((stamp, index) => { stamp.seen = sheetSeen(galleryMeeting(index, camera, stamps.length).z); });
     const from = sheet, duration = reduced() ? 0 : length * Math.abs(to - from);
     return new Promise(resolve => {
       const start = performance.now();

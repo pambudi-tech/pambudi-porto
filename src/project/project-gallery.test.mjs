@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEPTH, depthOrder, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, stampSize, SHEET } from './project-gallery.mjs';
+import { DEPTH, depthOrder, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, sheetSeen, sheetSettle, stampSize, SHEET } from './project-gallery.mjs';
 import { fitRect, panTo, zoomAt, CLOSEUP } from './project-closeup.mjs';
 
 const SCREENS = {
@@ -127,6 +127,15 @@ test('stamps set off for the sheet one after another, all there at the end', () 
   assert.equal(sheetProgress(0, 0, 4), 0);
   assert.equal(sheetProgress(1, 3, 4), 1);
   assert.ok(sheetProgress(.3, 0, 4) > sheetProgress(.3, 3, 4));
+});
+
+test('every stamp seen in the depth flies to the sheet; unseen ones settle into their cells', () => {
+  // However many show, three or four, each is seen; only those lost in the fog are not.
+  for (let ahead = 0; ahead <= 3; ahead++) assert.ok(sheetSeen(-ahead * DEPTH.spacing));
+  assert.ok(sheetSeen(-3.5 * DEPTH.spacing));
+  assert.ok(!sheetSeen(-4 * DEPTH.spacing) && !sheetSeen(-7 * DEPTH.spacing));
+  assert.deepEqual(sheetSettle(0), { opacity: 0, depth: -SHEET.settle });
+  assert.deepEqual(sheetSettle(1), { opacity: 1, depth: 0 });
 });
 
 test('up close, the image fills the room at its own shape, and zoom keeps it covering its frame', () => {
