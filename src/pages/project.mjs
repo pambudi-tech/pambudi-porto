@@ -121,6 +121,10 @@ const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch
 });
 window.addEventListener('project-route-switch-failed', () => {
   leaving = false;
+  // Staying, it is no longer preparing anything: the sewing stops and the
+  // word goes.
+  preparing?.stop();
+  preparing = null;
   document.body.classList.remove('project-switching', 'project-arriving');
   projectSwitch.settle();
 });

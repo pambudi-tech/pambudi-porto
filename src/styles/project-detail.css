@@ -94,9 +94,11 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-opening :is(h1, p, dt, dd) { position: relative; }
 .project-opening .ink-bleed { color: inherit; }
 /* The project title's soft edges on a phone, eased as it travels
-   (title-marquee.mjs): the near one, and the far one, fading in from 24px. */
-@property --title-fade-near { syntax: '<length>'; inherits: true; initial-value: 0px; }
-@property --title-fade-far { syntax: '<length>'; inherits: true; initial-value: 24px; }
+   (title-marquee.mjs): the near one, and the far one, fading in from 24px.
+   Only the mask they are keyframed on reads them, so its letters need not
+   take each new value too. */
+@property --title-fade-near { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --title-fade-far { syntax: '<length>'; inherits: false; initial-value: 24px; }
 /* The depth gallery the seal opens, between the cloth and the page: stamps
    one behind another, seen through one shared perspective. */
 .project-depth { position: fixed; inset: 0; z-index: 1; perspective: 1000px; pointer-events: none; }

@@ -587,6 +587,10 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
     return Promise.all(layers.map(animation => animation.finished));
   }
 
+  // Where the hero is, for the title's travel (title-marquee.mjs): 'parting'
+  // for the depth, 'parted' and out of sight, 'returning', or 'whole' again.
+  const heroIs = state => dispatchEvent(new CustomEvent('project-hero', { detail: { state } }));
+
   function settle(isOpen) {
     open = isOpen;
     root.inert = !isOpen;
@@ -608,9 +612,12 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
         layout();
         settle(true);
         target = 0;
+        heroIs('parting');
         await Promise.all([partHero('normal'), travel(-DEPTH.spacing * DEPTH.approach, 0, 0, 1)]);
+        heroIs('parted');
       } else {
         settle(false);
+        heroIs('returning');
         // From the sheet, the sheet itself draws back and fades as the hero
         // returns, as the depth would, without becoming the depth first.
         if (sheet > 0) {
@@ -647,6 +654,7 @@ export function mountProjectGallery({ images, title, seal, motionPreference, aft
     appear = 0;
     busy = false;
     settle(false);
+    heroIs('whole');
     document.documentElement.classList.remove('gallery-active');
     render();
   }

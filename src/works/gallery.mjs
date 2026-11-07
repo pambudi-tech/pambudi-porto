@@ -345,6 +345,9 @@ export class WorksGallery {
   async open({ history = true, instant = false } = {}) {
     if (this.isOpen || this.busy) return;
     this.busy = true;
+    // The details seals wake while the row is still out of sight, so the
+    // first frame shown carries nothing of their time away.
+    this.sealsAway(false);
     if (history && location.hash !== '#works') window.history.pushState({ works: true }, '', '#works');
     this.scene.setPaperPresent(false);
     this.scene.setBirdAway?.(true, { immediate: instant });
@@ -408,6 +411,8 @@ export class WorksGallery {
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
     this.root.hidden = true;
     this.isOpen = false;
+    // Out of sight, the seals rest until the row opens again.
+    this.sealsAway(true);
     this.syncWheel();
     this.paper.style.visibility = '';
     this.scene.restPaper?.();
@@ -972,6 +977,7 @@ export class WorksGallery {
   // left to draw. Opened first, the row dithers what is left as ever.
   async warm() {
     if (this.isOpen) return;
+    this.sealsAway(true);
     this.root.style.visibility = 'hidden';
     this.root.hidden = false;
     this.layout({ quiet: true });
@@ -987,6 +993,14 @@ export class WorksGallery {
       if (this.isOpen) return;
       this.ditherCard(entry, { width, height });
     }
+  }
+
+  // The cards' details seals follow the pointer over the whole page, each
+  // measuring its place as it moves. While the row is out of sight they are
+  // put away: they rest as at first and measure nothing, and wake as it opens.
+  // Shown, every one stays awake, so its light eases in as ever.
+  sealsAway(away) {
+    for (const entry of Object.values(this.built).flat()) entry.seal?.wax.setSuspended(away);
   }
 
   // Whether this visitor holds the PIN's pass (server/works-pass.mjs). With

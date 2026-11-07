@@ -170,6 +170,32 @@ export function threadSprite(sprites, color, variation, progress = 1) {
   return sprites.get(key);
 }
 
+// The smallest box holding both, either of which may be null.
+function union(a, b) {
+  if (!a || !b) return a ?? b;
+  return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+}
+
+// What the gesture canvas shows when nothing is sewing: the hover alone, or
+// nothing. The needle follows the pointer itself, so only it needs x and y.
+function hoverState(view, hover, color, mode, keyboard) {
+  if (!hover) return { hover: false };
+  const needle = !(keyboard || mode === 'motif' || mode === 'unpick');
+  return {
+    hover: true, col: hover.col, row: hover.row, x: needle ? hover.x : 0, y: needle ? hover.y : 0,
+    color, mode, keyboard, viewX: view.x, viewY: view.y, scale: view.scale,
+  };
+}
+function showsHover(shown, view, hover, color, mode, keyboard) {
+  if (!shown) return false;
+  if (!hover) return !shown.hover;
+  const needle = !(keyboard || mode === 'motif' || mode === 'unpick');
+  return shown.hover && shown.col === hover.col && shown.row === hover.row
+    && shown.x === (needle ? hover.x : 0) && shown.y === (needle ? hover.y : 0)
+    && shown.color === color && shown.mode === mode && shown.keyboard === keyboard
+    && shown.viewX === view.x && shown.viewY === view.y && shown.scale === view.scale;
+}
+
 // The cloth's ground and perforation colours.
 export const CLOTH = Object.freeze({ ground: '#ffffff', hole: 'rgba(0,0,0,.20)' });
 
@@ -183,6 +209,10 @@ export class SurfaceRenderer {
     this.gesture = gesture.getContext('2d');
     this.sprites = new Map();
     this.dpr = Math.min(devicePixelRatio || 1, 2);
+    // A canvas the browser had to clear (its GPU context lost and restored)
+    // is drawn whole again on its next frame, as it was before.
+    embroidery.addEventListener('contextrestored', () => { this.shows = null; });
+    gesture.addEventListener('contextrestored', () => { this.gestureShows = null; });
   }
   resize(width, height) {
     this.width = width;
@@ -192,6 +222,9 @@ export class SurfaceRenderer {
       canvas.width = Math.round(width * this.dpr);
       canvas.height = Math.round(height * this.dpr);
     }
+    // Resizing cleared them: their next frames draw everything.
+    this.shows = null;
+    this.gestureShows = null;
   }
   clear(ctx) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -236,28 +269,13 @@ export class SurfaceRenderer {
     this.layerKey = null;
   }
   drawStitches(model, view, animations = new Map(), movingCells = new Map(), entrance = null, now = 0, { settled = false } = {}) {
-    this.clear(this.stitch);
-    let occupied;
-    if (settled) {
-      const key = `${model.stitches.size} ${view.x} ${view.y} ${view.scale} ${this.width} ${this.height} ${this.dpr}`;
-      if (this.layerKey !== key) {
-        this.layer ??= document.createElement('canvas');
-        this.layer.width = this.stitchCanvas.width;
-        this.layer.height = this.stitchCanvas.height;
-        const context = this.layer.getContext('2d');
-        this.clear(context);
-        this.world(context, view);
-        this.layerCells = this.drawModel(context, model, view, animations, entrance, now);
-        this.layerKey = key;
-      }
-      this.stitch.setTransform(1, 0, 0, 1, 0, 0);
-      this.stitch.drawImage(this.layer, 0, 0);
-      this.world(this.stitch, view);
-      occupied = this.layerCells;
-    } else {
+    const ctx = this.stitch;
+    if (!settled) {
       this.layerKey = null;
-      this.world(this.stitch, view);
-      occupied = this.drawModel(this.stitch, model, view, animations, entrance, now);
+      this.shows = null;
+      this.clear(ctx);
+      this.world(ctx, view);
+      const occupied = this.drawModel(ctx, model, view, animations, entrance, now);
       for (const [key, animation] of animations) {
         if (animation.kind !== 'erase' && animation.kind !== 'unpick') continue;
         const stored = parseKey(key);
@@ -266,19 +284,95 @@ export class SurfaceRenderer {
         occupied.add(`${col},${row}`);
         if (animation.kind === 'unpick') {
           const progress = animation.from * (1 - Math.max(0, Math.min(1, (now - animation.started) / animation.duration)));
-          if (progress > 0) this.stitch.drawImage(this.sprite(animation.color, Math.floor(hash(col, row) * 8), progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+          if (progress > 0) ctx.drawImage(this.sprite(animation.color, Math.floor(hash(col, row) * 8), progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
         }
       }
+      this.drawMoving(this.movingIn(view, movingCells, occupied));
+      return;
     }
-    // One thread per surface cell. Permanent embroidery keeps its place as
-    // the bird stitches and unpicks the surrounding holes.
-    for (const [key, { col, row, color, progress }] of movingCells) {
+    const key = `${model.stitches.size} ${view.x} ${view.y} ${view.scale} ${this.width} ${this.height} ${this.dpr}`;
+    if (this.layerKey !== key) {
+      this.layer ??= document.createElement('canvas');
+      this.layer.width = this.stitchCanvas.width;
+      this.layer.height = this.stitchCanvas.height;
+      const context = this.layer.getContext('2d');
+      this.clear(context);
+      this.world(context, view);
+      this.layerCells = this.drawModel(context, model, view, animations, entrance, now);
+      this.layerKey = key;
+      this.shows = null;
+    }
+    const moving = this.movingIn(view, movingCells, this.layerCells);
+    const bounds = this.boundsOf(view, moving);
+    if (this.shows !== key) {
+      this.clear(ctx);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(this.layer, 0, 0);
+      this.world(ctx, view);
+      this.drawMoving(moving);
+      this.shows = key;
+      this.movingBounds = bounds;
+      return;
+    }
+    // Only the dove has changed since the last frame: everything outside
+    // where it was and where it is now is already on the canvas, so only that
+    // box is cleared and copied again from the layer, with the dove on top.
+    // Drawn in the same order through a clip, each pixel inside comes out as
+    // a whole-canvas redraw would make it; away off screen, nothing is drawn.
+    const dirty = union(this.movingBounds, bounds);
+    this.movingBounds = bounds;
+    if (!dirty) return;
+    const [left, top, right, bottom] = dirty;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.beginPath();
+    ctx.rect(left, top, right - left, bottom - top);
+    ctx.clip();
+    ctx.clearRect(left, top, right - left, bottom - top);
+    ctx.drawImage(this.layer, 0, 0);
+    this.world(ctx, view);
+    this.drawMoving(moving);
+    ctx.restore();
+  }
+  // One thread per surface cell. Permanent embroidery keeps its place as
+  // the bird stitches and unpicks the surrounding holes. The cells to draw,
+  // in order, with the first and last of their columns and rows.
+  movingIn(view, movingCells, occupied) {
+    const cells = this.moving ??= [];
+    cells.length = 0;
+    let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+    for (const [key, cell] of movingCells) {
       if (occupied.has(key)) continue;
+      const { col, row } = cell;
       const x = col * GRID, y = row * GRID;
       const sx = x * view.scale + view.x, sy = y * view.scale + view.y;
       if (sx < -GRID * view.scale || sy < -GRID * view.scale || sx > this.width || sy > this.height) continue;
-      this.stitch.drawImage(this.sprite(color, Math.floor(hash(col, row) * 8), progress), x - 5, y - 5, GRID + 10, GRID + 10);
+      cells.push(cell);
+      if (col < left) left = col;
+      if (col > right) right = col;
+      if (row < top) top = row;
+      if (row > bottom) bottom = row;
     }
+    Object.assign(cells, { left, right, top, bottom });
+    return cells;
+  }
+  drawMoving(cells) {
+    for (const { col, row, color, progress } of cells) {
+      this.stitch.drawImage(this.sprite(color, Math.floor(hash(col, row) * 8), progress), col * GRID - 5, row * GRID - 5, GRID + 10, GRID + 10);
+    }
+  }
+  // The canvas pixels the cells' sprites can touch: their box rounded out to
+  // whole pixels, with a margin for the sprites' smoothed edges, or null.
+  boundsOf(view, cells) {
+    if (!cells.length) return null;
+    const scale = this.dpr * view.scale, x = this.dpr * view.x, y = this.dpr * view.y, margin = 2;
+    const box = [
+      Math.max(0, Math.floor(x + (cells.left * GRID - 5) * scale) - margin),
+      Math.max(0, Math.floor(y + (cells.top * GRID - 5) * scale) - margin),
+      Math.min(this.stitchCanvas.width, Math.ceil(x + ((cells.right + 1) * GRID + 5) * scale) + margin),
+      Math.min(this.stitchCanvas.height, Math.ceil(y + ((cells.bottom + 1) * GRID + 5) * scale) + margin),
+    ];
+    return box[0] < box[2] && box[1] < box[3] ? box : null;
   }
   // Where a stored stitch shows under the current layout: its visible cell,
   // that cell's key and its thread variation, or `hidden`. Kept until the
@@ -326,7 +420,17 @@ export class SurfaceRenderer {
     }
     return occupied;
   }
+  // The gesture canvas is drawn again only when what it shows would change:
+  // a stitch sewing or unpicking, or a new hover, thread, tool or view.
+  // Otherwise it already holds this very picture.
   drawInteraction(view, animations, hover, color, mode, now, keyboard) {
+    let sewing = false;
+    for (const animation of animations.values()) {
+      if (animation.kind !== 'motif' && animation.kind !== 'unpick') { sewing = true; break; }
+    }
+    if (sewing) this.gestureShows = null;
+    else if (showsHover(this.gestureShows, view, hover, color, mode, keyboard)) return;
+    else this.gestureShows = hoverState(view, hover, color, mode, keyboard);
     this.clear(this.gesture);
     const ctx = this.gesture;
     this.world(ctx, view);
