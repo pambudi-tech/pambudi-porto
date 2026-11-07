@@ -13,6 +13,30 @@ function setup() {
   return { press, held, flush };
 }
 
+test('the default timers work when called as its methods, as in a browser', async () => {
+  // A browser's setTimeout throws 'Illegal invocation' unless called on the
+  // window; this stands in for it, so the defaults must not hand it over raw.
+  const realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+  const strict = real => function (...args) {
+    if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+    return real(...args);
+  };
+  globalThis.setTimeout = strict(realSet);
+  globalThis.clearTimeout = strict(realClear);
+  try {
+    const held = [];
+    const press = new TouchHold(start => held.push(start), { delay: 5 });
+    press.begin(3, 10, 20);
+    press.cancel();
+    press.begin(4, 30, 40);
+    await new Promise(resolve => realSet(resolve, 30));
+    assert.deepEqual(held, [{ id: 4, x: 30, y: 40 }]);
+  } finally {
+    globalThis.setTimeout = realSet;
+    globalThis.clearTimeout = realClear;
+  }
+});
+
 test('holding opens controls without also returning a tap to stitch', () => {
   const { press, held, flush } = setup();
   press.begin(7, 80, 120);

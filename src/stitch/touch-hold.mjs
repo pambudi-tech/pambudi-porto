@@ -1,6 +1,11 @@
 // Wait to distinguish a tap, a drag, and a hold before adding any stitches.
 export class TouchHold {
-  constructor(onHold, { delay = 500, distance = 8, schedule = setTimeout, cancel = clearTimeout } = {}) {
+  // The timers are wrapped: kept on the instance and called as its methods,
+  // the browser's own setTimeout and clearTimeout throw 'Illegal invocation'.
+  constructor(onHold, {
+    delay = 500, distance = 8,
+    schedule = (callback, ms) => setTimeout(callback, ms), cancel = id => clearTimeout(id),
+  } = {}) {
     Object.assign(this, { onHold, delay, distance, schedule, clearTimer: cancel });
     this.pending = null;
   }
