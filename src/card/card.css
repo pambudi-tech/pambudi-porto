@@ -91,7 +91,7 @@ html.panning .space { cursor: grabbing; }
   position: absolute;
   inset: 0;
   color: var(--ink);
-  font: 12px/1 var(--mono);
+  font: 14px/1 var(--mono);
   letter-spacing: .02em;
   pointer-events: none;
 }
@@ -105,6 +105,7 @@ html.panning .space { cursor: grabbing; }
   right: var(--right);
   top: calc(var(--top) - var(--offset));
   border-top: 1px solid currentColor;
+  transform-origin: 50% 0;
 }
 .dim-width::before, .dim-width::after {
   top: calc(-.5px - var(--tick) / 2);
@@ -119,6 +120,7 @@ html.panning .space { cursor: grabbing; }
   bottom: var(--bottom);
   right: calc(var(--right) - var(--offset));
   border-right: 1px solid currentColor;
+  transform-origin: 100% 50%;
 }
 .dim-height::before, .dim-height::after {
   right: calc(-.5px - var(--tick) / 2);
@@ -134,8 +136,9 @@ html.panning .space { cursor: grabbing; }
   background: var(--paper);
   white-space: nowrap;
 }
-.dim-width .dim-label { left: 50%; top: 0; transform: translate(-50%, -50%); }
-.dim-height .dim-label { right: 0; top: 50%; transform: translate(50%, -50%) rotate(90deg); }
+/* --hold: card.mjs keeps the figures at their own size while a zoom moves. */
+.dim-width .dim-label { left: 50%; top: 0; transform: translate(-50%, -50%) scaleX(var(--hold, 1)); }
+.dim-height .dim-label { right: 0; top: 50%; transform: translate(50%, -50%) rotate(90deg) scaleX(var(--hold, 1)); }
 /* Which side this is, under the card, centred on it as the width is above. */
 .dim-side {
   position: absolute;
@@ -143,6 +146,7 @@ html.panning .space { cursor: grabbing; }
   right: var(--right);
   top: calc(100% - var(--bottom) + var(--offset));
   margin: 0;
+  transform-origin: 50% 0;
   text-align: center;
   white-space: nowrap;
 }

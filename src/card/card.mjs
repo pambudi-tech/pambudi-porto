@@ -316,8 +316,11 @@ download.addEventListener('focusout', event => {
 // —— Zoom ——
 // Closer in, to see the press of the frame. While it moves, the card is
 // scaled as a picture, on the compositor; once it has stood still a moment
-// it is laid out at that size, so the WebGL paper and the type redraw sharp
-// and the dimension lines go back to their own size. (Laid out afresh every
+// it is laid out at that size, so the WebGL paper and the type redraw sharp.
+// The dimension figures never change size on screen: while the card is
+// scaled as a picture they are scaled back by as much, and the lines keep
+// their distance from the card and their weight; only the lines' length
+// follows the card. (Laid out afresh every
 // frame, larger, it dropped to 20–30 fps.) Pinching, or ⌘/Ctrl and
 // scrolling, zooms about the pointer; scrolling, or dragging the page round
 // the card, pans once the card is larger than the window. The buttons and
@@ -355,9 +358,34 @@ function aim(next, at) {
   zoomTo = next;
 }
 const layOut = () => paper.style.setProperty('--card-height', `${(CARD_HEIGHT_MM * scale * laid).toFixed(3)}mm`);
+// The dimensions undo the picture scale `s`: each line moves back to its
+// distance from the card and is thinned along its depth, and each figure is
+// narrowed along the line (the line has already narrowed it across).
+const dimParts = [...document.querySelectorAll('.dims')].map(dims => ({
+  width: dims.querySelector('.dim-width'),
+  height: dims.querySelector('.dim-height'),
+  side: dims.querySelector('.dim-side'),
+  labels: dims.querySelectorAll('.dim-label'),
+}));
+const DIM_OFFSET = parseFloat(getComputedStyle(document.querySelector('.dims')).getPropertyValue('--offset'));
+let held = 1;
+function holdDims(s) {
+  if (s === held) return;
+  held = s;
+  const k = (1 / s).toFixed(5), d = (DIM_OFFSET * (1 - 1 / s)).toFixed(2), still = s === 1;
+  for (const part of dimParts) {
+    part.width.style.transform = still ? '' : `translateY(${d}px) scaleY(${k})`;
+    part.height.style.transform = still ? '' : `translateX(${-d}px) scaleX(${k})`;
+    part.side.style.transform = still ? '' : `translateY(${-d}px) scale(${k})`;
+    for (const label of part.labels) {
+      if (still) label.style.removeProperty('--hold'); else label.style.setProperty('--hold', k);
+    }
+  }
+}
 function place() {
   const s = zoom / laid;
   cardBox.style.transform = `translate(${pan[0].toFixed(2)}px, ${pan[1].toFixed(2)}px)${s === 1 ? '' : ` scale(${s.toFixed(5)})`}`;
+  holdDims(s);
   // Where the card now is, for the lamp, worked out rather than read back.
   if (base) {
     const w = base[0] * zoom, h = base[1] * zoom;
