@@ -46,18 +46,18 @@ export const SITE = {
   // The homepage's hidden extra: pull the page down past its top and this
   // shows on red above it (src/colophon/). A row per part of the site.
   colophon: {
-    title: 'about this porto',
+    title: 'about the porto',
+    // [label, text, and optionally a link after the text: the paper and the
+    // seal each shown alone, on their own subdomains.]
     rows: [
-      ['built', '2026, by ivan, with claude'],
+      ['built', '2026 by yours truly w/ claude'],
       ['type', 'syne mono'],
-      ['paper', 'modelled in blender, relit live in webgl, no engine'],
-      ['seal', 'wax poured in blender, lit by the paper’s own lamp'],
+      ['paper', 'modelled in blender, relit live in webgl.', { text: 'view source', href: 'https://card.pambudi.xyz', label: 'view source: the paper on its own' }],
+      ['seal', 'same as paper.', { text: 'view source', href: 'https://wax.pambudi.xyz', label: 'view source: the wax seal on its own' }],
       ['cloth', 'every stitch on a grid; tap it to add yours'],
-      ['dove', 'flies on its own, rests on the corners when you do'],
-      ['clock', 'your local time, in dots'],
-      ['stack', 'vite, plain javascript, vercel'],
+      ['dove', 'follows your pointer, rests on the corners when you do'],
+      ['stack', 'vite, javascript, vercel'],
     ],
-    note: 'you pulled past the top. nothing else up here, thanks for looking.',
   },
 };
 

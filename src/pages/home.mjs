@@ -95,6 +95,7 @@ async function boot() {
   import('../colophon/colophon-pull.mjs').then(({ ColophonPull }) => new ColophonPull({
     scene, clock, motionPreference: preference,
     panel: document.getElementById('colophon'),
+    lip: document.querySelector('.colophon-lip'),
     layers: [surface, document.getElementById('portfolio-clock')],
   })).catch(error => console.warn('Colophon:', error));
   if (works) return;

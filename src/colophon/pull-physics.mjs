@@ -26,6 +26,19 @@ export const PULL = Object.freeze({
   maxShare: .82,
   // The spring that carries the page out and back, the same both ways.
   stiffness: 320,
+  // The red's edge is pulled as cloth is, held at one point: it dips under
+  // the finger (or the mouse, on a computer), this share deeper than the
+  // page has dropped, never more than this share of the screen: a gentle
+  // sag, not a drop.
+  dip: .25,
+  dipMax: .08,
+  // How wide the dip spreads: a share of the screen's width, within these px.
+  dipSpread: .28,
+  dipSpreadMin: 90,
+  dipSpreadMax: 260,
+  // Let go, the dip springs back flat with one small wobble (per s², per s).
+  dipStiffness: 260,
+  dipDamping: 11,
 });
 
 // How far the page drops for a pull of `distance` px, against a screen `size` px tall:
@@ -71,3 +84,50 @@ export function springStep(position, velocity, target, elapsed) {
 
 // Settled: close enough and slow enough to stop drawing.
 export const springSettled = (position, velocity, target) => Math.abs(position - target) < .5 && Math.abs(velocity) < .02;
+
+// How deep the red dips under the finger, in px, for the page dropped `lift`
+// px on a screen `size` px tall.
+export function dipDepth(lift, size) {
+  return Math.max(0, Math.min(lift * PULL.dip, size * PULL.dipMax));
+}
+
+// How far either side of the finger the dip reaches, in px, on a screen
+// `width` px wide.
+export function dipSpread(width) {
+  return Math.max(PULL.dipSpreadMin, Math.min(width * PULL.dipSpread, PULL.dipSpreadMax));
+}
+
+// The edge's shape: its depth at `x`, for a dip `depth` px deep at `center`.
+export function dipAt(x, depth, center, spread) {
+  return depth * Math.exp(-(((x - center) / spread) ** 2));
+}
+
+// One step of the dip's own spring back to flat: lightly damped, so it
+// passes flat once and settles. Depth in px, velocity in px/ms. Long frames
+// are taken in short steps, so a slow frame cannot throw it.
+export function dipStep(depth, velocity, elapsed) {
+  const k = PULL.dipStiffness / 1e6, c = PULL.dipDamping / 1000;
+  let remaining = Math.min(elapsed, 64);
+  while (remaining > 0) {
+    const dt = Math.min(remaining, 16);
+    velocity += (-k * depth - c * velocity) * dt;
+    depth += velocity * dt;
+    remaining -= dt;
+  }
+  return { depth, velocity };
+}
+
+export const dipSettled = (depth, velocity) => Math.abs(depth) < .5 && Math.abs(velocity) < .02;
+
+// The red below the colophon's flat edge, as an SVG path: from `top` px above
+// that edge down to the dip, across a screen `width` px wide, a point every
+// `step` px. A dip at or above the edge (as it passes flat) draws flat.
+export function dipPath(width, depth, center, spread, { top = -10, step = 6 } = {}) {
+  const shown = Math.max(0, depth);
+  const points = [];
+  for (let x = 0; x < width + step; x += step) {
+    const px = Math.min(x, width);
+    points.push(`${px},${dipAt(px, shown, center, spread).toFixed(1)}`);
+  }
+  return `M0,${top}L${points.join('L')}L${width},${top}Z`;
+}

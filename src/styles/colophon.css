@@ -18,9 +18,9 @@
   scrollbar-width: none;
   padding: calc(28px + env(safe-area-inset-top, 0px)) clamp(20px, 6vw, 48px) 20px;
   background: var(--colophon-red);
-  /* The page's edge lies over the red as it drops away; above, the red goes
-     on, for a pull past the colophon's own height. */
-  box-shadow: inset 0 -12px 14px -12px rgb(0 0 0 / .32), 0 -50vh 0 50vh var(--colophon-red);
+  /* Above, the red goes on, for a pull past the colophon's own height.
+     Its lower edge and shadow are the lip's, below. */
+  box-shadow: 0 -50vh 0 50vh var(--colophon-red);
   color: #fff2df;
   font-family: "Syne Mono", monospace;
   font-size: 14px;
@@ -32,11 +32,10 @@
 .colophon[hidden] { display: flex; visibility: hidden; }
 .colophon > * { flex-shrink: 0; width: 100%; max-width: 560px; margin-inline: auto; }
 
-/* Read top to bottom: the note, the rows, then the title by the page. */
-.colophon-note { order: 1; margin-top: 0; margin-bottom: 1.6em; opacity: .7; }
+/* Read top to bottom: the rows, then the title by the page. */
 .colophon-list { order: 2; margin-block: 0; }
 .colophon-heading { order: 3; display: flex; align-items: baseline; justify-content: space-between; gap: 1em; margin-top: 1.6em; }
-.colophon-heading h2 { margin: 0; font: inherit; font-size: 16px; }
+.colophon-heading h2 { margin: 0; font: inherit; }
 .colophon-back {
   padding: 4px 0;
   border: 0;
@@ -54,3 +53,23 @@
 .colophon-row + .colophon-row { margin-top: .5em; }
 .colophon-row dt { opacity: .7; }
 .colophon-row dd { margin: 0; }
+.colophon-link { color: inherit; white-space: nowrap; text-decoration: underline; text-underline-offset: .2em; }
+.colophon-link:hover { text-decoration-thickness: 2px; }
+.colophon-link:focus-visible { outline: 1px solid currentColor; outline-offset: 3px; }
+
+/* The colophon's lower edge, lying over the page: drawn as one path that
+   dips under the finger while pulled and lies flat otherwise, with a soft
+   shadow on the page below it. It moves with the colophon. */
+.colophon-lip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+/* Not drawn as the site's icons are (base.css strokes every svg). */
+.colophon-lip svg { position: absolute; top: 0; left: 0; width: 100%; height: 1px; overflow: visible; stroke: none; }
+.colophon-lip-red { fill: #bb2b2e; }
+.colophon-lip-shadow { fill: #000; }

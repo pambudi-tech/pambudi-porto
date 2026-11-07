@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled } from './pull-physics.mjs';
+import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled, dipDepth, dipSpread, dipAt, dipStep, dipSettled, dipPath } from './pull-physics.mjs';
 
 test('the page follows a short pull closely and resists a long one', () => {
   assert.equal(rubberBand(0, 800), 0);
@@ -50,4 +50,44 @@ test('the spring settles on its target from either side without passing it', () 
     assert.ok(springSettled(state.position, state.velocity, to), `${from} → ${to} settles`);
     assert.equal(passed, false);
   }
+});
+
+test('the red dips deeper the further the page is pulled, within a limit', () => {
+  assert.equal(dipDepth(0, 800), 0);
+  assert.equal(dipDepth(100, 800), 100 * PULL.dip);
+  assert.ok(dipDepth(200, 800) > dipDepth(100, 800));
+  assert.equal(dipDepth(5000, 800), 800 * PULL.dipMax);
+});
+
+test('the dip is deepest under the finger and fades to flat either side', () => {
+  const spread = dipSpread(390);
+  assert.equal(dipAt(250, 80, 250, spread), 80);
+  assert.ok(dipAt(200, 80, 250, spread) < 80);
+  assert.ok(Math.abs(dipAt(200, 80, 250, spread) - dipAt(300, 80, 250, spread)) < 1e-9, 'even either side');
+  assert.ok(dipAt(0, 80, 389, spread) < 1, 'flat far from the finger');
+  assert.equal(dipSpread(100), PULL.dipSpreadMin);
+  assert.equal(dipSpread(5000), PULL.dipSpreadMax);
+});
+
+test('let go, the dip wobbles past flat and settles', () => {
+  let state = { depth: 120, velocity: 0 }, crossed = 0, previous = 120, frames = 0;
+  while (!dipSettled(state.depth, state.velocity) && frames++ < 400) {
+    state = dipStep(state.depth, state.velocity, 16);
+    if (Math.sign(state.depth) !== Math.sign(previous) && previous !== 0) crossed++;
+    previous = state.depth;
+  }
+  assert.ok(dipSettled(state.depth, state.velocity), 'settles');
+  assert.ok(frames < 120, `within two seconds (${frames} frames)`);
+  assert.ok(crossed >= 1, 'wobbles past flat');
+  const slow = dipStep(120, 0, 200), fast = dipStep(120, 0, 64);
+  assert.deepEqual(slow, fast, 'a long frame counts as at most 64 ms');
+});
+
+test('the edge path spans the screen and draws flat when the dip passes above it', () => {
+  const path = dipPath(390, 80, 200, 109);
+  assert.match(path, /^M0,-10L0,/);
+  assert.match(path, /L390,-10Z$/);
+  assert.ok(path.includes('L198,') || path.includes('L204,'));
+  const flat = dipPath(390, -20, 200, 109);
+  for (const [, y] of flat.matchAll(/L\d+,(-?[\d.]+)/g)) assert.ok(Number(y) === 0 || Number(y) === -10);
 });

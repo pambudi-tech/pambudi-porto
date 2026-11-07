@@ -74,6 +74,27 @@
     <aside id="colophon" class="colophon" aria-labelledby="colophon-title" aria-hidden="true" tabindex="-1" hidden inert>
       <!-- site:colophon -->
     </aside>
+    <!-- The colophon's lower edge, drawn to dip under the finger as it is
+         pulled (colophon-pull.mjs): its red over three soft shadows. -->
+    <div class="colophon-lip" aria-hidden="true" hidden>
+      <svg focusable="false">
+        <defs>
+          <path id="colophon-lip-edge" d="M0,-10Z"></path>
+          <!-- The shadows only on the page, below the edge; the red only
+               1 px into the colophon, to hide the seam, not its text. -->
+          <clipPath id="colophon-lip-below"><rect x="-1" y="0" width="100000" height="100000"></rect></clipPath>
+          <clipPath id="colophon-lip-seam"><rect x="-1" y="-1" width="100000" height="100000"></rect></clipPath>
+        </defs>
+        <g clip-path="url(#colophon-lip-below)">
+          <use href="#colophon-lip-edge" y="9" class="colophon-lip-shadow" fill-opacity=".03"></use>
+          <use href="#colophon-lip-edge" y="5" class="colophon-lip-shadow" fill-opacity=".06"></use>
+          <use href="#colophon-lip-edge" y="2" class="colophon-lip-shadow" fill-opacity=".1"></use>
+        </g>
+        <g clip-path="url(#colophon-lip-seam)">
+          <use href="#colophon-lip-edge" class="colophon-lip-red"></use>
+        </g>
+      </svg>
+    </div>
 
     <p id="canvas-help" class="sr-only">Click or tap to stitch a random motif. Right-click, long-press, or press Shift F10 to switch to Free stitch or undo and redo. In Free stitch, click or drag to draw individual stitches. Use arrow keys to choose a spot and Enter or Space to stitch. Press Page Up for a note about this portfolio. Reload for a clean surface.</p>
     <!-- partial:stitch-controls -->

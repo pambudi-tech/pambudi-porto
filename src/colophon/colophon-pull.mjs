@@ -1,24 +1,35 @@
-import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled } from './pull-physics.mjs';
+import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled, dipDepth, dipSpread, dipStep, dipSettled, dipPath } from './pull-physics.mjs';
 
 // The homepage does not scroll; pulled down past its top anyway (a swipe
 // down on a phone, scrolling up with the wheel or trackpad on a computer,
 // Page Up or Home from the keyboard), the page drops like rubber and the
-// colophon, "about this porto", shows on red above it. Let go early and the
+// colophon, "about the porto", shows on red above it. Let go early and the
 // page rises back; pull hard enough and the colophon stays out until it is
 // sent back, the same way it came.
 //
 // The cloth, the paper and the clock drop together: one transform each,
 // written straight to those three elements, with nothing measured per frame.
 // While they are anywhere but home they take no input of their own: the
-// pull's listeners on the window can still catch them. `scene` is the
+// pull's listeners on the window can still catch them. The red's edge is
+// not ruled straight: `lip` draws it dipping under the finger, as cloth
+// held at one point, and it springs flat once let go. `scene` is the
 // portfolio's (surface/scene.mjs): it says when the page is at rest to pull
 // and lets go of what a pointer was doing on it. `clock`, the dot clock
 // (clock/clock.mjs), draws on the screen's whole canvas while it is moved.
 export class ColophonPull {
-  constructor({ scene, panel, layers, motionPreference, clock = null }) {
+  constructor({ scene, panel, lip = null, layers, motionPreference, clock = null }) {
     this.scene = scene;
     this.clock = clock;
     this.panel = panel;
+    this.lip = lip;
+    this.lipEdge = lip?.querySelector('path');
+    // How deep the red's edge dips below the page's top, and where across.
+    this.dip = 0;
+    this.dipVelocity = 0;
+    // Where the finger (or mouse) is, and where the dip is drawn: the dip
+    // follows the finger, easing over when it already lies elsewhere.
+    this.fingerX = null;
+    this.dipX = null;
     this.layers = layers;
     this.motionPreference = motionPreference;
     this.closeButton = panel.querySelector('.colophon-back');
@@ -149,7 +160,11 @@ export class ColophonPull {
     this.sample(touch, event);
     if (!this.canPull()) { this.cancelTouch(); return; }
     if (this.reduced) return;
+    this.fingerX = event.clientX;
     this.setLift(rubberBand(touch.from + dy, this.size));
+    // Halfway there each move, so a dip still wobbling when caught eases in.
+    this.followFinger(.5);
+    this.setDip(this.dip + (dipDepth(this.lift, this.size) - this.dip) * .5);
   }
 
   // The finger's last 80 ms, for how fast it was moving when let go.
@@ -207,6 +222,8 @@ export class ColophonPull {
     event.preventDefault();
     const wheel = this.wheel;
     clearTimeout(wheel.timer);
+    // The red dips under the mouse.
+    this.fingerX = event.clientX;
     // Something else opened meanwhile (a click on the works seal while the
     // trackpad was still gliding): the pull lets go.
     if (!this.canPull()) { this.wheel = null; this.toRest(0); return; }
@@ -226,6 +243,9 @@ export class ColophonPull {
     const amount = 1 - Math.exp(-Math.min(now - last, 64) / 45);
     const lift = this.lift + (wheel.lift - this.lift) * amount;
     this.setLift(Math.abs(wheel.lift - lift) < .5 ? wheel.lift : lift);
+    // The dip glides too, so one still wobbling when caught eases in.
+    this.followFinger(amount);
+    this.setDip(this.dip + (dipDepth(this.lift, this.size) - this.dip) * amount);
     this.frame = requestAnimationFrame(next => this.glide(next, now));
   }
 
@@ -252,6 +272,20 @@ export class ColophonPull {
     this.panel.hidden = false;
     if (!this.open) this.panel.scrollTop = this.panel.scrollHeight;
     this.height = Math.min(this.panel.offsetHeight, Math.round(this.size * PULL.maxShare));
+    this.width = innerWidth;
+    this.spread = dipSpread(this.width);
+    // Until a finger or the mouse says where, the middle (Page Up).
+    this.fingerX ??= this.width / 2;
+    this.dipX ??= this.fingerX;
+    // A finger or the wheel holds the dip now; let go, it springs from rest.
+    this.dipVelocity = 0;
+    // Drawn afresh for this width, flat or still wobbling.
+    this.drawnFlat = false;
+    this.setDip(this.dip);
+    if (this.lip) {
+      this.lip.hidden = false;
+      this.lip.style.willChange = 'transform';
+    }
     // Focus the page had comes back to it once it is home.
     if (this.layers.some(layer => layer.contains(document.activeElement))) this.returnFocus = true;
     for (const layer of this.layers) {
@@ -266,6 +300,31 @@ export class ColophonPull {
     const transform = lift ? `translate3d(0, ${lift}px, 0)` : '';
     for (const layer of this.layers) layer.style.transform = transform;
     this.panel.style.transform = transform;
+    if (this.lip) {
+      this.lip.style.transform = transform;
+      // Its shadow falls on the page only once the page has dropped: none
+      // across the top of the page at home, faded in over the first px.
+      const opacity = lift >= 10 ? '' : String(Math.max(0, lift) / 10);
+      if (opacity !== this.lipOpacity) this.lip.style.opacity = this.lipOpacity = opacity;
+    }
+  }
+
+  // The dip's centre to the finger: at once where the edge lies flat,
+  // `share` of the way where a dip is still showing elsewhere.
+  followFinger(share) {
+    if (this.dipX == null || Math.max(0, this.dip) < 1) this.dipX = this.fingerX;
+    else this.dipX += (this.fingerX - this.dipX) * share;
+  }
+
+  // The red's edge, `depth` px deep under the finger: one path redrawn, no
+  // layout read. Nothing is written while it stays flat.
+  setDip(depth) {
+    this.dip = depth;
+    if (!this.lipEdge) return;
+    const shown = Math.max(0, depth) < .25 ? 0 : depth;
+    if (shown === 0 && this.drawnFlat) return;
+    this.drawnFlat = shown === 0;
+    this.lipEdge.setAttribute('d', dipPath(this.width, shown, this.dipX, this.spread));
   }
 
   toOpen(velocity) {
@@ -274,7 +333,7 @@ export class ColophonPull {
     this.panel.removeAttribute('aria-hidden');
     this.springTo(this.height, velocity);
     this.panel.focus({ preventScroll: true });
-    this.scene.announce('About this portfolio, above the page. Escape to go back.');
+    this.scene.announce('About the portfolio, above the page. Escape to go back.');
   }
 
   toRest(velocity) {
@@ -296,6 +355,8 @@ export class ColophonPull {
     this.frame = null;
     if (this.reduced) {
       this.setLift(target);
+      this.setDip(0);
+      this.dipVelocity = 0;
       if (!target) this.rest();
       return;
     }
@@ -309,13 +370,22 @@ export class ColophonPull {
       const next = springStep(this.lift, this.velocity, target, elapsed);
       this.velocity = next.velocity;
       const lift = Math.max(0, Math.min(next.position, highest));
-      if (springSettled(lift, this.velocity, target)) {
-        this.setLift(target);
+      // The dip has its own spring, flat at the end, whichever way the page goes.
+      const dip = dipStep(this.dip, this.dipVelocity, elapsed);
+      this.dipVelocity = dip.velocity;
+      // Going home, the dip is never deeper than the page's drop allows, so
+      // both land together and the page is live the moment it is home.
+      const depth = target ? dip.depth : Math.min(dip.depth, dipDepth(lift, this.size));
+      const home = springSettled(lift, this.velocity, target);
+      const flat = !target || dipSettled(depth, dip.velocity);
+      this.setLift(home ? target : lift);
+      this.setDip(home && flat ? 0 : depth);
+      if (home && flat) {
+        this.velocity = this.dipVelocity = 0;
         this.frame = null;
         if (!target) this.rest();
         return;
       }
-      this.setLift(lift);
       this.frame = requestAnimationFrame(step);
     };
     this.frame = requestAnimationFrame(step);
@@ -326,6 +396,12 @@ export class ColophonPull {
     this.target = 0;
     this.velocity = 0;
     this.setLift(0);
+    this.dipVelocity = 0;
+    this.setDip(0);
+    if (this.lip) {
+      this.lip.hidden = true;
+      this.lip.style.willChange = '';
+    }
     // Home again, the clock can go back to its own rows' canvas.
     this.clock?.holdWhole(false);
     for (const layer of this.layers) {

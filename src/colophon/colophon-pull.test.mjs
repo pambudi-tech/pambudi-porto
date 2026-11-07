@@ -33,6 +33,7 @@ function page(t) {
     addEventListener: win.addEventListener.bind(win),
     removeEventListener: win.removeEventListener.bind(win),
     innerHeight: 800,
+    innerWidth: 390,
     requestAnimationFrame: () => 1,
     cancelAnimationFrame: () => {},
     document: { body: { dataset: { ready: 'true' } }, activeElement: null },

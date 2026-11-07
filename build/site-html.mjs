@@ -8,7 +8,7 @@ import { SITE, contactHref } from '../content/site.mjs';
 //   <!-- site:social -->               Open Graph and Twitter link-preview tags
 //   <!-- site:paper-copy -->           introduction and contact icons
 //   <!-- site:about -->                About Me on the back of the paper
-//   <!-- site:colophon -->             "about this porto", above the homepage's top
+//   <!-- site:colophon -->             "about the porto", above the homepage's top
 //   <!-- partial:name -->              src/partials/name.html
 
 const escape = text => String(text).replace(/[&<>"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[character]);
@@ -70,16 +70,18 @@ export function about() {
 
 // The colophon, above the homepage's top (src/colophon/colophon-pull.mjs).
 export function colophon() {
-  const { title, rows, note } = SITE.colophon;
+  const { title, rows } = SITE.colophon;
   return [
     '<header class="colophon-heading">',
     `  <h2 id="colophon-title">${escape(title)}</h2>`,
     '  <button class="colophon-back" type="button" aria-label="Back to the page">back</button>',
     '</header>',
     '<dl class="colophon-list">',
-    ...rows.map(([label, detail]) => `  <div class="colophon-row"><dt>${escape(label)}</dt><dd>${escape(detail)}</dd></div>`),
+    ...rows.map(([label, detail, link]) => {
+      const more = link ? ` <a class="colophon-link" href="${escape(link.href)}" target="_blank" rel="noopener noreferrer" aria-label="${escape(link.label)}">${escape(link.text)}</a>` : '';
+      return `  <div class="colophon-row"><dt>${escape(label)}</dt><dd>${escape(detail)}${more}</dd></div>`;
+    }),
     '</dl>',
-    `<p class="colophon-note">${escape(note)}</p>`,
   ].join('\n');
 }
 
