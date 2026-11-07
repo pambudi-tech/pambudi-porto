@@ -11,7 +11,7 @@ import { CARD_GUARD, PHOTO_PARALLAX, placement, shelfAt } from './layout.mjs';
 import { DITHER_LOCKED, DITHER_NONE, GLITCH, createGlitch, ditherPhotoBlob } from './dither.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { clamp } from '../shared/math.mjs';
-import { SheetRoller, copiesOf, rollerRadius, scrollDriven } from './sheet-roller.mjs';
+import { SheetRoller, copiesOf, rollerRadius, rollsSmoothly } from './sheet-roller.mjs';
 
 // The paper turns away using the first half of its own flip and is gone
 // when edge-on; it returns through the second half, from the other side.
@@ -62,8 +62,10 @@ export const WORKS_VEIL = Object.freeze({
 // A sheet of at least `least` stamps runs on round, endlessly: past its last
 // line comes its first again, a line's gap apart as ever. It is laid out up
 // to `copies` times over either way, about `reach` px in all, and the scroll
-// is brought back toward the middle copy whenever it rests.
-export const SHEET_LOOP = Object.freeze({ least: 10, reach: 400000, copies: 24 });
+// is brought back toward the middle copy whenever it rests. Switched off for
+// now (2026-11-07): its moving copies and ghosts cost the scroll frames on
+// slower machines, and smoothness comes first. 10 brings it back.
+export const SHEET_LOOP = Object.freeze({ least: Infinity, reach: 400000, copies: 24 });
 
 // How many columns the sheet takes in `room` px with `gap` between them: the
 // most that keep each at least `narrowest` px wide once rounded down to
@@ -181,12 +183,21 @@ export class WorksGallery {
     }, { signal });
     // The row scrolls sideways, freely. It lies over the cloth without taking
     // its pointer, so the wheel is passed on and the cloth stays stitchable.
-    addEventListener('wheel', event => {
+    // The sheet takes the pointer and scrolls natively; only a wheel over the
+    // bar is passed on to it here.
+    // A wheel listener that may cancel scrolling makes the browser wait for
+    // the page before it scrolls, wherever it listens; so the page listens
+    // over the whole window only while the row is shown, and on the sheet
+    // only over the bar and the filter (syncWheel).
+    this.onWheel = event => {
       if (!this.isOpen || this.closeupOpen || this.filterOpen) return;
+      if (this.sheet !== (event.currentTarget !== window)) return;
       event.preventDefault();
       const delta = this.sheet ? event.deltaY || event.deltaX : Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       this.glideBy(event.deltaMode === 1 ? delta * 40 : delta);
-    }, { passive: false, signal });
+    };
+    this.lifetime.signal.addEventListener('abort', () => removeEventListener('wheel', this.onWheel));
+    for (const bar of [this.nav, this.filterDock]) bar.addEventListener('wheel', this.onWheel, { passive: false, signal });
     // A native scroll (a swipe, or the keyboard) is drawn in the same frame loop.
     this.scroller.addEventListener('scroll', () => {
       this.paint();
@@ -195,7 +206,12 @@ export class WorksGallery {
       clearTimeout(this.recentring);
       if (this.loop) this.recentring = setTimeout(() => this.recentre(), 220);
     }, { passive: true });
-    this.scroller.addEventListener('touchstart', () => { this.touching = true; }, { passive: true });
+    // The hand takes over from any glide: the browser scrolls the sheet now.
+    this.scroller.addEventListener('touchstart', () => { this.touching = true; this.gliding = false; }, { passive: true });
+    this.scroller.addEventListener('wheel', () => { if (this.sheet) this.gliding = false; }, { passive: true });
+    this.scroller.addEventListener('keydown', event => {
+      if (this.sheet && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) this.gliding = false;
+    });
     for (const type of ['touchend', 'touchcancel']) this.scroller.addEventListener(type, () => { this.touching = false; }, { passive: true });
     // The cards near the sheet's edges, rolled.
     this.roller = new SheetRoller(root);
@@ -312,8 +328,13 @@ export class WorksGallery {
     link.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') { this.activate(null); this.unglitch(entry); } });
     link.addEventListener('focus', () => {
       if (!link.matches(':focus-visible')) return;
-      this.goTo(index);
+      // Its place among the cards shown, which a filter may thin.
+      this.goTo(this.shown.indexOf(entry));
       this.activate(entry);
+    });
+    // A piece without a page opens up close from the keyboard too.
+    link.addEventListener('keydown', event => {
+      if ((event.key === 'Enter' || event.key === ' ') && link.getAttribute('role') === 'button') this.choose(entry, event);
     });
     link.addEventListener('blur', () => { if (this.active === entry) this.activate(null); });
     link.addEventListener('click', event => this.choose(entry, event));
@@ -335,6 +356,7 @@ export class WorksGallery {
     this.root.hidden = false;
     document.body.classList.add('works-open');
     this.syncClock();
+    this.syncWheel();
     this.placeTogglePill();
     this.placeTogglePill();
     this.layout();
@@ -386,6 +408,7 @@ export class WorksGallery {
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
     this.root.hidden = true;
     this.isOpen = false;
+    this.syncWheel();
     this.paper.style.visibility = '';
     this.scene.restPaper?.();
     this.scene.relightPaper?.();
@@ -421,8 +444,16 @@ export class WorksGallery {
     this.laidOut = collection;
     this.root.classList.toggle('is-sheet', this.sheet);
     this.syncClock();
+    this.syncWheel();
+    // A card hovered on its way out leaves no label behind.
+    this.activate(null);
+    if (this.clockLabelled) {
+      this.clockLabelled = false;
+      this.scene.setMessage('');
+    }
     this.layout();
     this.toStart();
+    this.updateVeils();
     // Let the new cards be drawn hidden once, so they arrive in turn.
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
     this.keepPainting(this.shown.length * 80 + 700);
@@ -482,6 +513,7 @@ export class WorksGallery {
     this.scroller.style.removeProperty('bottom');
     this.loop = this.curl = null;
     this.roller.setup();
+    this.roller.clearGhosts();
     const bottom = snapRow(floor - 6 * pitch, Math.floor);
     const ratio = STAMP.window;
     const available = bottom - top;
@@ -644,6 +676,8 @@ export class WorksGallery {
     const start = scrolls ? top : Math.max(top, exact ? middle : bar + Math.round((middle - bar) / pitch) * pitch);
     let y = start;
     this.cards = new Array(shown.length);
+    // Each line's cards, where it lies and how tall it is, for the roller.
+    this.sheetLines = [];
     for (const line of lines) {
       const widths = line.reduce((sum, index) => sum + shown[index].w, 0);
       const lineWidth = widths + gap * (line.length - 1);
@@ -659,6 +693,7 @@ export class WorksGallery {
         this.cards[index] = { x, y, w: entry.w, h, tail: entry.work.passwordProtected ? CARD_GUARD.label : 0, shelf: 'top' };
         x = exact ? x + entry.w + spacing : snapCol(x + entry.w + gap, Math.round);
       }
+      this.sheetLines.push({ entries: line.map(index => shown[index]), cards: line.map(index => this.cards[index]), y, tall: h + tail });
       y += h + tail + lineGap;
     }
     this.wall.style.width = `${width}px`;
@@ -682,8 +717,8 @@ export class WorksGallery {
     }
     // The edges roll where the browser can drive the roller by the scroll,
     // unless motion is reduced; the cards' copies are placed for the scroll.
-    const rolls = this.curl && !this.reduced && scrollDriven();
-    this.roller.setup({ entries: shown, cards: this.cards, roll: rolls ? { ...this.curl, height: innerHeight } : null });
+    const rolls = this.curl && !this.reduced && rollsSmoothly();
+    this.roller.setup({ lines: this.sheetLines, roll: rolls ? { ...this.curl, height: innerHeight } : null });
     this.roll();
     requestAnimationFrame(() => this.updateVeils());
     if (quiet) return;
@@ -724,6 +759,11 @@ export class WorksGallery {
   syncClock({ away = this.isOpen && this.sheet } = {}) {
     document.body.classList.toggle('works-sheet', away);
     document.getElementById('portfolio-clock')?.toggleAttribute('aria-hidden', away);
+    // A label a row card left as it faded out does not outlast the sheet.
+    if (away && this.clockLabelled) {
+      this.clockLabelled = false;
+      this.scene.setMessage('');
+    }
   }
 
   placeTogglePill() {
@@ -782,6 +822,18 @@ export class WorksGallery {
     if (below !== this.more) this.root.classList.toggle('has-more', this.more = below);
   }
 
+  // The page's wheel: over the whole window while the row is shown (it lies
+  // over the cloth, so the wheel is passed on to it), and on the sheet only
+  // over the bar and the filter (constructor), which pass it on to the sheet
+  // the browser scrolls itself.
+  syncWheel() {
+    const whole = this.isOpen && !this.sheet;
+    if (whole === this.wheelWhole) return;
+    this.wheelWhole = whole;
+    if (whole) addEventListener('wheel', this.onWheel, { passive: false });
+    else removeEventListener('wheel', this.onWheel);
+  }
+
   // Exploration's tag list: all, then each tag with how many pieces carry it.
   renderFilter() {
     const works = this.collections.exploration;
@@ -837,6 +889,9 @@ export class WorksGallery {
     this.gliding = false;
     const before = new Map(this.shown.map(entry => [entry, entry.item.getBoundingClientRect()]));
     const was = this.filter;
+    // The rolled edges fade as the cards that go fade, and come back once the
+    // cards have settled.
+    if (!this.reduced) this.roller.hold();
     change();
     const keep = entry => !this.filter || entry.work.tags.includes(this.filter);
     if (!this.reduced && this.filter !== was) {
@@ -845,8 +900,10 @@ export class WorksGallery {
       for (const entry of going) entry.item.getAnimations().forEach(animation => animation.cancel());
     }
     // The cards keep their dithers, stretched a moment, while they move.
-    // They move flat; the roller comes in once they have settled.
-    if (!this.reduced) this.roller.hold();
+    // They move flat; the roller comes in once they have settled. With no
+    // cards leaving, its fade out has not begun: it is out at once, so the
+    // new strips never flash.
+    if (!this.reduced) this.roller.layer.getAnimations().forEach(animation => animation.finish());
     this.layout({ dither: false });
     this.toStart();
     this.updateRow();
@@ -899,7 +956,7 @@ export class WorksGallery {
     const settled = ++this.relayouts;
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : longest));
     // Settled, the cards at the edges roll, the roller fading in.
-    if (settled === this.relayouts) this.roller.release({ fade: this.sheet });
+    if (settled === this.relayouts) this.roller.release();
     const idle = () => new Promise(resolve => (window.requestIdleCallback ?? setTimeout)(resolve));
     const inView = entry => { const r = entry.item.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight; };
     for (const entry of [...layout.filter(inView), ...layout.filter(entry => !inView(entry))]) {
@@ -1163,23 +1220,22 @@ export class WorksGallery {
   // Places the sheet's cards for its scroll, from the sheet's own sums,
   // without measuring: on an endless sheet, each card in whichever copy shows
   // most of it between the curl lines, and a ghost of it at each other copy
-  // in or near sight. The roller's strips follow each copy on their own
-  // (sheet-roller.mjs); nothing here changes from frame to frame but a copy
-  // coming round.
+  // there; and runs the roller's strips for the lines near it. The strips
+  // follow the scroll on their own (sheet-roller.mjs); nothing here changes
+  // from frame to frame but a copy coming round.
   roll() {
     const loop = this.sheet && this.cards ? this.loop : null;
     if (!this.sheet || !this.cards || !(loop || this.curl)) return;
     const scroll = this.scroller.scrollTop, height = innerHeight;
-    const rolling = Boolean(this.roller.rolling);
-    const edges = rolling ? this.curl : { top: 0, bottom: height };
-    const reach = rolling ? this.curl.radius * Math.PI / 2 : 0;
+    // Between the curl lines while the edges roll; else the whole screen.
+    const edges = this.roller.rolling ? this.curl : { top: 0, bottom: height };
     this.shown.forEach((entry, index) => {
       const card = this.cards[index];
       if (!card) return;
       const tall = card.h + card.tail;
-      // Copies in sight, and a card's height beyond, so a ghost is in place
+      // Copies there, and a card's height beyond, so a ghost is in place
       // before it comes into view.
-      const copies = copiesOf(card.y, tall, { scroll, period: loop?.period ?? 0, from: edges.top - reach - tall, to: edges.bottom + reach + tall });
+      const copies = copiesOf(card.y, tall, { scroll, period: loop?.period ?? 0, from: edges.top - tall, to: edges.bottom + tall });
       // The card's own copy: the one most between the curl lines, or else
       // the nearest the middle.
       const flatness = ([, y]) => Math.min(y + tall, edges.bottom) - Math.max(y, edges.top);
@@ -1193,9 +1249,9 @@ export class WorksGallery {
           entry.item.style.top = `${card.y + copy * loop.period}px`;
         }
       }
-      const ghosts = loop ? copies.filter(copy => copy !== kept).map(([copy]) => card.y + copy * loop.period) : [];
-      this.roller.place(entry, card, loop ? card.y + entry.copy * loop.period : card.y, ghosts, scroll);
+      this.roller.ghost(entry, card, loop ? copies.filter(copy => copy !== kept).map(([copy]) => card.y + copy * loop.period) : []);
     });
+    this.roller.place(scroll, loop?.period ?? 0);
   }
 
   keepPainting(duration) {
@@ -1214,10 +1270,10 @@ export class WorksGallery {
   }
 
   goTo(index) {
-    if (!this.cards) return;
-    const card = this.cards[clamp(index, 0, this.cards.length - 1)];
+    if (!this.cards?.length) return;
+    const place = clamp(index, 0, this.cards.length - 1), card = this.cards[place];
     const at = this.gliding ? this.glideTarget : this.scroller[this.scrollAxis];
-    if (this.sheet) this.glideBy(this.sheetY(index, at) + card.h / 2 - this.scroller.clientHeight / 2 - at);
+    if (this.sheet) this.glideBy(this.sheetY(place, at) + card.h / 2 - this.scroller.clientHeight / 2 - at);
     else this.glideBy(card.x + card.w / 2 - innerWidth / 2 - at);
   }
 
@@ -1227,6 +1283,15 @@ export class WorksGallery {
     this.root.classList.toggle('has-active', Boolean(entry));
     for (const item of this.items) item.item.classList.toggle('is-active', item === entry);
     this.paint();
+    // The sheet hides the clock: it is not set going, and the cloth under it
+    // is not redrawn, for every card that passes under the pointer; a label
+    // left from the row is cleared.
+    if (this.sheet) {
+      if (!entry && this.clockLabelled) this.scene.setMessage('');
+      this.clockLabelled = false;
+      return;
+    }
+    this.clockLabelled = Boolean(entry);
     if (entry) this.scene.setMessage(this.clockMessage(entry.work));
     else this.scene.setMessage('');
   }
@@ -1264,15 +1329,18 @@ export class WorksGallery {
   openPiece(entry) {
     const items = this.shown;
     this.closeups ??= {};
+    // Closed, focus comes back to the card of the piece last shown.
+    let showing = items.indexOf(entry);
     const closeup = this.closeups[`${this.collection}:${this.filter ?? ''}`] ??= mountCloseup({
       images: items.map(({ work }) => ({ src: work.image, preview: work.preview, width: work.width, height: work.height, alt: work.alt })),
       motionPreference: this.motionPreference,
       sourceOf: index => items[index].frame,
-      onIndex: index => this.jumpTo(index),
-      onClose: () => {},
+      onIndex: index => { showing = index; this.jumpTo(index); },
+      onClose: () => items[showing]?.link.focus({ preventScroll: true, focusVisible: false }),
     });
+    showing = items.indexOf(entry);
     this.activate(null);
-    closeup.open(items.indexOf(entry));
+    closeup.open(showing);
   }
 
   // How far down the sheet a card lies: on an endless sheet, in the copy

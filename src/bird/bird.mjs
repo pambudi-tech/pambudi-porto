@@ -186,6 +186,8 @@ export class BirdFlight {
   }
   // Whether the scene still needs frames: a dove settled on its perch does not.
   get active() {
+    // Hidden and staying hidden (the works view is open): nothing to draw.
+    if (this.revealTime === 0 && this.revealTarget === 0) return false;
     return !this.paused && !(this.flight.resting && !this.transitions.animating && this.revealTime === this.revealTarget);
   }
   targetAt() {
@@ -247,8 +249,10 @@ export class BirdFlight {
   update(now) {
     if (this.paused) { this.lastTime = null; return false; }
     const wasEntering = this.revealTime !== this.revealTarget;
-    const revealDelta = this.lastTime === null ? 0 : Math.max(0, now - this.lastTime);
-    const delta = Math.min(revealDelta, 100);
+    // At most 100 ms a frame, as the flight: back from resting hidden, unseen
+    // and undrawn, it sews in over the whole reveal rather than at once.
+    const revealDelta = this.lastTime === null ? 0 : Math.min(Math.max(0, now - this.lastTime), 100);
+    const delta = revealDelta;
     this.lastTime = now;
     this.elapsed += delta;
     this.flight.advance(delta);

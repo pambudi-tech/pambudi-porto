@@ -50,6 +50,8 @@
 .works-link[aria-disabled="true"] { cursor: default; }
 /* An exploration piece opens up close. */
 .works-link[role="button"] { cursor: zoom-in; }
+/* Reached by the keyboard, an exploration piece shows a ring round its stamp. */
+.works-link[role="button"]:focus-visible .works-frame { outline: 2px solid var(--ink); outline-offset: 4px; }
 
 /* A postage stamp: the photograph fills it to its perforated edge, over its
    paper. --inset is where the paper's margin would be; the text keeps to it. */
@@ -346,9 +348,11 @@
   translate: -50% 4px;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 300ms ease, translate 360ms var(--ease-out);
+  /* Away, it can be neither reached by Tab nor read out. */
+  visibility: hidden;
+  transition: opacity 300ms ease, translate 360ms var(--ease-out), visibility 300ms;
 }
-.works-gallery.is-open.is-exploration .works-filter-dock { opacity: 1; translate: -50% 0; pointer-events: auto; }
+.works-gallery.is-open.is-exploration .works-filter-dock { opacity: 1; translate: -50% 0; pointer-events: auto; visibility: visible; }
 .works-gallery.is-navigating .works-filter-dock,
 .closeup-open .works-gallery.is-open .works-filter-dock { opacity: 0; pointer-events: none; }
 .works-filter-button {
@@ -423,13 +427,19 @@
 .works-filter-count { color: var(--muted); font-size: 11px; }
 .works-filter-item[aria-checked="true"]::after { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 
-/* The sheet scrolls down, under the bar's solid pills; no dots. */
+/* The sheet scrolls down, under the bar's solid pills; no dots. The browser
+   scrolls it itself, the wheel and a trackpad's glide included, so it keeps
+   up with the hand: it takes the pointer, and the cloth under it rests. */
 .works-gallery.is-sheet .works-scroll {
   overflow: hidden auto;
+  pointer-events: auto;
+  /* Cards move round to their next copy as the endless sheet runs on; the
+     browser must not shift the scroll to keep them in place. */
+  overflow-anchor: none;
 }
 .works-gallery.is-sheet .works-dots { display: none; }
 @media (pointer: coarse), (max-width: 540px) {
-  .works-gallery.is-sheet .works-scroll { pointer-events: auto; touch-action: pan-y; }
+  .works-gallery.is-sheet .works-scroll { touch-action: pan-y; }
 }
 @media (prefers-reduced-motion: reduce) {
   .works-filter-dock, .works-nav-toggle-pill, .works-filter-caret { transition: none; }
@@ -502,15 +512,22 @@ body.works-open.works-sheet .portfolio-clock { opacity: 0; }
 .works-gallery:not(.is-open) .sheet-roller,
 .works-gallery.is-open.is-swapping .sheet-roller { opacity: 0; transition-duration: 240ms; }
 .works-gallery.is-instant .sheet-roller { transition: none; }
-.works-gallery .sheet-roller.is-held { opacity: 0; transition: none; }
+/* While the cards move after a filter change (gallery.mjs relayout): out with
+   the cards that go, back in once the rest have settled. */
+.works-gallery.is-open .sheet-roller.is-held { opacity: 0; transition-duration: 180ms; }
 .sheet-roller-strip {
   position: absolute;
   top: 0;
+  left: 0;
+  width: 100%;
   overflow: hidden;
+  opacity: 0;
   transform-origin: 0 0;
   backface-visibility: hidden;
 }
-.sheet-roller-face { position: absolute; left: 0; display: block; color: inherit; }
+/* Where each line copy lies on the sheet, for its strips to follow. */
+.sheet-roller-mark { position: absolute; left: 0; width: 1px; visibility: hidden; pointer-events: none; }
+.sheet-roller-face { position: absolute; display: block; color: inherit; }
 .sheet-roller-face .works-window img { will-change: auto; }
 /* The sheet shows only between the curl lines; past them, the roller. */
 .works-gallery.is-rolling .works-scroll {

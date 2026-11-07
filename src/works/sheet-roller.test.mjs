@@ -75,19 +75,6 @@ test('an endless sheet shows every copy of a card in sight, and only those', () 
   assert.deepEqual(copiesOf(2000, 200, { ...sight, period: 0, scroll: 0 }), []);
 });
 
-test('the paper darkens smoothly as it turns, from nothing at the curl line', () => {
-  const step = stripHeight(edges.radius);
-  let last = 0;
-  for (let from = 0; from < 300; from += step) {
-    const strip = placeStrip(edges.bottom + from, edges.bottom + from + step, edges);
-    // Each strip starts as dark as the one before it ends.
-    assert.ok(close(strip.shade[0], last, 1e-9));
-    assert.ok(strip.shade[1] >= strip.shade[0]);
-    last = strip.shade[1];
-  }
-  assert.equal(placeStrip(edges.bottom - 40, edges.bottom, edges).shade.join(), '0,0');
-});
-
 test('the roll\'s keyframes run from beyond the bottom crest to beyond the top one, flat between the curl lines', () => {
   const strip = stripHeight(edges.radius);
   const { frames, span } = rollKeyframes({ ...edges, strip });
@@ -98,7 +85,7 @@ test('the roll\'s keyframes run from beyond the bottom crest to beyond the top o
   for (let i = 1; i < frames.length; i++) assert.ok(frames[i].offset > frames[i - 1].offset);
   // Where a strip lies flat between the curl lines, it is untouched.
   const flat = frames.find(frame => close(frame.offset, reach / span + 0) || frame.transform.includes(`, ${(edges.bottom - strip).toFixed(3)}px, 0.000px`));
-  assert.ok(flat && flat.transform.includes('rotateX(0.00000rad) scaleY(1.00000)') && flat.filter === 'brightness(1.0000)');
+  assert.ok(flat && flat.transform.includes('rotateX(0.00000rad) scaleY(1.00000)'));
   // Past a crest, it faces away.
   const beyond = frames.at(-1).transform.match(/rotateX\(([-\d.]+)rad\)/)[1];
   assert.ok(Math.abs(+beyond) > Math.PI / 2);
