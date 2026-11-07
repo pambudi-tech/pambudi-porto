@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ownShapeWidth, tagCounts, wrapLines, cardMove, sheetColumns, WorksGallery } from './gallery.mjs';
+import { ownShapeWidth, tagCounts, wrapLines, cardMove, sheetColumns, sheetEntrance, WorksGallery } from './gallery.mjs';
 import { EXPLORATION } from '../content/works.mjs';
 
 test('a card that keeps its photo\'s shape: the window takes its aspect at the shared height, in whole perforations', () => {
@@ -64,4 +64,15 @@ test('a chosen project lets go of the glitch\'s readied photos, and they are rea
   gallery.departing = false;
   assert.equal(gallery.departing, false);
   assert.deepEqual(readied, [700]);
+});
+
+test('the sheet comes in line by line from the top, quickly; the rolled edges after the last card in view', () => {
+  const lines = [0, 1, 2, 3, 4, 5].map(row => ({ y: 100 + row * 300, entries: [`${row}a`, `${row}b`, `${row}c`] }));
+  const { delays, last } = sheetEntrance(lines, 700, { line: 60, across: 25, latest: 260 });
+  // The top line first, left to right; each line after the one above.
+  assert.deepEqual(['0a', '0b', '0c', '1a'].map(card => delays.get(card)), [0, 25, 50, 60]);
+  // Nothing waits longer than `latest`, however long the sheet.
+  assert.equal(Math.max(...delays.values()), 260);
+  // Lines at 100, 400 in view: the last of them starts at 60 + 50.
+  assert.equal(last, 110);
 });

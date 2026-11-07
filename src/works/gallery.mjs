@@ -40,6 +40,26 @@ export const EXPLORATION_VIEW = Object.freeze({
   columns: { most: 4, fewest: 2, narrowest: 280, phone: 1 },
 });
 
+// The sheet coming in (its collection chosen, or the works opened onto it):
+// line by line from the top, `line` ms apart and `across` ms along a line,
+// none later than `latest` ms; each card settles over `settle` ms (works.css).
+// The rolled edges come in after the last card in view, never before it;
+// the filter comes in with the cards (works.css).
+export const SHEET_ENTRANCE = Object.freeze({ line: 60, across: 25, latest: 260, settle: 440 });
+
+// Each sheet card's delay in ms, by its line and its place along it, and
+// when the last of those still in view (above `bottom`) starts.
+export function sheetEntrance(lines, bottom, { line, across, latest } = SHEET_ENTRANCE) {
+  const delays = new Map();
+  let last = 0;
+  lines.forEach(({ entries, y }, row) => entries.forEach((entry, column) => {
+    const delay = Math.min(latest, row * line + column * across);
+    delays.set(entry, delay);
+    if (y < bottom) last = Math.max(last, delay);
+  }));
+  return { delays, last };
+}
+
 // How a card moves between two layouts, given where it was and where it is
 // now (rects) and the screen: 'glide' a short way, 'settle' in at its new
 // place, or 'none' when it ends out of sight.
@@ -375,13 +395,14 @@ export class WorksGallery {
     this.placeTogglePill();
     this.layout();
     this.toStart();
+    const entering = this.stageEntrance();
     this.paint();
     // Lay the cards out, then let them settle onto the cloth in turn.
     if (instant) {
       this.root.classList.add('is-instant', 'is-open');
       requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-instant')));
     } else requestAnimationFrame(() => this.root.classList.add('is-open'));
-    this.keepPainting(this.shown.length * 80 + 700);
+    this.keepPainting(entering);
     this.busy = false;
     (this.shown.find(entry => workHref(entry.work)) ?? this.shown[0])?.link.focus({ preventScroll: true, focusVisible: false });
     // A project opened at its own address shows over the row; its glitch is
@@ -414,8 +435,10 @@ export class WorksGallery {
     this.busy = true;
     this.activate(null);
     this.closeFilter();
-    // The clock comes back as the cards leave.
-    this.syncClock({ away: false });
+    // The clock comes back as the cards leave; from the sheet, once they
+    // have gone, as the paper turns back (below).
+    const fromSheet = document.body.classList.contains('works-sheet');
+    if (!fromSheet) this.syncClock({ away: false });
     if (history && location.hash === '#works') {
       if (window.history.state?.works) window.history.back();
       else window.history.replaceState(null, '', location.pathname + location.search);
@@ -434,6 +457,7 @@ export class WorksGallery {
     this.scene.restPaper?.();
     this.scene.relightPaper?.();
     this.scene.setBirdAway?.(false);
+    if (fromSheet) this.syncClock({ away: false, home: true });
     await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
@@ -456,6 +480,9 @@ export class WorksGallery {
     this.placeTogglePill();
     if (collection === 'exploration') this.renderFilter();
     this.root.classList.add('is-swapping');
+    // Bound for the sheet, the clock leaves with the old cards (the dots too,
+    // works.css); bound for the row, it comes back as the new cards arrive.
+    if (collection === 'exploration' && this.isOpen) this.syncClock({ away: true });
     this.keepPainting(WORKS_MOTION.fade + 100);
     await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
     for (const entry of this.items) entry.item.remove();
@@ -475,11 +502,26 @@ export class WorksGallery {
     this.layout();
     this.toStart();
     this.updateVeils();
+    const entering = this.stageEntrance();
     // Let the new cards be drawn hidden once, so they arrive in turn.
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-swapping')));
-    this.keepPainting(this.shown.length * 80 + 700);
+    this.keepPainting(entering);
     this.busy = false;
     this.readyGlitch(this.shown.length * 80 + 700);
+  }
+
+  // Sets when each card comes in, and returns how long they all take, in ms.
+  // The row's cards keep their turn in it (works.css); the sheet's come in
+  // line by line, the rolled edges after the last card in view.
+  stageEntrance() {
+    if (!this.sheet) {
+      this.root.style.removeProperty('--roller-enter');
+      return this.shown.length * 80 + 700;
+    }
+    const { delays, last } = sheetEntrance(this.sheetLines, this.curl?.bottom ?? innerHeight);
+    for (const [entry, delay] of delays) entry.item.style.setProperty('--enter', `${delay}ms`);
+    this.root.style.setProperty('--roller-enter', `${last}ms`);
+    return Math.max(...delays.values(), 0) + SHEET_ENTRANCE.settle + 100;
   }
 
   // Half of the paper's own turn: it accelerates into edge-on and vanishes,
@@ -784,10 +826,16 @@ export class WorksGallery {
   }
 
   // The sheet takes the clock's place: it fades away there and back for the
-  // row, or as the works view closes.
-  syncClock({ away = this.isOpen && this.sheet } = {}) {
+  // row. As the works view closes from the sheet (`home`), it fades back
+  // slowly, in step with the paper turning back.
+  syncClock({ away = this.isOpen && this.sheet, home = false } = {}) {
+    const clock = document.getElementById('portfolio-clock');
+    if (home && !away && clock && !this.reduced && document.body.classList.contains('works-sheet')) {
+      clock.style.transition = `opacity ${PAPER_AWAY.duration}ms ease-in-out`;
+      setTimeout(() => clock.style.removeProperty('transition'), PAPER_AWAY.duration + 50);
+    }
     document.body.classList.toggle('works-sheet', away);
-    document.getElementById('portfolio-clock')?.toggleAttribute('aria-hidden', away);
+    clock?.toggleAttribute('aria-hidden', away);
     // A label a row card left as it faded out does not outlast the sheet.
     if (away && this.clockLabelled) {
       this.clockLabelled = false;
@@ -921,6 +969,7 @@ export class WorksGallery {
     // The rolled edges fade as the cards that go fade, and come back once the
     // cards have settled.
     if (!this.reduced) this.roller.hold();
+    this.root.style.removeProperty('--roller-enter');
     change();
     const keep = entry => !this.filter || entry.work.tags.includes(this.filter);
     if (!this.reduced && this.filter !== was) {

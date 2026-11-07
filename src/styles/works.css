@@ -31,6 +31,9 @@
   transition: opacity 420ms ease calc(var(--i) * 80ms), translate 620ms var(--ease-out) calc(var(--i) * 80ms);
 }
 .works-item[data-shelf="bottom"] { --arrive: 8px; }
+/* The sheet's cards come in line by line from the top, quickly (gallery.mjs
+   SHEET_ENTRANCE sets --enter). */
+.works-gallery.is-sheet .works-item { transition: opacity 300ms ease var(--enter, 0ms), translate 440ms var(--ease-out) var(--enter, 0ms); }
 .works-gallery.is-open .works-item { opacity: 1; translate: 0 0; }
 /* Opened at once (gallery.mjs `instant`): no entrance. */
 .works-gallery.is-instant :is(.works-item, .works-nav, .works-dots, .works-filter-dock) { transition: none; }
@@ -238,6 +241,9 @@
 }
 .works-gallery.is-open .works-dots { opacity: 1; }
 .works-gallery.is-navigating .works-dots { opacity: 0; }
+/* Changing collection, they leave with the old cards, and come back with the
+   row's. */
+.works-gallery.is-open.is-swapping .works-dots { opacity: 0; transition-duration: 240ms; }
 .works-dot {
   display: grid;
   place-items: center;
@@ -350,9 +356,12 @@
   opacity: 0;
   /* Away, it can be neither reached by Tab nor read out. */
   visibility: hidden;
-  transition: opacity 300ms ease, translate 360ms var(--ease-out), visibility 300ms;
+  transition: opacity 300ms ease, translate 440ms var(--ease-out), visibility 300ms;
 }
 .works-gallery.is-open.is-exploration .works-filter-dock { opacity: 1; translate: -50% 0; pointer-events: auto; visibility: visible; }
+/* Changing collection, it leaves with the old cards and comes in with the
+   new, as they do. */
+.works-gallery.is-open.is-swapping .works-filter-dock { opacity: 0; translate: -50% 6px; pointer-events: none; visibility: hidden; transition-duration: 240ms; transition-delay: 0ms; }
 .works-gallery.is-navigating .works-filter-dock,
 .closeup-open .works-gallery.is-open .works-filter-dock { opacity: 0; pointer-events: none; }
 .works-filter-button {
@@ -448,10 +457,12 @@
 /* The sheet takes the clock's place (gallery.mjs syncClock): the clock fades
    out while the works view shows the sheet, and back for the row or as the
    view closes. */
-body.works-open .portfolio-clock { transition: opacity 280ms ease; }
+body.works-open .portfolio-clock { transition: opacity 300ms ease; }
+/* Leaving for the sheet, it goes with the cards, as quickly. */
+body.works-open.works-sheet .portfolio-clock { transition-duration: 240ms; }
 body.works-open.works-sheet .portfolio-clock { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  body.works-open .portfolio-clock { transition: none; }
+  body.works-open .portfolio-clock, body.works-open.works-sheet .portfolio-clock { transition: none; }
 }
 
 /* The veils on the sheet (gallery.mjs makeVeils): stamps scrolling under
@@ -508,13 +519,13 @@ body.works-open.works-sheet .portfolio-clock { opacity: 0; }
   opacity: 0;
   transition: opacity 420ms ease;
 }
-.works-gallery.is-open.is-sheet .sheet-roller { opacity: 1; }
+.works-gallery.is-open.is-sheet .sheet-roller { opacity: 1; transition-duration: 300ms; transition-delay: var(--roller-enter, 0ms); }
 .works-gallery:not(.is-open) .sheet-roller,
-.works-gallery.is-open.is-swapping .sheet-roller { opacity: 0; transition-duration: 240ms; }
+.works-gallery.is-open.is-swapping .sheet-roller { opacity: 0; transition-duration: 240ms; transition-delay: 0ms; }
 .works-gallery.is-instant .sheet-roller { transition: none; }
 /* While the cards move after a filter change (gallery.mjs relayout): out with
    the cards that go, back in once the rest have settled. */
-.works-gallery.is-open .sheet-roller.is-held { opacity: 0; transition-duration: 180ms; }
+.works-gallery.is-open .sheet-roller.is-held { opacity: 0; transition-duration: 180ms; transition-delay: 0ms; }
 .sheet-roller-strip {
   position: absolute;
   top: 0;
