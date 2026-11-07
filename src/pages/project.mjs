@@ -82,11 +82,16 @@ function cuePreparing() {
 }
 window.projectLeaving = () => { preparing?.stop(); preparing = null; };
 // The next project lies over this one at its own top, so a page scrolled
-// down glides back up first, and holds still there until it has gone.
-let leaving = false;
-const holdStill = event => { if (leaving) event.preventDefault(); };
-addEventListener('wheel', holdStill, { passive: false });
-addEventListener('touchmove', holdStill, { passive: false });
+// down glides back up first, and holds still there until it has gone. Only
+// then does it listen to hold the wheel and a finger: a listener that may
+// hold them makes every scroll wait on the page's script first.
+const holdStill = event => event.preventDefault();
+const holding = on => {
+  for (const type of ['wheel', 'touchmove']) {
+    if (on) addEventListener(type, holdStill, { passive: false });
+    else removeEventListener(type, holdStill);
+  }
+};
 const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 function scrollHome() {
   const from = scrollY;
@@ -112,7 +117,7 @@ const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch
       // This project's words leave at once, not when the next has loaded:
       // a tap gives no hover to have readied it ahead.
       document.body.classList.add('project-switching', 'project-arriving');
-      leaving = true;
+      holding(true);
       preparing = cuePreparing();
       scrollHome().then(() => toParent('project-route-switch', { id: next }));
     } else location.assign(workHref(WORKS.find(work => work.id === next)));
@@ -120,7 +125,7 @@ const projectSwitch = mountProjectSwitch(document.querySelector('.project-switch
   prepare: (next, { now = false } = {}) => { if (preview) toParent('project-route-prepare', { id: next, now }); },
 });
 window.addEventListener('project-route-switch-failed', () => {
-  leaving = false;
+  holding(false);
   // Staying, it is no longer preparing anything: the sewing stops and the
   // word goes.
   preparing?.stop();

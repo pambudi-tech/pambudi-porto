@@ -72,7 +72,8 @@ h1 { font: 400 16px/1.6 var(--mono); margin-bottom: 5px; }
 .project-opening { position: relative; }
 .project-gallery-seal { position: fixed; top: calc(100dvh - 64px); z-index: 4; width: 160px; transition: transform .16s ease, filter .16s ease, opacity 200ms ease; }
 /* While the page has more to scroll, it fades into the cloth at that edge,
-   as the About Me paper does; each fade grows with what is left to scroll. */
+   as the About Me paper does; each fade grows with what is left to scroll,
+   its strength set on the fade itself (project-detail.mjs). */
 .project-fade { position: fixed; left: 0; right: 0; z-index: 3; pointer-events: none; }
 .project-fade-top { top: 0; height: 88px; background: linear-gradient(#ffffff 40%, rgb(255 255 255 / 0)); opacity: var(--fade-top, 0); }
 .project-fade-bottom { bottom: 0; height: 128px; background: linear-gradient(rgb(255 255 255 / 0), #ffffff 60%); opacity: var(--fade-bottom, 0); }

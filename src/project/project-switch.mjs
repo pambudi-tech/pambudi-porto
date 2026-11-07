@@ -89,6 +89,7 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
   function open() {
     if (shown || moving || document.body.classList.contains('gallery-open')) return;
     shown = true;
+    holding(true);
     list.hidden = false;
     place();
     name.setAttribute('aria-expanded', 'true');
@@ -103,6 +104,7 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
   function close({ quick = false, refocus = false } = {}) {
     if (!shown) return;
     shown = false;
+    holding(false);
     name.setAttribute('aria-expanded', 'false');
     pill.classList.remove('is-open');
     animation?.cancel();
@@ -112,14 +114,20 @@ export function mountProjectSwitch(pill, { id, title, go, prepare, motionPrefere
   }
   name.addEventListener('click', () => (shown ? close() : open()));
   // While the list is open the page holds still, and the wheel never reaches
-  // the gallery beneath; only the list itself scrolls, if it must.
+  // the gallery beneath; only the list itself scrolls, if it must. Listened
+  // for only while it is open: a listener that may hold the wheel or a
+  // finger makes every scroll wait on the page's script first.
   const hold = event => {
     if (!shown) return;
     event.stopPropagation();
     if (!list.contains(event.target) || list.scrollHeight <= list.clientHeight) event.preventDefault();
   };
-  addEventListener('wheel', hold, { capture: true, passive: false });
-  addEventListener('touchmove', hold, { capture: true, passive: false });
+  function holding(on) {
+    for (const type of ['wheel', 'touchmove']) {
+      if (on) addEventListener(type, hold, { capture: true, passive: false });
+      else removeEventListener(type, hold, { capture: true });
+    }
+  }
   addEventListener('pointerdown', event => {
     if (shown && !list.contains(event.target) && !name.contains(event.target)) close();
   }, true);

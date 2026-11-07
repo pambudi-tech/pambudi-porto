@@ -36,7 +36,19 @@ export class ColophonPull {
     addEventListener('pointermove', event => this.moveTouch(event), { ...capture, passive: true });
     addEventListener('pointerup', event => this.up(event), capture);
     addEventListener('pointercancel', event => this.up(event), capture);
-    addEventListener('wheel', event => this.wheelBy(event), { ...options, passive: false });
+    // A wheel listener that may cancel scrolling makes the browser wait for
+    // the page before it scrolls, wherever it listens. So the wheel is heard
+    // only where and when a pull could start: on the page itself, while the
+    // paper lies white side up (each turn, the works row's too, is marked by
+    // paperflipstart and paperflipend); and over the whole window only while
+    // the page is pulled (begin to rest), when it takes no input of its own.
+    // About's text and the exploration sheet scroll without waiting.
+    this.paper = layers[0].querySelector('.portfolio-paper');
+    this.onWheel = event => this.wheelBy(event);
+    this.wheelOptions = { ...options, passive: false };
+    this.paper?.addEventListener('paperflipstart', () => this.syncWheel(), options);
+    this.paper?.addEventListener('paperflipend', () => this.syncWheel(), options);
+    this.syncWheel();
     addEventListener('keydown', event => this.key(event), options);
     // Before the scene measures the page for the new size (a capture
     // listener on window runs first), so it never measures it dropped.
@@ -62,6 +74,19 @@ export class ColophonPull {
   // The page can be pulled only as it first opens: the white side of the
   // paper up, nothing else open, nothing being stitched.
   canPull() { return document.body.dataset.ready === 'true' && this.scene.canLift(); }
+
+  // The page hears the wheel while its paper lies still, white side up, and
+  // not turned away for the works row (which makes it inert while open).
+  // canPull still decides each time; this only keeps the listener away from
+  // the red side's About and from the row and its sheet.
+  syncWheel() {
+    const paper = this.paper;
+    const up = !paper || (!paper.inert && paper.dataset.paperSide !== 'red' && paper.dataset.flipping !== 'true');
+    if (up === this.wheelOnPage) return;
+    this.wheelOnPage = up;
+    if (up) this.layers[0].addEventListener('wheel', this.onWheel, this.wheelOptions);
+    else this.layers[0].removeEventListener('wheel', this.onWheel);
+  }
 
   // Whether a pointer or wheel event is over the page: at home, by its own
   // elements; dropped (and inert), by where the page now lies.
@@ -154,6 +179,10 @@ export class ColophonPull {
   }
 
   wheelBy(event) {
+    // Each event once: the window's listener, added as the pull begins,
+    // would otherwise hear the event that began it on its way up.
+    if (event === this.lastWheel) return;
+    this.lastWheel = event;
     // Pinch zoom and ctrl+wheel are the browser's.
     if (event.ctrlKey) return;
     if (this.open) {
@@ -210,10 +239,12 @@ export class ColophonPull {
 
   // The pull begins: the colophon's height is measured once, here, and it
   // shows its end first, the edge that meets the page. The page takes no
-  // input of its own until it is home again (rest).
+  // input of its own until it is home again (rest), so the window hears the
+  // wheel until then, wherever it is turned.
   begin() {
     cancelAnimationFrame(this.frame);
     this.frame = null;
+    addEventListener('wheel', this.onWheel, this.wheelOptions);
     this.panel.hidden = false;
     if (!this.open) this.panel.scrollTop = this.panel.scrollHeight;
     this.height = Math.min(this.panel.offsetHeight, Math.round(this.size * PULL.maxShare));
@@ -299,6 +330,7 @@ export class ColophonPull {
     this.panel.inert = true;
     this.panel.setAttribute('aria-hidden', 'true');
     this.panel.hidden = true;
+    removeEventListener('wheel', this.onWheel);
     if (this.returnFocus || this.panel.contains(document.activeElement)) this.layers[0].focus({ preventScroll: true });
     this.returnFocus = false;
   }
