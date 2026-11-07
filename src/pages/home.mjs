@@ -93,7 +93,7 @@ async function boot() {
   // The page pulled down past its top shows the colophon (colophon-pull.mjs);
   // its code comes after the page is up.
   import('../colophon/colophon-pull.mjs').then(({ ColophonPull }) => new ColophonPull({
-    scene, motionPreference: preference,
+    scene, clock, motionPreference: preference,
     panel: document.getElementById('colophon'),
     layers: [surface, document.getElementById('portfolio-clock')],
   })).catch(error => console.warn('Colophon:', error));

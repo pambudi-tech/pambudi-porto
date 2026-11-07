@@ -49,7 +49,10 @@ function page(t) {
   const panel = new Node();
   Object.assign(panel, { scrollTop: 0, scrollHeight: 300, clientHeight: 300, offsetHeight: 300 });
   const scene = { canLift: () => true, letGo() {}, announce() {} };
-  const pull = new ColophonPull({ scene, panel, layers: [surface, clock], motionPreference: { matches: true } });
+  // The dot clock, as the pull holds its canvas whole: each call, and how far the page lay then.
+  const holds = [];
+  const dots = { holdWhole: held => holds.push([held, pull.lift, clock.style.transform || '']) };
+  const pull = new ColophonPull({ scene, panel, layers: [surface, clock], motionPreference: { matches: true }, clock: dots });
   t.after(() => {
     pull.destroy();
     for (const [name, descriptor] of previous) {
@@ -57,7 +60,7 @@ function page(t) {
       else delete globalThis[name];
     }
   });
-  return { win, surface, paper, pull };
+  return { win, surface, paper, pull, holds };
 }
 
 const wheel = deltaY => Object.assign(new Event('wheel', { cancelable: true }), { deltaY, deltaMode: 0, ctrlKey: false, clientY: 20 });
@@ -121,4 +124,20 @@ test('a wheel that begins a pull pulls once, though the window then hears it too
   // The next one is the window's alone: the page is inert while pulled.
   win.dispatchEvent(wheel(-100));
   assert.equal(pull.wheel.pull, 200 * PULL.wheelScale);
+});
+
+test('the clock is held on its whole canvas from the moment a pull begins until the page is home', t => {
+  const { pull, holds } = page(t);
+  assert.deepEqual(holds, []);
+  pull.begin();
+  assert.deepEqual(holds, [[true, 0, '']], 'held at home, before the page moves');
+  pull.toOpen(0);
+  assert.equal(pull.lift, 300);
+  pull.close();
+  assert.deepEqual(holds, [[true, 0, ''], [false, 0, '']], 'let go only once home again');
+  // A resize mid-pull sends it home at once, and lets go too.
+  pull.begin();
+  pull.toOpen(0);
+  pull.settleNow();
+  assert.deepEqual(holds.slice(2), [[true, 0, ''], [false, 0, '']]);
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SurfaceRenderer } from './render.mjs';
+import { SurfaceRenderer, threadSprite, preparedSprites, SPRITE } from './render.mjs';
 
 function recordedAnimation(kind, time) {
   const calls = [];
@@ -144,4 +144,36 @@ test('the gesture canvas is drawn again only when its hover or a sewing stitch w
   assert.equal(draw(null, { animations: new Map([['0,0', { kind: 'motif' }], ['1,0', { kind: 'unpick' }]]) }), false, 'motifs and unpicking are on the stitch canvas');
   renderer.gestureShows = null;
   assert.equal(draw(null), true, 'after a resize');
+});
+
+test('the sprite cache lets go of the same sprites as it always has, without looking through every key', () => {
+  // The cache as it was: past 768 sprites, the oldest still mid-stitch goes,
+  // or else the oldest of all, found by looking through every key.
+  const reference = new Map();
+  const request = (color, variation, step) => {
+    const key = `${color}:${variation}:${step}`;
+    if (reference.has(key)) return;
+    if (reference.size > 768) {
+      const transient = [...reference.keys()].find(key => !key.endsWith(':12'));
+      reference.delete(transient ?? reference.keys().next().value);
+    }
+    reference.set(key, preparedSprites.get(key));
+  };
+  const colors = Array.from({ length: 9 }, (_, i) => `#0000${i}0`);
+  for (const color of colors) for (let variation = 0; variation < 8; variation++) for (let step = 0; step <= SPRITE.steps; step++) {
+    preparedSprites.set(`${color}:${variation}:${step}`, { color, variation, step });
+  }
+  const sprites = new Map();
+  let seed = 3;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 6000; i++) {
+    // Mostly finished stitches, as on the page, some mid-stitch.
+    const color = colors[Math.floor(random() * colors.length)], variation = Math.floor(random() * 8);
+    const step = random() < .6 ? SPRITE.steps : Math.floor(random() * SPRITE.steps);
+    request(color, variation, step);
+    assert.equal(threadSprite(sprites, color, variation, step / SPRITE.steps), preparedSprites.get(`${color}:${variation}:${step}`));
+    if (i % 50 === 0 || sprites.size !== reference.size) assert.deepEqual([...sprites.keys()], [...reference.keys()], `request ${i}`);
+  }
+  assert.deepEqual([...sprites.keys()], [...reference.keys()]);
+  for (const key of [...preparedSprites.keys()]) if (key.startsWith('#0000')) preparedSprites.delete(key);
 });

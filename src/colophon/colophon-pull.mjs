@@ -12,10 +12,12 @@ import { PULL, rubberBand, pullFor, opensAt, isPull, springStep, springSettled }
 // While they are anywhere but home they take no input of their own: the
 // pull's listeners on the window can still catch them. `scene` is the
 // portfolio's (surface/scene.mjs): it says when the page is at rest to pull
-// and lets go of what a pointer was doing on it.
+// and lets go of what a pointer was doing on it. `clock`, the dot clock
+// (clock/clock.mjs), draws on the screen's whole canvas while it is moved.
 export class ColophonPull {
-  constructor({ scene, panel, layers, motionPreference }) {
+  constructor({ scene, panel, layers, motionPreference, clock = null }) {
     this.scene = scene;
+    this.clock = clock;
     this.panel = panel;
     this.layers = layers;
     this.motionPreference = motionPreference;
@@ -244,6 +246,8 @@ export class ColophonPull {
   begin() {
     cancelAnimationFrame(this.frame);
     this.frame = null;
+    // At home still: the clock changes canvas where both show alike.
+    this.clock?.holdWhole(true);
     addEventListener('wheel', this.onWheel, this.wheelOptions);
     this.panel.hidden = false;
     if (!this.open) this.panel.scrollTop = this.panel.scrollHeight;
@@ -322,6 +326,8 @@ export class ColophonPull {
     this.target = 0;
     this.velocity = 0;
     this.setLift(0);
+    // Home again, the clock can go back to its own rows' canvas.
+    this.clock?.holdWhole(false);
     for (const layer of this.layers) {
       layer.style.willChange = '';
       layer.inert = false;

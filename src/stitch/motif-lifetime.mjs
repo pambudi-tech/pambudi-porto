@@ -10,8 +10,17 @@ export class MotifLifetimes {
     this.records = new Map();
     this.journal = new Map();
     this.sequence = 0;
+    this.soonest = Infinity;
+    this.synced = null;
+  }
+  // Syncing again with nothing changed leaves the journal as it is, so it is
+  // done only once the history or the records have moved since the last time.
+  historyMoved() {
+    const { synced, model: { undoStack, redoStack } } = this;
+    return !synced || synced.records !== this.records.size || !sameItems(synced.undo, undoStack) || !sameItems(synced.redo, redoStack);
   }
   syncHistory() {
+    this.synced = { undo: [...this.model.undoStack], redo: [...this.model.redoStack], records: this.records.size };
     const applied = new Set(this.model.undoStack), redo = new Set(this.model.redoStack);
     for (const transaction of [...this.model.undoStack, ...[...this.model.redoStack].reverse()]) {
       if (!this.journal.has(transaction)) this.journal.set(transaction, { order: this.sequence++, applied: applied.has(transaction) });
@@ -28,10 +37,14 @@ export class MotifLifetimes {
     this.syncHistory();
     const delays = new Map(cells.map(cell => [`${cell.col},${cell.row}`, cell.delay]));
     this.records.set(transaction, { deadline: started + MOTIF_LIFETIME, delays, lastDelay: Math.max(0, ...delays.values()) });
+    this.soonest = this.nextExpiry;
   }
   get nextExpiry() { return Math.min(...[...this.records.values()].map(record => record.deadline)); }
+  // Runs every frame. The journal is kept exactly as syncing every frame
+  // would keep it, and nothing can expire before the soonest deadline.
   update(now, reduced = false) {
-    this.syncHistory();
+    if (this.historyMoved()) this.syncHistory();
+    if (!this.records.size || this.soonest > now) return false;
     let expired = false;
     for (const [transaction, record] of [...this.records].sort((a, b) => a[1].deadline - b[1].deadline)) {
       if (record.deadline > now) continue;
@@ -69,6 +82,13 @@ export class MotifLifetimes {
       this.journal.delete(transaction);
       expired = true;
     }
+    this.soonest = this.nextExpiry;
     return expired;
   }
+}
+
+function sameItems(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }

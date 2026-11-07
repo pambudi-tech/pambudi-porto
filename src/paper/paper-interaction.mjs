@@ -22,6 +22,9 @@ export class PaperInteraction {
     this.pointerId = null;
     this.moving = false;
     this.placementStarted = null;
+    // The frames that cast the sheet's shadow, all and each face's own.
+    this.frames = [...element.querySelectorAll('.portfolio-frame')];
+    this.faceFrames = { white: this.frames.filter(frame => !frame.closest('.paper-back')), red: this.frames.filter(frame => frame.closest('.paper-back')) };
     this.write();
     this.measure();
     this.ready = this.loadMask().catch(error => console.error('Paper outline:', error));
@@ -180,6 +183,14 @@ export class PaperInteraction {
       this.lastTime = null;
       if (this.state.reduced) { this.current = { ...target }; this.moving = false; }
       this.requestFrame?.();
+      // The pose moves on in the frame just asked for, which writes it then;
+      // until it does it stands as last written. What lies on the sheet still
+      // hears the light as it is, and the sheet's state shows at once.
+      if (!this.state.reduced) {
+        this.onLight?.(this.values, this);
+        this.writeState();
+        return;
+      }
     }
     this.write();
   }
@@ -205,15 +216,22 @@ export class PaperInteraction {
     return this.moving || this.placementStarted != null;
   }
   write() {
-    const values = applyPaperPose(this.element, this.current, this.placement);
+    // The shadow falls from the face showing; both are given it while the
+    // sheet turns (or is turned away), so neither changes coming round.
+    const red = this.element.dataset.paperSide === 'red';
+    const frames = this.flipping ? this.frames : this.faceFrames[red ? 'red' : 'white'];
+    const values = this.values = applyPaperPose(this.element, this.current, this.placement, frames);
     // The welcome's frame plays its own placement (welcome.mjs); once it
     // has been placed, it follows the sheet's pose, not its placement again.
     if (this.mirrorActive && this.placementMirror?.isConnected && this.placementMirror.dataset.placement === 'complete') {
       applyPaperPose(this.placementMirror, this.current, null);
     }
     // Light only the face showing, and neither while it turns in 3D.
-    if (!this.flipping) (this.element.dataset.paperSide === 'red' ? this.backMaterial : this.material)?.draw(values);
+    if (!this.flipping) (red ? this.backMaterial : this.material)?.draw(values);
     this.onLight?.(values, this);
+    this.writeState();
+  }
+  writeState() {
     const engaged = this.state.hovered || this.state.pressed;
     this.element.classList.toggle('paper-engaged', engaged || this.moving || this.placementStarted != null);
     document.body.classList.toggle('paper-hover', engaged);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEPTH, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, stampSize, SHEET } from './project-gallery.mjs';
+import { DEPTH, depthOrder, galleryPlacement, depthOpacity, depthBlur, galleryCurrent, galleryMeeting, gallerySpotOf, wheelScrolls, sheetLayout, sheetProgress, stampSize, SHEET } from './project-gallery.mjs';
 import { fitRect, panTo, zoomAt, CLOSEUP } from './project-closeup.mjs';
 
 const SCREENS = {
@@ -149,4 +149,18 @@ test('a stamp keeps its photo\'s own shape, as large as fits the 4:3 box', () =>
   assert.deepEqual(stampSize(4 / 5, 400, 300), { w: 240, h: 300 });
   assert.deepEqual(stampSize(2, 400, 300), { w: 400, h: 200 });
   assert.deepEqual(stampSize(undefined, 400, 300), { w: 400, h: 300 });
+});
+
+test('the stamps paint in the order their depths gave as z-indexes', () => {
+  // As 5000 + depth would stack them: by depth, a tie by page order.
+  const asZIndex = depths => depths.map((depth, index) => index)
+    .sort((a, b) => (5000 + depths[a]) - (5000 + depths[b]) || a - b);
+  let seed = 7;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let round = 0; round < 500; round++) {
+    const count = 1 + Math.floor(random() * 12);
+    const depths = Array.from({ length: count }, () => Math.round((random() - .8) * 6000 / (random() < .2 ? 1000 : 1)));
+    assert.deepEqual(depthOrder(depths), asZIndex(depths));
+  }
+  assert.deepEqual(depthOrder([0, -640, 360, -640]), [1, 3, 0, 2]);
 });

@@ -157,8 +157,12 @@ export function revealCover(img, full, { reduced = false } = {}) {
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       if (progress === 1) {
         // Clean now, it matches the photo beneath, which it can leave to.
+        // Nothing draws on it again, so its context and the two photos it
+        // holds are let go of at once, not whenever the page next collects
+        // its garbage.
         removeEventListener('resize', place);
         canvas.remove();
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
         resolve();
         return;
       }

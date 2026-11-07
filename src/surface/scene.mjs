@@ -82,8 +82,10 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
   let corners = [];
   let bird = null;
   // The wordmark's own holes. The dove flies in front of the wordmark: the
-  // stitches in the holes it covers give way until it moves on.
+  // stitches in the holes it covers give way until it moves on. `covered`
+  // is reused every frame.
   let wordmarkHoles = null;
+  const covered = new Set();
   // The visitor's last input; once they are idle long enough the dove rests.
   let lastActivity = performance.now();
   let cornersEntering = !motionPreference.matches;
@@ -171,7 +173,7 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     if (bird && !bird.paused) bird.setIdle(now - lastActivity > FLIGHT.restAfter);
     if (bird?.update(now)) sceneDirty = true;
     if (bird && wordmarkHoles) {
-      const covered = new Set();
+      covered.clear();
       for (const key of bird.cells.keys()) if (wordmarkHoles.has(key)) covered.add(key);
       wordmark.cover(covered);
     }
@@ -193,7 +195,9 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
       renderer.drawStitches(model, view, animations, bird?.cells, cornerVisibility, now, { settled });
       sceneDirty = false;
     }
-    $('embroidery').dataset.entrance = cornersEntering ? 'stitching' : 'complete';
+    // Written when it changes, not every frame.
+    const entrance = cornersEntering ? 'stitching' : 'complete';
+    if (renderer.stitchCanvas.dataset.entrance !== entrance) renderer.stitchCanvas.dataset.entrance = entrance;
     const free = scene.stitchMode === 'free', unpicking = free && freeStitch.tool === 'unpick';
     renderer.drawInteraction(view, animations, scene.hover, free ? freeStitch.color : MOTIF_HINT_COLOR, unpicking ? 'unpick' : 'motif', now, scene.keyboardMode);
     if (animations.size || cornersEntering || wordmarkEntering || paperMoving || bird?.active) requestFrame();

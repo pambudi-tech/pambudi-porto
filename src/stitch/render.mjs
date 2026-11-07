@@ -7,8 +7,15 @@ export const hash = (x, y, salt = 0) => {
   const n = Math.sin(x * 127.1 + y * 311.7 + salt * 43.13) * 43758.5453;
   return n - Math.floor(n);
 };
+// Each thread colour is parsed once: mix() runs for every stroke of a cross.
+const channels = new Map();
 const mix = (hex, target, amount) => {
-  const rgb = hex.slice(1).match(/../g).map(v => parseInt(v, 16));
+  let rgb = channels.get(hex);
+  if (!rgb) {
+    rgb = hex.slice(1).match(/../g).map(v => parseInt(v, 16));
+    if (channels.size > 256) channels.clear();
+    channels.set(hex, rgb);
+  }
   return `rgb(${rgb.map((v, i) => Math.round(v + (target[i] - v) * amount)).join(',')})`;
 };
 const easeOut = value => 1 - Math.pow(1 - Math.max(0, Math.min(1, value)), 3);
@@ -147,13 +154,25 @@ export function drawSprite(ctx, color, variation, step) {
   drawCross(ctx, SPRITE.margin, SPRITE.margin, color, variation, step / SPRITE.steps);
 }
 
+// Each sprite cache's keys still mid-stitch, oldest first (threadSprite).
+const transients = new WeakMap();
+
 // Sprites drawn ahead of time off the main thread (src/shared/prep.mjs), by
 // the same drawSprite; any not here yet are drawn on demand as before.
 export const preparedSprites = new Map();
 
+// Each sprite's key, made once: the wordmark asks for thousands a frame.
+const keys = new Map();
+function keyFor(color, variation, step) {
+  if (!(variation >= 0 && variation < 8 && step >= 0 && step <= SPRITE.steps) || !Number.isInteger(variation) || !Number.isInteger(step)) return spriteKey(color, variation, step);
+  let list = keys.get(color);
+  if (!list) keys.set(color, list = []);
+  return list[variation * (SPRITE.steps + 1) + step] ??= spriteKey(color, variation, step);
+}
+
 export function threadSprite(sprites, color, variation, progress = 1) {
   const step = Math.round(progress * SPRITE.steps);
-  const key = spriteKey(color, variation, step);
+  const key = keyFor(color, variation, step);
   if (!sprites.has(key)) {
     let sprite = preparedSprites.get(key);
     if (!sprite) {
@@ -161,11 +180,22 @@ export function threadSprite(sprites, color, variation, progress = 1) {
       sprite.width = sprite.height = SPRITE.size;
       drawSprite(sprite.getContext('2d'), color, variation, step);
     }
+    // Full, it lets go of the oldest sprite still mid-stitch, or else the
+    // oldest of all. The sprites mid-stitch are listed apart, oldest first,
+    // so finding that one does not mean looking through every key.
+    let transient = transients.get(sprites);
+    if (!transient) transients.set(sprites, transient = new Set([...sprites.keys()].filter(key => !key.endsWith(':12'))));
     if (sprites.size > 768) {
-      const transient = [...sprites.keys()].find(key => !key.endsWith(':12'));
-      sprites.delete(transient ?? sprites.keys().next().value);
+      let oldest = transient.values().next().value;
+      while (oldest !== undefined && !sprites.has(oldest)) {
+        transient.delete(oldest);
+        oldest = transient.values().next().value;
+      }
+      transient.delete(oldest);
+      sprites.delete(oldest ?? sprites.keys().next().value);
     }
     sprites.set(key, sprite);
+    if (!key.endsWith(':12')) transient.add(key);
   }
   return sprites.get(key);
 }

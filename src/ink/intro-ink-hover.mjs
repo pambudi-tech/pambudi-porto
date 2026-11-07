@@ -18,6 +18,24 @@ export function advanceInk(current, target, elapsed) {
   }));
 }
 
+// The goo filter's primitives and attributes that the ink moves (by index
+// among the filter's children), and their values at `strength`.
+const INK_FILTER = [[0, 'radius'], [1, 'stdDeviation'], [2, 'values'], [4, 'scale']];
+export function inkFilterValues(strength) {
+  return [(.2 * strength).toFixed(3), (.65 * strength).toFixed(3),
+    `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${1 + 15 * strength} ${-5.4 * strength}`, (1.8 * strength).toFixed(3)];
+}
+
+// A letter's own pull towards the pen at (`x`, `y`): the properties its
+// style takes, and their values.
+const INK_LETTER = ['--ink-stroke', '--ink-pull-x', '--ink-pull-y', '--ink-swell-x', '--ink-swell-y', '--ink-turn'];
+export function inkLetterValues(glyph, index, x, y, strength) {
+  const dx = x - glyph.x, dy = y - glyph.y;
+  const wet = Math.exp(-((dx / 62) ** 2) - (dy / 38) ** 2) * strength;
+  return [`${(.35 * wet).toFixed(3)}px`, `${(dx * wet * .12).toFixed(2)}px`, `${(dy * wet * .18).toFixed(2)}px`,
+    (1 + wet * .65).toFixed(3), (1 + wet * .45).toFixed(3), `${(Math.sin(index * 2.4) * wet * 3.5).toFixed(2)}deg`];
+}
+
 function hasRuntLastLine(source) {
   // Measure native words so the rule also works with reduced motion, when
   // the decorative ink layer is hidden. Keep only the last two words.
@@ -215,20 +233,21 @@ export class IntroInkHover {
     definitions.append(filter);
     return filter;
   }
+  // Every paragraph is drawn each frame the ink moves anywhere, and most of
+  // its letters (and the filters of paragraphs it is not near) keep the
+  // strings they already have: only those that change are written.
   drawInk(filter, glyphs, { x, y, strength }) {
-    filter.children[0].setAttribute('radius', (.2 * strength).toFixed(3));
-    filter.children[1].setAttribute('stdDeviation', (.65 * strength).toFixed(3));
-    filter.children[2].setAttribute('values', `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${1 + 15 * strength} ${-5.4 * strength}`);
-    filter.children[4].setAttribute('scale', (1.8 * strength).toFixed(3));
+    inkFilterValues(strength).forEach((value, i) => {
+      if (filter.drawn?.[i] === value) return;
+      filter.children[INK_FILTER[i][0]].setAttribute(INK_FILTER[i][1], value);
+      (filter.drawn ??= [])[i] = value;
+    });
     glyphs.forEach((glyph, index) => {
-      const dx = x - glyph.x, dy = y - glyph.y;
-      const wet = Math.exp(-((dx / 62) ** 2) - (dy / 38) ** 2) * strength;
-      glyph.letter.style.setProperty('--ink-stroke', `${(.35 * wet).toFixed(3)}px`);
-      glyph.letter.style.setProperty('--ink-pull-x', `${(dx * wet * .12).toFixed(2)}px`);
-      glyph.letter.style.setProperty('--ink-pull-y', `${(dy * wet * .18).toFixed(2)}px`);
-      glyph.letter.style.setProperty('--ink-swell-x', (1 + wet * .65).toFixed(3));
-      glyph.letter.style.setProperty('--ink-swell-y', (1 + wet * .45).toFixed(3));
-      glyph.letter.style.setProperty('--ink-turn', `${(Math.sin(index * 2.4) * wet * 3.5).toFixed(2)}deg`);
+      inkLetterValues(glyph, index, x, y, strength).forEach((value, i) => {
+        if (glyph.drawn?.[i] === value) return;
+        glyph.letter.style.setProperty(INK_LETTER[i], value);
+        (glyph.drawn ??= [])[i] = value;
+      });
     });
   }
   requestDraw() {

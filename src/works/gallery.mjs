@@ -505,10 +505,18 @@ export class WorksGallery {
     const snapRow = (y, round = Math.ceil) => view.y + round((y - view.y) / pitch) * pitch;
     const snapCol = (x, round = Math.round) => view.x + round((x - view.x) / pitch) * pitch;
 
-    // The details seals match the homepage's seal, size and lettering.
+    // Everything measured first, then everything written: a measure taken
+    // between writes would have the browser lay the page out again for it.
+    // None of these depends on what is written below (the cards and the
+    // seals' size live apart from the homepage seal, the bar and the filter).
     const label = this.frontSeal.querySelector('.works-seal-label');
-    this.root.style.setProperty('--seal-width', `${this.frontSeal.offsetWidth}px`);
-    this.root.style.setProperty('--seal-label-size', getComputedStyle(label).fontSize);
+    const sealWidth = this.frontSeal.offsetWidth, labelSize = getComputedStyle(label).fontSize;
+    const barBottom = this.nav.getBoundingClientRect().bottom;
+    const dock = this.sheet ? this.filterDock.offsetHeight : 0;
+
+    // The details seals match the homepage's seal, size and lettering.
+    this.root.style.setProperty('--seal-width', `${sealWidth}px`);
+    this.root.style.setProperty('--seal-label-size', labelSize);
 
     const clockTop = view.y + (Math.floor((height - view.y) / pitch) - (stacked ? 21 : 7)) * pitch;
     // Only the cards the filter keeps are laid out; the rest are hidden.
@@ -517,11 +525,10 @@ export class WorksGallery {
     this.shown = shown;
     // Cards lean to the top or the bottom of the space between the top bar
     // and the clock, each at its own height there; all share one size.
-    const barBottom = this.nav.getBoundingClientRect().bottom;
     const top = snapRow(barBottom + (stacked ? 16 : 24));
     // The sheet (exploration) runs down to the screen's bottom, where its
     // filter lies (WORKS_FILTER.edge px up); the row stops above the clock.
-    const floor = this.sheet ? height - WORKS_FILTER.edge - this.filterDock.offsetHeight : clockTop;
+    const floor = this.sheet ? height - WORKS_FILTER.edge - dock : clockTop;
     if (this.sheet) {
       this.layoutSheet({ top, bar: barBottom, floor, pitch, stacked, snapCol, quiet, dither });
       return;
@@ -1193,7 +1200,11 @@ export class WorksGallery {
       for (const entry of this.shown) entry.image.style.translate = '';
       return;
     }
-    const centre = this.scroller.scrollLeft + innerWidth / 2;
+    // The scroll is read before the photos are slid: read after, it would have
+    // the browser restyle the row first, every frame. Sliding a photo inside
+    // its window, which clips it, changes neither.
+    const at = this.scroller.scrollLeft, max = this.scroller.scrollWidth - this.scroller.clientWidth;
+    const centre = at + innerWidth / 2;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     this.cards.forEach((card, index) => {
       const entry = this.shown[index];
@@ -1204,7 +1215,6 @@ export class WorksGallery {
     });
     // The current stamp is the one nearest the middle, except at either end
     // of the row, where it is the first or the last.
-    const max = this.scroller.scrollWidth - this.scroller.clientWidth, at = this.scroller.scrollLeft;
     let current = 0;
     if (max > 0 && at >= max - 1) current = this.cards.length - 1;
     else if (at > 1) {
@@ -1249,16 +1259,17 @@ export class WorksGallery {
       }
       this.scroller[this.scrollAxis] = this.glidePosition;
     }
-    this.updateRow();
     this.roll();
     let moving = this.gliding || now < (this.paintUntil ?? 0);
     // Only a card hovered, pressed or still settling moves; the rest lie flat
-    // and are not measured. Read those cards' places before writing
-    // transforms. Native images travel with their paper frame without a
-    // separate rendering layer.
+    // and are not measured. Read those cards' places before writing anything
+    // this frame, the photos' slide included (a card's place is its own, not
+    // its photo's), so nothing has to be restyled to answer. Native images
+    // travel with their paper frame without a separate rendering layer.
     const resting = entry => entry !== this.active && !entry.pressed && !entry.pose.rx && !entry.pose.ry && entry.pose.scale === 1;
     const live = this.items.filter(entry => !resting(entry));
     const places = new Map(live.map(entry => [entry, entry.item.getBoundingClientRect()]));
+    this.updateRow();
     live.forEach(entry => {
       const anchor = places.get(entry);
       const hovered = entry === this.active;
@@ -1308,6 +1319,12 @@ export class WorksGallery {
   roll() {
     const loop = this.sheet && this.cards ? this.loop : null;
     if (!this.sheet || !this.cards || !(loop || this.curl)) return;
+    // A sheet that does not run on round, whose strips either all run or do
+    // not run at all, has nothing that changes with the scroll: no copy comes
+    // round and no ghost shows. Once placed for its layout (its cards), it is
+    // left as it is.
+    const still = !loop && (!this.roller.rolling || this.roller.rolling.always);
+    if (still && this.rolled === this.cards) return;
     const scroll = this.scroller.scrollTop, height = innerHeight;
     // Between the curl lines while the edges roll; else the whole screen.
     const edges = this.roller.rolling ? this.curl : { top: 0, bottom: height };
@@ -1334,6 +1351,7 @@ export class WorksGallery {
       this.roller.ghost(entry, card, loop ? copies.filter(copy => copy !== kept).map(([copy]) => card.y + copy * loop.period) : []);
     });
     this.roller.place(scroll, loop?.period ?? 0);
+    this.rolled = still ? this.cards : null;
   }
 
   keepPainting(duration) {
