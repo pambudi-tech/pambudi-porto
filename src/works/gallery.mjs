@@ -1,5 +1,5 @@
 import { GRID } from '../stitch/model.mjs';
-import { paperFlipKeyframes } from '../paper/paper-flip.mjs';
+import { PAPER_AWAY, PaperAway, followDelay } from '../paper/paper-away.mjs';
 import { WORKS, EXPLORATION, clockLabel, fullCover, workHref, yearLabel } from '../content/works.mjs';
 import { clockTextLayout } from '../clock/clock.mjs';
 import { paperTarget, advancePaper } from '../paper/paper-motion.mjs';
@@ -16,7 +16,6 @@ import { SheetRoller, copiesOf, rollerRadius, rollsSmoothly } from './sheet-roll
 
 // The paper turns away using the first half of its own flip and is gone
 // when edge-on; it returns through the second half, from the other side.
-export const PAPER_AWAY = Object.freeze({ duration: 560 });
 export const WORKS_MOTION = Object.freeze({ fade: 280 });
 // Exploration's filter lies along the bottom, `edge` px up from the screen's
 // edge (works.css).
@@ -166,19 +165,12 @@ export function ownShapeWidth(aspect, height, inset, perf) {
 // card shows the picture alone: no number, title or tags.
 const ownShape = work => work.width > 0 && work.height > 0;
 
-export function halfFlipKeyframes(half) {
-  const frames = half === 'away' ? paperFlipKeyframes(0, 180) : paperFlipKeyframes(-180, 0);
-  return frames
-    .filter(frame => half === 'away' ? frame.offset <= .5 : frame.offset >= .5)
-    .map(frame => ({ ...frame, offset: half === 'away' ? frame.offset * 2 : frame.offset * 2 - 1 }));
-}
-
 export class WorksGallery {
   constructor(root, { scene, paper, frontSeal, motionPreference, collections = { works: WORKS, exploration: EXPLORATION } }) {
     this.root = root;
     this.scene = scene;
     this.paper = paper;
-    this.turn = paper.querySelector('.paper-turn');
+    this.paperAway = new PaperAway(paper, motionPreference);
     this.frontSeal = frontSeal;
     this.motionPreference = motionPreference;
     this.scroller = root.querySelector('.works-scroll');
@@ -409,8 +401,11 @@ export class WorksGallery {
     this.scene.setBirdAway?.(true, { immediate: instant });
     this.paper.inert = true;
     this.paper.dispatchEvent(new CustomEvent('paperflipstart'));
-    if (!instant) await this.turnPaper('away');
-    this.paper.style.visibility = 'hidden';
+    // The paper shrinks, blurs and fades (paper-away.mjs), and the cards
+    // follow it out a moment later, as the resume's pages do.
+    const follow = instant || this.reduced ? 0 : followDelay();
+    if (instant) this.paper.style.visibility = 'hidden';
+    else this.paperAway.away().then(() => { if (this.isOpen) this.paper.style.visibility = 'hidden'; });
     this.isOpen = true;
     this.root.hidden = false;
     document.body.classList.add('works-open');
@@ -426,8 +421,8 @@ export class WorksGallery {
     if (instant) {
       this.root.classList.add('is-instant', 'is-open');
       requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-instant')));
-    } else requestAnimationFrame(() => this.root.classList.add('is-open'));
-    this.keepPainting(entering);
+    } else setTimeout(() => { if (this.isOpen) this.root.classList.add('is-open'); }, follow);
+    this.keepPainting(entering + follow);
     this.busy = false;
     (this.shown.find(entry => workHref(entry.work)) ?? this.shown[0])?.link.focus({ preventScroll: true, focusVisible: false });
     // A project opened at its own address shows over the row; its glitch is
@@ -470,7 +465,13 @@ export class WorksGallery {
     }
     this.root.classList.remove('is-open');
     this.keepPainting(WORKS_MOTION.fade + 100);
-    await new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade));
+    // The paper grows back into place as the cards leave (paper-away.mjs).
+    this.paper.style.visibility = '';
+    this.scene.restPaper?.();
+    this.scene.relightPaper?.();
+    this.scene.setBirdAway?.(false);
+    if (fromSheet) this.syncClock({ away: false, home: true });
+    await Promise.all([this.paperAway.back(), new Promise(resolve => setTimeout(resolve, this.reduced ? 0 : WORKS_MOTION.fade))]);
     this.root.hidden = true;
     this.isOpen = false;
     // Out of sight, the seals rest until the row opens again, and the
@@ -478,12 +479,6 @@ export class WorksGallery {
     this.sealsAway(true);
     this.dropGlitch();
     this.syncWheel();
-    this.paper.style.visibility = '';
-    this.scene.restPaper?.();
-    this.scene.relightPaper?.();
-    this.scene.setBirdAway?.(false);
-    if (fromSheet) this.syncClock({ away: false, home: true });
-    await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
     document.body.classList.remove('works-open');
@@ -549,17 +544,6 @@ export class WorksGallery {
     return Math.max(...delays.values(), 0) + SHEET_ENTRANCE.settle + 100;
   }
 
-  // Half of the paper's own turn: it accelerates into edge-on and vanishes,
-  // then returns decelerating from edge-on, completing the revolution.
-  async turnPaper(half) {
-    if (this.reduced) return;
-    const animation = this.turn.animate(halfFlipKeyframes(half), {
-      duration: PAPER_AWAY.duration, easing: 'linear', fill: half === 'away' ? 'forwards' : 'none', composite: 'add',
-    });
-    this.turnAnimation?.cancel();
-    this.turnAnimation = half === 'away' ? animation : null;
-    await animation.finished;
-  }
 
   // `quiet` only measures and places, for warm() below: no dithering yet,
   // and no frame painted while the row is out of sight.

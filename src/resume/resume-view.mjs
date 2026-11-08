@@ -1,6 +1,7 @@
 import '../styles/resume.css';
 import { mountPinPanel } from '../project/project-pin.mjs';
 import { WORKS_VEIL, aberrationFilter } from '../works/gallery.mjs';
+import { PAPER_AWAY, PaperAway, followDelay } from '../paper/paper-away.mjs';
 import { ResumePages, loadPdfjs } from './resume-pages.mjs';
 import { ResumeRoller } from './resume-roller.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
@@ -26,11 +27,8 @@ import { GRID } from '../stitch/model.mjs';
 // `blur`: the locked pages' blur, as a share of their width; `unblur`: ms
 // for it to clear (resume.css).
 // `settled`: ms for a right PIN's digits to settle before the pages are drawn.
-// `swap`: ms for the paper to shrink and fade, and back; `shrink`: how small
-// it gets; `follow`: the share of that the pages wait before arriving, so
-// they follow the paper out rather than cover it.
-// `paperBlur`: px the paper blurs as it fades.
-export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, follow: .35, paperBlur: 2, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
+// The paper's own way out and back is paper-away.mjs's, as the works row's.
+export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
 const FILE = 'Ivan-Pambudi-Resume.pdf';
 const PROMPT = 'enter pin to view the resume';
 const PENDING = Symbol('pending');
@@ -65,6 +63,7 @@ export class ResumeView {
     this.link = link;
     this.aboutLink = paper.querySelector('.intro-link');
     this.motionPreference = motionPreference;
+    this.paperAway = new PaperAway(paper, motionPreference);
     this.clock = document.getElementById('portfolio-clock');
     this.scroller = root.querySelector('.resume-scroll');
     this.tools = root.querySelector('.resume-tools');
@@ -157,7 +156,7 @@ export class ResumeView {
     document.body.classList.add('resume-open');
     this.clock?.setAttribute('aria-hidden', 'true');
     // The paper shrinks and fades as the pages arrive, together.
-    const away = instant ? null : this.fadePaper(true);
+    const away = instant ? null : this.paperAway.away();
     away?.then(() => { if (this.isOpen) this.paper.style.visibility = 'hidden'; });
     await teaser;
     // The resume, if it is drawn already, shows from the first frame; else
@@ -176,7 +175,7 @@ export class ResumeView {
     // The roller a frame on: it fades in after the pages (resume.css), so
     // building its strips apart from their first frame cannot be seen.
     requestAnimationFrame(() => { if (this.isOpen) this.roll(); });
-    const follow = instant || this.reduced ? 0 : RESUME_VIEW.swap * RESUME_VIEW.follow;
+    const follow = instant || this.reduced ? 0 : followDelay();
     this.openedAt = performance.now() + follow;
     if (instant || this.reduced) {
       this.openedAt -= RESUME_VIEW.settle;
@@ -242,12 +241,12 @@ export class ResumeView {
     this.paper.style.visibility = '';
     this.scene.setBirdAway?.(false);
     if (this.clock && !this.reduced) {
-      this.clock.style.transition = `opacity ${RESUME_VIEW.swap}ms ease`;
-      setTimeout(() => this.clock.style.removeProperty('transition'), RESUME_VIEW.swap + 50);
+      this.clock.style.transition = `opacity ${PAPER_AWAY.duration}ms ease`;
+      setTimeout(() => this.clock.style.removeProperty('transition'), PAPER_AWAY.duration + 50);
     }
     document.body.classList.remove('resume-open');
     this.clock?.removeAttribute('aria-hidden');
-    await Promise.all([this.fadePaper(false), wait(this.reduced ? 0 : RESUME_VIEW.fade)]);
+    await Promise.all([this.paperAway.back(), wait(this.reduced ? 0 : RESUME_VIEW.fade)]);
     this.root.hidden = true;
     this.isOpen = false;
     // Back at its default for the next visit: no panel, no band, the top.
@@ -259,26 +258,6 @@ export class ResumeView {
     this.paper.dispatchEvent(new CustomEvent('paperflipend', { detail: { red: this.fromRed } }));
     this.busy = false;
     (this.fromRed ? this.link : this.aboutLink)?.focus({ preventScroll: true, focusVisible: false });
-  }
-
-  // The paper shrinking a little and fading (`away`), or growing back into
-  // place, either side up. The shrink adds to its pose (paper-pose.mjs), which
-  // it keeps; the fade is its own, so it does not add up. A 2 px blur goes
-  // with the fade, so the paper and the pages read as one change rather than
-  // two things crossing (emilkowal.ski/ui/7-practical-animation-tips, no. 7).
-  async fadePaper(away) {
-    this.paperAnimations?.forEach(animation => animation.cancel());
-    this.paperAnimations = null;
-    if (this.reduced) return;
-    const scale = [{ transform: 'scale(1)' }, { transform: `scale(${RESUME_VIEW.shrink})` }];
-    const fade = [{ opacity: 1, filter: 'blur(0px)' }, { opacity: 0, filter: `blur(${RESUME_VIEW.paperBlur}px)` }];
-    const options = { duration: RESUME_VIEW.swap, easing: 'cubic-bezier(.33, 0, .2, 1)', fill: away ? 'forwards' : 'none' };
-    const animations = [
-      this.paper.animate(away ? scale : scale.reverse(), { ...options, composite: 'add' }),
-      this.paper.animate(away ? fade : fade.reverse(), options),
-    ];
-    if (away) this.paperAnimations = animations;
-    await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
   }
 
   // null: neither yet (the pages arriving); true: the locked pages and the
