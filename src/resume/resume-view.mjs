@@ -29,7 +29,8 @@ import { GRID } from '../stitch/model.mjs';
 // `swap`: ms for the paper to shrink and fade, and back; `shrink`: how small
 // it gets; `follow`: the share of that the pages wait before arriving, so
 // they follow the paper out rather than cover it.
-export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, follow: .55, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
+// `paperBlur`: px the paper blurs as it fades.
+export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, follow: .55, paperBlur: 2, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
 const FILE = 'Ivan-Pambudi-Resume.pdf';
 const PROMPT = 'enter pin to view the resume';
 const PENDING = Symbol('pending');
@@ -262,13 +263,15 @@ export class ResumeView {
 
   // The paper shrinking a little and fading (`away`), or growing back into
   // place, either side up. The shrink adds to its pose (paper-pose.mjs), which
-  // it keeps; the fade is its own, so it does not add up.
+  // it keeps; the fade is its own, so it does not add up. A 2 px blur goes
+  // with the fade, so the paper and the pages read as one change rather than
+  // two things crossing (emilkowal.ski/ui/7-practical-animation-tips, no. 7).
   async fadePaper(away) {
     this.paperAnimations?.forEach(animation => animation.cancel());
     this.paperAnimations = null;
     if (this.reduced) return;
     const scale = [{ transform: 'scale(1)' }, { transform: `scale(${RESUME_VIEW.shrink})` }];
-    const fade = [{ opacity: 1 }, { opacity: 0 }];
+    const fade = [{ opacity: 1, filter: 'blur(0px)' }, { opacity: 0, filter: `blur(${RESUME_VIEW.paperBlur}px)` }];
     const options = { duration: RESUME_VIEW.swap, easing: 'cubic-bezier(.33, 0, .2, 1)', fill: away ? 'forwards' : 'none' };
     const animations = [
       this.paper.animate(away ? scale : scale.reverse(), { ...options, composite: 'add' }),
