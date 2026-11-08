@@ -1,5 +1,5 @@
 /* The PIN panel (src/project/project-pin.mjs), shared by protected projects
-   and About Me's resume popup, which loads it on the homepage. */
+   and the resume viewer (resume.html). */
 /* A password-protected project before its PIN (project-pin.mjs): the seal
    waits hidden, and the PIN panel sits where it would be, in the back
    button's pill style, with where to ask for the PIN on one line below. */
@@ -109,37 +109,4 @@
 @media (prefers-reduced-motion: reduce) {
   .project-pin { transition: none; }
   .otp-caret { animation: none; }
-}
-
-/* About Me's resume popup (src/paper/about-resume-pin.mjs): the same panel,
-   centred over the dimmed page. */
-.pin-modal {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  max-height: none;
-  margin: 0;
-  padding: 16px;
-  border: 0;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  opacity: 1;
-  transition: opacity 360ms ease;
-}
-.pin-modal:not([open]) { display: none; }
-.pin-modal::backdrop { background: rgb(0 0 0 / .72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: opacity 360ms ease; }
-/* On the black overlay, the line below the panel turns light. */
-.pin-modal .project-pin-ask { color: rgb(255 255 255 / .72); }
-.pin-modal .project-pin-ask a, .pin-modal .project-pin-copy { color: #fff; }
-.pin-modal .project-pin-copy { border-color: rgb(255 255 255 / .32); }
-.pin-modal .project-pin-copy:hover { background: rgb(255 255 255 / .1); }
-.pin-modal :is(.project-pin-copy, .project-pin-ask a):focus-visible { outline-color: #fff; }
-.pin-modal .project-pin { position: static; }
-.pin-modal.is-closing { opacity: 0; }
-.pin-modal.is-closing::backdrop { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .pin-modal { transition: none; }
 }

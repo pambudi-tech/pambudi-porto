@@ -305,7 +305,6 @@ body.is-loading .wax-gl { transition: none; }
 .about-resume h2 { font-size: calc(1em - 2pt); letter-spacing: .12em; margin-bottom: .8em; text-transform: uppercase; }
 .about-heading { text-align: center; }
 .about-heading .about-resume-link { margin-top: .6em; }
-.about-resume-link[hidden] { display: none; }
 .about-heading > p { font-size: 14px; opacity: .88; }
 .about-detail { opacity: .7; }
 /* Short lists, no explanations: a row per role, names and dates apart. */
@@ -349,7 +348,7 @@ body.is-loading .wax-gl { transition: none; }
   mask-repeat: no-repeat;
 }
 .about-icon-linkedin { mask-image: url('/assets/contact/linkedin.svg'); }
-.about-icon-download { mask-image: url('/assets/contact/download.svg'); }
+.about-icon-open { mask-image: url('/assets/contact/external-link.svg'); }
 .about-profile:hover { text-decoration-thickness: 2px; }
 .about-profile:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
 .intro-link::after,

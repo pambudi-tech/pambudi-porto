@@ -22,12 +22,21 @@
     {
       "source": "/work/:id",
       "destination": "/home.html"
+    },
+    {
+      "source": "/resume",
+      "destination": "/resume.html"
     }
   ],
   "redirects": [
     {
       "source": "/home.html",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/resume.html",
+      "destination": "/resume",
       "permanent": true
     },
     {

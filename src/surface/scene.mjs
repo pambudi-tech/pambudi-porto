@@ -19,7 +19,6 @@ import { PaperInkLight } from '../paper/paper-ink-light.mjs';
 import { PaperFlip } from '../paper/paper-flip.mjs';
 import { setupEmailCopy } from '../paper/contact-links.mjs';
 import { mountPaperTextContour, mountAboutTextMask } from '../paper/paper-text-contour.mjs';
-import { mountResumePin } from '../paper/about-resume-pin.mjs';
 import { WaxInteraction } from '../wax/wax-interaction.mjs';
 import { BirdFlight } from '../bird/bird.mjs';
 import { FLIGHT } from '../bird/flight-path.mjs';
@@ -60,7 +59,6 @@ export async function preparePortfolio({ clock, surfaceOnly = false, surfaceNavi
     new IntroInkHover(copy, motionPreference);
     await mountPaperTextContour(copy);
     await mountAboutTextMask(document.querySelector('.about-resume'));
-    mountResumePin(document.querySelector('.about-resume-link'));
   }
   // Every page load starts with the original ornaments and no visitor motifs.
   // Motif history belongs only to this visit; no saved embroidery is restored.

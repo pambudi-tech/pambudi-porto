@@ -17,7 +17,7 @@ export default defineConfig({
     assetsDir: 'static',
     rolldownOptions: {
       // wax.html is a study for the dev server only, so it isn't built.
-      input: { home: page('index.html'), surface: page('surface.html'), work: page('work.html'), card: page('card.html'), seal: page('seal.html') },
+      input: { home: page('index.html'), surface: page('surface.html'), work: page('work.html'), card: page('card.html'), seal: page('seal.html'), resume: page('resume.html') },
     },
   },
 });

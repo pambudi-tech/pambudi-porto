@@ -1,7 +1,8 @@
 import { RESUME, hasPass, resumeFile, send } from '../server/works-pass.mjs';
 
-// GET: the resume PDF as a download, for a visitor with a pass (the same PIN
-// as protected work). About Me asks for the PIN first (src/paper/about-resume-pin.mjs).
+// GET: the resume PDF, for a visitor with a pass (the same PIN as protected
+// work). The viewer at /resume (src/pages/resume.mjs) asks for the PIN first
+// and draws it; the header names the file for anyone saving it directly.
 export default async function handler(request, response) {
   if (!hasPass(request)) return send(response, 401, { error: 'pass' });
   const body = await resumeFile();

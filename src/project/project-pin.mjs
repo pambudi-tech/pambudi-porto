@@ -15,7 +15,7 @@ const SUCCESS_HOLD = 1100;
 // A row of red cross-stitches across the top of the panel, the cover frame's
 // size and thread, straddling its edge. They sew in, left to right, with
 // `reveal`.
-export function mountPanelStitches(panel) {
+function mountPanelStitches(panel) {
   const canvas = Object.assign(document.createElement('canvas'), { className: 'project-pin-stitches' });
   canvas.setAttribute('aria-hidden', 'true');
   panel.append(canvas);
@@ -46,7 +46,8 @@ export function mountPanelStitches(panel) {
 // six-digit field in two threes (otp-field.mjs), checked as the sixth digit
 // lands. Below the panel, on one line, where to ask for the PIN. It waits
 // unseen until `arrive`. `onUnlock` runs once the PIN is right; then both
-// fold away. About Me's resume popup passes its own `prompt` and `parent`.
+// fold away. The resume viewer (src/pages/resume.mjs) passes its own
+// `prompt` and `parent`.
 export function mountPinPanel({ title, onUnlock, prompt = PROMPT, parent = document.body }) {
   const root = Object.assign(document.createElement('div'), { className: 'project-pin is-waiting' });
   const panel = Object.assign(document.createElement('form'), { className: 'project-pin-panel', noValidate: true });

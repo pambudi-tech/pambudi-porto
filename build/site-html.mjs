@@ -46,7 +46,7 @@ export function about() {
     '<header class="about-heading">',
     `  <h1 id="about-name">${escape(SITE.name)}</h1>`,
     `  <p>${escape(SITE.role)}</p>`,
-    `  <a class="about-profile about-resume-link" href="${escape(resume.href)}" download="${escape(resume.filename)}" aria-label="Download ${escape(capitalize(firstName))}’s resume (PDF)"><span class="about-icon about-icon-download" aria-hidden="true"></span><span>${escape(resume.label)}</span></a>`,
+    `  <a class="about-profile about-resume-link" href="${escape(resume.href)}" target="_blank" rel="noopener" aria-label="Open ${escape(capitalize(firstName))}’s resume in a new tab"><span class="about-icon about-icon-open" aria-hidden="true"></span><span>${escape(resume.label)}</span></a>`,
     '</header>',
     '<section aria-labelledby="about-experience">',
     '  <h2 id="about-experience">experience</h2>',
@@ -127,11 +127,13 @@ export function siteHtml() {
 
 // /work/<id> opens the index, which shows the project over its works row as
 // if its card had been chosen (home.mjs). The project page itself is one
-// template, work.html?work=<id>, filled in the browser.
+// template, work.html?work=<id>, filled in the browser. /resume is the
+// resume viewer, resume.html, as vercel.json serves it.
 export function projectRoutes() {
   const rewrite = (request, _response, next) => {
     const [path, query] = request.url.split('?');
     if (/^\/work\/[^/.]+\/?$/.test(path)) request.url = `/index.html${query ? `?${query}` : ''}`;
+    else if (/^\/resume\/?$/.test(path)) request.url = `/resume.html${query ? `?${query}` : ''}`;
     next();
   };
   return {
