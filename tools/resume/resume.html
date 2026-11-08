@@ -28,6 +28,13 @@
   h2 { font-size: 10.5pt; font-weight: 600; letter-spacing: 0; margin: 10pt 0 4pt; padding-bottom: 2pt; border-bottom: .75pt solid #111; }
   h3 { font-size: 10pt; font-weight: 600; margin: 7pt 0 0; }
   .meta { margin: 1pt 0 2pt; font-size: 8.4pt; color: #444; }
+  /* Each role's title, with its dates and place on the right of its line. */
+  /* On the title's last line, so a title that wraps reads whole first; a
+     space kept before the dates keeps the two apart for text extractors. */
+  .role { display: flex; justify-content: space-between; align-items: last baseline; gap: 14pt; margin: 7pt 0 1pt; break-after: avoid; }
+  .role h3 { margin: 0; }
+  .role .meta::before { content: " "; white-space: pre; }
+  .role .meta { margin: 0; flex: none; white-space: nowrap; text-align: right; }
   h4 { font-size: 9.6pt; font-weight: 500; color: #333; margin: 4pt 0 1pt; }
   p { margin: 0 0 3pt; }
   ul { margin: 2pt 0 0; padding-left: 14pt; }
@@ -50,8 +57,7 @@
 
 <h2>Work Experience</h2>
 
-<h3>Designer (Contract) | Natuno</h3>
-<p class="meta">May 2026 - Sep 2026 | Remote</p>
+<div class="role"><h3>Designer (Contract) | Natuno</h3><p class="meta">May 2026 - Sep 2026 | Remote</p></div>
 <h4>Main Banking Website Revamp (BCA)</h4>
 <ul>
 <li>Created high-fidelity UI designs and independently built a functional live web prototype to support usability testing in Natuno's research engagement.</li>
@@ -66,8 +72,7 @@
 <li>Built web-based documentation of components, design tokens, assets, sitemap and user flows as a shared reference for stakeholders and developers.</li>
 </ul>
 
-<h3>Designer (Embedded Product Design Retainer) | PT Bank Central Asia Tbk (BCA)</h3>
-<p class="meta">Jul 2024 - May 2026 | Jakarta, Indonesia | On-site</p>
+<div class="role"><h3>Designer (Embedded Product Design Retainer) | PT Bank Central Asia Tbk (BCA)</h3><p class="meta">Jul 2024 - May 2026 | Jakarta, Indonesia | On-site</p></div>
 <h4>Ocean by BCA, a new digital banking platform for business customers</h4>
 <ul>
 <li>Architected and extended the product design system: designed core UI components, expanded the color token library and structured the base design system file.</li>
@@ -78,45 +83,39 @@
 <li>Collaborated with the client on branding and art direction explorations for the platform and its ecosystem.</li>
 </ul>
 
-<h3>UI Designer (Freelance) | Mandalika Grand Prix Association</h3>
-<p class="meta">May 2023 - Jul 2023 | Remote</p>
+<div class="role"><h3>UI Designer (Freelance) | Mandalika Grand Prix Association</h3><p class="meta">May 2023 - Jul 2023 | Remote</p></div>
 <ul>
 <li>Designed the MotoGP Mandalika website from scratch, working closely with the project manager to match the client's vision.</li>
 <li>Simplified the information architecture and ticket selection flow to make them easier to use.</li>
 </ul>
 
-<h3>UI Designer (Full-time) | Billionaire Store</h3>
-<p class="meta">Jan 2022 - Aug 2022 | Bandung, Indonesia</p>
+<div class="role"><h3>UI Designer (Full-time) | Billionaire Store</h3><p class="meta">Jan 2022 - Aug 2022 | Bandung, Indonesia</p></div>
 <ul>
 <li>Designed UI at both component and screen level, including the online store leaderboard page.</li>
 <li>Restructured design assets for scalability and built a lightweight design system, improving design-to-development handoff.</li>
 <li>Created social media content.</li>
 </ul>
 
-<h3>UI Designer (Freelance) | Universitas123</h3>
-<p class="meta">Nov 2021 - Apr 2022 | Remote</p>
+<div class="role"><h3>UI Designer (Freelance) | Universitas123</h3><p class="meta">Nov 2021 - Apr 2022 | Remote</p></div>
 <ul>
 <li>Redesigned the search flow of a university and scholarship discovery platform, making relevant information easier to find.</li>
 <li>Delivered responsive designs for desktop and mobile.</li>
 </ul>
 
-<h3>UI Designer (Part-time) | Padepokan Tujuh Sembilan</h3>
-<p class="meta">Nov 2019 - Jul 2020 | Bandung, Indonesia</p>
+<div class="role"><h3>UI Designer (Part-time) | Padepokan Tujuh Sembilan</h3><p class="meta">Nov 2019 - Jul 2020 | Bandung, Indonesia</p></div>
 <ul>
 <li>Designed and redesigned 7 web-based management systems across industries including field service, refueling terminals and school admissions.</li>
 <li>Worked directly with the project manager to identify and implement UX improvements for end users.</li>
 </ul>
 
-<h3>UI Designer (Intern) | Padepokan Tujuh Sembilan</h3>
-<p class="meta">Jul 2019 - Sep 2019 | Bandung, Indonesia</p>
+<div class="role"><h3>UI Designer (Intern) | Padepokan Tujuh Sembilan</h3><p class="meta">Jul 2019 - Sep 2019 | Bandung, Indonesia</p></div>
 <ul>
 <li>Developed a website for a private high school client.</li>
 <li>Introduced Figma to the team, streamlining the design-to-development workflow.</li>
 </ul>
 
 <h2>Education</h2>
-<h3>Politeknik Negeri Bandung | Diploma 3 (D3), Informatics Engineering (Teknik Informatika)</h3>
-<p class="meta">Aug 2017 - Sep 2020</p>
+<div class="role"><h3>Politeknik Negeri Bandung | Diploma 3 (D3), Informatics Engineering (Teknik Informatika)</h3><p class="meta">Aug 2017 - Sep 2020</p></div>
 <ul><li>Final project: designed and developed Ludira, a blood donor search app in Flutter, covering UX design and development end to end.</li></ul>
 
 <h2>Languages</h2>
