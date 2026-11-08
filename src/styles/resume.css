@@ -46,8 +46,9 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
   overflow: hidden;
   border-radius: 2px;
   background: #ffffff;
-  /* No outline or shadow: either would be cut where the page rolls, as the
-     exploration sheet's stamps have none to cut. */
+  /* The exploration sheet's stamp shadow (postage-stamp.css): so slight it
+     shows nothing cut where the page rolls; the rolled strips carry it too. */
+  filter: var(--works-paper-shadow);
   /* Settling onto the cloth top first, as the works sheet's lines do, and
      leaving the same way back. Finished images only: nothing is drawn as
      they move. */
@@ -83,7 +84,8 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
 .resume-view.is-open .resume-roller { opacity: 1; transition-duration: 360ms; transition-delay: 200ms; }
 .resume-view.is-instant .resume-roller { transition: none; }
 .resume-roller-strip { position: absolute; top: 0; overflow: hidden; opacity: 0; transform-origin: 0 0; backface-visibility: hidden; }
-.resume-roller-strip canvas { display: block; width: 100%; height: 100%; }
+/* Each strip reaches 2 px past its page each side, room for its shadow. */
+.resume-roller-strip canvas { display: block; width: calc(100% - 4px); height: 100%; margin-left: 2px; filter: var(--works-paper-shadow); }
 /* Where each page lies in the scroll, for its strips to follow. */
 .resume-roller-mark { position: absolute; left: 0; width: 1px; visibility: hidden; pointer-events: none; }
 /* The pages show only between the curl lines; past them, the roller. */

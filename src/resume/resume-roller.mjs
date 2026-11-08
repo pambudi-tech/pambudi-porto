@@ -67,7 +67,7 @@ export class ResumeRoller {
         this.sheetsRoot.append(mark);
         const strips = Array.from({ length: count }, (_, at) => {
           const element = Object.assign(document.createElement('div'), { className: 'resume-roller-strip' });
-          Object.assign(element.style, { left: `${box.x}px`, width: `${box.w}px`, height: `${strip + ROLLER.overlap}px` });
+          Object.assign(element.style, { left: `${box.x - 2}px`, width: `${box.w + 4}px`, height: `${strip + ROLLER.overlap}px` });
           element.style.animation = 'resume-roll linear both';
           element.style.setProperty('animation-timeline', name);
           element.style.setProperty('animation-range', `cover ${at * strip}px cover ${at * strip + span}px`);
