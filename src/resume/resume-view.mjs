@@ -1,13 +1,13 @@
 import '../styles/resume.css';
 import { mountPinPanel } from '../project/project-pin.mjs';
-import { PAPER_AWAY, WORKS_VEIL, aberrationFilter, halfFlipKeyframes } from '../works/gallery.mjs';
+import { WORKS_VEIL, aberrationFilter } from '../works/gallery.mjs';
 import { ResumePages, loadPdfjs } from './resume-pages.mjs';
 import { ResumeRoller } from './resume-roller.mjs';
 import { isPhone } from '../shared/breakpoints.mjs';
 import { GRID } from '../stitch/model.mjs';
 
-// The resume on the homepage, at /resume: About Me's "resume" turns the paper
-// away and fades the clock, as the works sheet does, and the resume's pages
+// The resume on the homepage, at /resume: About Me's "resume" shrinks the
+// paper a little as it fades, and the clock with it, while the resume's pages
 // settle onto the cloth under a bar like the works row's: back, then the page
 // count and the download. The PDF sits behind the works PIN (api/resume.js):
 // until it, the pages show blurred (a teaser, every word below the header
@@ -15,8 +15,8 @@ import { GRID } from '../stitch/model.mjs';
 // sheet's own veil, its blur and parted colours growing in. The right PIN
 // draws the resume and puts it in the teaser's place under the blur, while
 // "unlocked for a day" shows; then the blur clears. "back" mirrors the way in: the
-// pages and the bar leave, the clock returns, and the paper turns home to
-// the side it left from. Scrolled, the pages roll over the screen's top and
+// pages and the bar leave as the paper grows back into place, the side it
+// left from up, and the clock returns. Scrolled, the pages roll over the screen's top and
 // bottom edges under the exploration sheet's veils, as its lines do
 // (resume-roller.mjs).
 
@@ -26,7 +26,9 @@ import { GRID } from '../stitch/model.mjs';
 // `blur`: the locked pages' blur, as a share of their width; `unblur`: ms
 // for it to clear (resume.css).
 // `settled`: ms for a right PIN's digits to settle before the pages are drawn.
-export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
+// `swap`: ms for the paper to shrink and fade, as the pages arrive, and back;
+// `shrink`: how small it gets.
+export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
 const FILE = 'Ivan-Pambudi-Resume.pdf';
 const PROMPT = 'enter pin to view the resume';
 const PENDING = Symbol('pending');
@@ -58,7 +60,6 @@ export class ResumeView {
     this.root = root;
     this.scene = scene;
     this.paper = paper;
-    this.turn = paper.querySelector('.paper-turn');
     this.link = link;
     this.aboutLink = paper.querySelector('.intro-link');
     this.motionPreference = motionPreference;
@@ -153,7 +154,9 @@ export class ResumeView {
     this.paper.dispatchEvent(new CustomEvent('paperflipstart'));
     document.body.classList.add('resume-open');
     this.clock?.setAttribute('aria-hidden', 'true');
-    if (!instant) await this.turnPaper('away');
+    // The paper shrinks and fades as the pages arrive, together.
+    const away = instant ? null : this.fadePaper(true);
+    away?.then(() => { if (this.isOpen) this.paper.style.visibility = 'hidden'; });
     await teaser;
     // The resume, if it is drawn already, shows from the first frame; else
     // the teaser, blurred, until it is.
@@ -162,7 +165,7 @@ export class ResumeView {
     else this.pages.showTeaser();
     // Blurred before it shows, so it arrives blurred.
     this.root.classList.toggle('is-blurred', !ready?.parts);
-    this.paper.style.visibility = 'hidden';
+    if (!away) this.paper.style.visibility = 'hidden';
     this.root.hidden = false;
     this.isOpen = true;
     this.placeTop();
@@ -230,25 +233,24 @@ export class ResumeView {
     this.pin?.element.classList.add('is-leaving');
     clearTimeout(this.veilTimer);
     this.veilTo(0, RESUME_VIEW.fade);
-    await wait(this.reduced ? 0 : RESUME_VIEW.fade);
+    // The pages leave as the paper grows back into place, and the clock with it.
+    this.scene.restPaper?.();
+    this.scene.relightPaper?.();
+    this.paper.style.visibility = '';
+    this.scene.setBirdAway?.(false);
+    if (this.clock && !this.reduced) {
+      this.clock.style.transition = `opacity ${RESUME_VIEW.swap}ms ease`;
+      setTimeout(() => this.clock.style.removeProperty('transition'), RESUME_VIEW.swap + 50);
+    }
+    document.body.classList.remove('resume-open');
+    this.clock?.removeAttribute('aria-hidden');
+    await Promise.all([this.fadePaper(false), wait(this.reduced ? 0 : RESUME_VIEW.fade)]);
     this.root.hidden = true;
     this.isOpen = false;
     // Back at its default for the next visit: no panel, no band, the top.
     this.dropPanel();
     this.setLocked(null);
     this.root.classList.remove('is-blurred');
-    this.paper.style.visibility = '';
-    this.scene.restPaper?.();
-    this.scene.relightPaper?.();
-    this.scene.setBirdAway?.(false);
-    // The clock returns slowly, in step with the paper turning back.
-    if (this.clock && !this.reduced) {
-      this.clock.style.transition = `opacity ${PAPER_AWAY.duration}ms ease-in-out`;
-      setTimeout(() => this.clock.style.removeProperty('transition'), PAPER_AWAY.duration + 50);
-    }
-    document.body.classList.remove('resume-open');
-    this.clock?.removeAttribute('aria-hidden');
-    await this.turnPaper('back');
     this.paper.inert = false;
     this.scene.setPaperPresent(true);
     this.paper.dispatchEvent(new CustomEvent('paperflipend', { detail: { red: this.fromRed } }));
@@ -256,15 +258,22 @@ export class ResumeView {
     (this.fromRed ? this.link : this.aboutLink)?.focus({ preventScroll: true, focusVisible: false });
   }
 
-  // Half the paper's turn, as the works view takes it, from either side.
-  async turnPaper(half) {
+  // The paper shrinking a little and fading (`away`), or growing back into
+  // place, either side up. The shrink adds to its pose (paper-pose.mjs), which
+  // it keeps; the fade is its own, so it does not add up.
+  async fadePaper(away) {
+    this.paperAnimations?.forEach(animation => animation.cancel());
+    this.paperAnimations = null;
     if (this.reduced) return;
-    const animation = this.turn.animate(halfFlipKeyframes(half), {
-      duration: PAPER_AWAY.duration, easing: 'linear', fill: half === 'away' ? 'forwards' : 'none', composite: 'add',
-    });
-    this.turnAnimation?.cancel();
-    this.turnAnimation = half === 'away' ? animation : null;
-    await animation.finished;
+    const scale = [{ transform: 'scale(1)' }, { transform: `scale(${RESUME_VIEW.shrink})` }];
+    const fade = [{ opacity: 1 }, { opacity: 0 }];
+    const options = { duration: RESUME_VIEW.swap, easing: 'cubic-bezier(.33, 0, .2, 1)', fill: away ? 'forwards' : 'none' };
+    const animations = [
+      this.paper.animate(away ? scale : scale.reverse(), { ...options, composite: 'add' }),
+      this.paper.animate(away ? fade : fade.reverse(), options),
+    ];
+    if (away) this.paperAnimations = animations;
+    await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
   }
 
   // null: neither yet (the pages arriving); true: the locked pages and the
