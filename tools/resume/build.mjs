@@ -2,11 +2,11 @@
 // selectable text for ATS parsers, into private/resume/ivan-pambudi-resume.pdf,
 // served only to PIN pass holders by api/resume.js.
 //
-// Then the public pages shown before the PIN, as a protected work's cover is:
-// the teaser (scramble.mjs: every word below the header scrambled) is printed
-// the same way, each page drawn small with pdf.js (@napi-rs/canvas comes with
-// pdfjs-dist), and locked-pages.py bakes those into the locked dither, at
-// public/assets/resume/locked-<page>.webp. The teaser itself is not kept.
+// Then the public pages shown, blurred, before the PIN: the teaser
+// (scramble.mjs: every word below the header scrambled) is printed the same
+// way and each page drawn with pdf.js (@napi-rs/canvas comes with
+// pdfjs-dist) into public/assets/resume/teaser-<page>.webp. Nothing in it is
+// private; the teaser PDF itself is not kept.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,9 +20,9 @@ const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/M
 const here = path => fileURLToPath(new URL(path, import.meta.url));
 const source = here('./resume.html');
 const resume = here('../../private/resume/ivan-pambudi-resume.pdf');
-const lockedDir = here('../../public/assets/resume/');
-// The locked sample's width (tools/locked-preview.py, src/project/cover-reveal.mjs).
-const SAMPLE = 140;
+const teaserDir = here('../../public/assets/resume/');
+// The teaser pages' width: plenty under the blur they are shown with.
+const WIDTH = 480;
 
 const print = (html, pdf) => execFileSync(chrome, ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', `--print-to-pdf=${pdf}`, pathToFileURL(html).href], { stdio: 'ignore' });
 
@@ -36,22 +36,20 @@ try {
   print(teaserHtml, teaserPdf);
   const task = getDocument({ data: new Uint8Array(readFileSync(teaserPdf)), useWasm: false, isEvalSupported: false, verbosity: 0 });
   const doc = await task.promise;
-  const pairs = [];
+  mkdirSync(teaserDir, { recursive: true });
   for (let number = 1; number <= doc.numPages; number++) {
     const page = await doc.getPage(number);
-    const viewport = page.getViewport({ scale: SAMPLE / page.getViewport({ scale: 1 }).width });
+    const viewport = page.getViewport({ scale: WIDTH / page.getViewport({ scale: 1 }).width });
     const canvas = createCanvas(Math.round(viewport.width), Math.round(viewport.height));
     const context = canvas.getContext('2d');
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvas, canvasContext: context, viewport }).promise;
-    const sample = join(scratch, `sample-${number}.png`);
-    writeFileSync(sample, canvas.toBuffer('image/png'));
-    pairs.push(sample, join(lockedDir, `locked-${number}.webp`));
+    const out = join(teaserDir, `teaser-${number}.webp`);
+    writeFileSync(out, await canvas.encode('webp', 72));
+    console.log(`wrote ${out}`);
   }
   await task.destroy();
-  mkdirSync(lockedDir, { recursive: true });
-  execFileSync('python3', [here('./locked-pages.py'), ...pairs], { stdio: 'inherit' });
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

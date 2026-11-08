@@ -3,15 +3,18 @@ import { mountPinPanel } from '../project/project-pin.mjs';
 import { PAPER_AWAY, WORKS_VEIL, aberrationFilter, halfFlipKeyframes } from '../works/gallery.mjs';
 import { ResumePages, loadPdfjs } from './resume-pages.mjs';
 import { ResumeRoller } from './resume-roller.mjs';
+import { isPhone } from '../shared/breakpoints.mjs';
+import { GRID } from '../stitch/model.mjs';
 
 // The resume on the homepage, at /resume: About Me's "resume" turns the paper
 // away and fades the clock, as the works sheet does, and the resume's pages
 // settle onto the cloth under a bar like the works row's: back, then the page
 // count and the download. The PDF sits behind the works PIN (api/resume.js):
-// until it, the pages show dithered, as a protected work's cover does, with
-// the works PIN panel at the bottom over the exploration sheet's own veil,
-// its blur and parted colours growing in; the right PIN sharpens the
-// dither into the resume, as it does a cover. "back" mirrors the way in: the
+// until it, the pages show blurred (a teaser, every word below the header
+// scrambled), with the works PIN panel at the bottom over the exploration
+// sheet's own veil, its blur and parted colours growing in. The right PIN
+// draws the resume and puts it in the teaser's place under the blur, while
+// "unlocked for a day" shows; then the blur clears. "back" mirrors the way in: the
 // pages and the bar leave, the clock returns, and the paper turns home to
 // the side it left from. Scrolled, the pages roll over the screen's top and
 // bottom edges under the exploration sheet's veils, as its lines do
@@ -19,8 +22,11 @@ import { ResumeRoller } from './resume-roller.mjs';
 
 // `settle`: ms for the pages to settle before the PIN panel and the veil
 // come; `veilAbove`: px the veil reaches above the panel; `veilIn` /
-// `veilOut`: ms for its blur to grow from nothing to full and back.
-export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600 });
+// `veilOut`: ms for its blur to grow from nothing to full and back;
+// `blur`: the locked pages' blur, as a share of their width; `unblur`: ms
+// for it to clear (resume.css).
+// `settled`: ms for a right PIN's digits to settle before the pages are drawn.
+export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
 const FILE = 'Ivan-Pambudi-Resume.pdf';
 const PROMPT = 'enter pin to view the resume';
 const PENDING = Symbol('pending');
@@ -85,7 +91,11 @@ export class ResumeView {
     addEventListener('resize', () => {
       if (this.pin) this.placeVeil();
       clearTimeout(resized);
-      resized = setTimeout(() => { if (this.isOpen) this.roll(); }, 260);
+      resized = setTimeout(() => {
+        if (!this.isOpen) return;
+        this.placeTop();
+        this.roll();
+      }, 260);
     });
     addEventListener('popstate', () => {
       const here = location.pathname.replace(/\/$/, '') === RESUME_VIEW.path;
@@ -96,16 +106,17 @@ export class ResumeView {
   get reduced() { return this.motionPreference.matches; }
 
   // Readied ahead, on the visitor's way here, so opening only moves finished
-  // things: the locked pages, decoded; and for a visitor with the pass, the
+  // things: the teaser pages, decoded; and for a visitor with the pass, the
   // resume itself, fetched and drawn.
   warm() {
-    this.pages.lockedReady();
+    this.pages.teaserReady();
     this.live().catch(() => {});
   }
 
   // The resume drawn for the sheets' width, or 'locked' without a pass, or
-  // 'error'. Kept until the width changes or the pass does.
-  live() {
+  // 'error'. Kept until the width changes or the pass does. `before`: what
+  // the drawing waits for, once the PDF is fetched.
+  live({ before } = {}) {
     const width = this.pages.width();
     if (this.drawing?.width !== width) {
       const promise = (async () => {
@@ -115,6 +126,7 @@ export class ResumeView {
           if (!(bytes instanceof Uint8Array)) return bytes;
           this.bytes = bytes;
         }
+        await before;
         return this.pages.draw(this.bytes, width);
       })();
       const drawing = { width, promise };
@@ -132,7 +144,7 @@ export class ResumeView {
     this.busy = true;
     const live = this.live();
     live.catch(() => {});
-    const locked = this.pages.lockedReady();
+    const teaser = this.pages.teaserReady();
     this.fromRed = this.paper.dataset.paperSide === 'red';
     if (history && location.pathname !== RESUME_VIEW.path) window.history.pushState({ resume: true }, '', RESUME_VIEW.path);
     this.scene.setPaperPresent(false);
@@ -142,18 +154,23 @@ export class ResumeView {
     document.body.classList.add('resume-open');
     this.clock?.setAttribute('aria-hidden', 'true');
     if (!instant) await this.turnPaper('away');
-    await locked;
+    await teaser;
     // The resume, if it is drawn already, shows from the first frame; else
-    // the locked pages, until it is.
+    // the teaser, blurred, until it is.
     const ready = await Promise.race([live, Promise.resolve(PENDING)]).catch(() => PENDING);
     if (ready?.parts) await this.pages.show(ready, 'now');
-    else this.pages.showLocked();
+    else this.pages.showTeaser();
+    // Blurred before it shows, so it arrives blurred.
+    this.root.classList.toggle('is-blurred', !ready?.parts);
     this.paper.style.visibility = 'hidden';
     this.root.hidden = false;
     this.isOpen = true;
+    this.placeTop();
     this.scroller.scrollTop = 0;
     this.setLocked(ready?.parts ? false : null);
-    this.roll();
+    // The roller a frame on: it fades in after the pages (resume.css), so
+    // building its strips apart from their first frame cannot be seen.
+    requestAnimationFrame(() => { if (this.isOpen) this.roll(); });
     this.openedAt = performance.now();
     if (instant || this.reduced) {
       this.openedAt -= RESUME_VIEW.settle;
@@ -162,7 +179,8 @@ export class ResumeView {
     } else requestAnimationFrame(() => this.root.classList.add('is-open'));
     this.back.focus({ preventScroll: true, focusVisible: false });
     this.busy = false;
-    if (ready?.parts) return;
+    // Its text and links once the pages have settled.
+    if (ready?.parts) return this.layersLater(ready, RESUME_VIEW.settle);
     let result;
     try {
       result = await live;
@@ -175,8 +193,30 @@ export class ResumeView {
     if (result === 'locked') return this.lock();
     if (result === 'error') return this.failed();
     this.setLocked(false);
+    this.root.classList.remove('is-blurred');
     await this.pages.show(result, 'fade', { reduced: this.reduced });
     this.roll();
+    this.layersLater(result, 0);
+  }
+
+  // The drawing's text and links, `delay` ms on, if it still shows then.
+  layersLater(drawing, delay) {
+    setTimeout(() => {
+      if (this.isOpen && this.pages.shown === drawing) this.pages.layers(drawing).catch(() => {});
+    }, this.reduced ? 0 : delay);
+  }
+
+  // The pages start under the bar as the exploration sheet's first line does
+  // (gallery.mjs layout): 16 px below it on a phone, 24 elsewhere, on the
+  // cloth's stitch grid; the last rests as far up from the bottom. The
+  // roller's curl lines and the edge veils follow from it. The locked
+  // pages' blur grows with their width, to keep their words unreadable.
+  placeTop() {
+    const view = this.scene.view, pitch = GRID * view.scale;
+    const bar = this.root.querySelector('.resume-nav').getBoundingClientRect().bottom;
+    const top = view.y + Math.ceil((bar + (isPhone(innerWidth) ? 16 : 24) - view.y) / pitch) * pitch;
+    this.root.style.setProperty('--resume-top', `${top}px`);
+    this.root.style.setProperty('--page-blur', `${Math.max(3, this.pages.width() * RESUME_VIEW.blur).toFixed(1)}px`);
   }
 
   async close({ history = true } = {}) {
@@ -196,6 +236,7 @@ export class ResumeView {
     // Back at its default for the next visit: no panel, no band, the top.
     this.dropPanel();
     this.setLocked(null);
+    this.root.classList.remove('is-blurred');
     this.paper.style.visibility = '';
     this.scene.restPaper?.();
     this.scene.relightPaper?.();
@@ -236,7 +277,7 @@ export class ResumeView {
     this.updateEdges();
   }
 
-  // What each sheet shows now: its locked page or the resume's canvas.
+  // What each sheet shows now: its teaser page or the resume's canvas.
   sources() {
     return [...this.root.querySelectorAll('.resume-sheet')].map(sheet => sheet.querySelector('.resume-page'));
   }
@@ -274,12 +315,16 @@ export class ResumeView {
     this.setLocked(true);
     this.pin = mountPinPanel({
       title: 'resume', prompt: PROMPT, parent: this.root,
-      // Drawn while "unlocked for a day" shows and nothing moves, so the
-      // dither sharpens into finished pages.
+      // Drawn, and put in the teaser's place under the blur, while "unlocked
+      // for a day" shows and nothing moves, so the blur clears onto finished
+      // pages.
+      // The PDF is fetched at once, and drawn once the digits have settled
+      // (project-pin.mjs, 440 ms), so their moment runs clean.
       onCorrect: () => {
         dispatchEvent(new Event('works-pass'));
         this.drawing = null;
-        this.live().catch(() => {});
+        this.unlocking = this.live({ before: wait(this.reduced ? 0 : RESUME_VIEW.settled) }).then(drawing => this.takeOver(drawing));
+        this.unlocking.catch(() => {});
       },
       onUnlock: () => this.unlocked(),
     });
@@ -305,24 +350,34 @@ export class ResumeView {
     if (top != null) this.root.style.setProperty('--resume-veil-height', `${Math.round(innerHeight - top + RESUME_VIEW.veilAbove)}px`);
   }
 
-  // The right PIN: the resume, drawn while "unlocked for a day" showed
-  // (onCorrect); as the panel and the band leave, the dither sharpens into it.
+  // Under the blur, the resume takes the teaser's place, its rolled edges
+  // too: nothing of the change can be seen.
+  async takeOver(drawing) {
+    if (!drawing?.parts || !this.isOpen) return drawing;
+    await this.pages.show(drawing, 'now');
+    this.roll();
+    return drawing;
+  }
+
+  // The right PIN: as the panel and the veil leave, the blur clears from the
+  // resume, put in place while "unlocked for a day" showed (onCorrect); its
+  // text and links follow once it stands sharp.
   async unlocked() {
     let drawing;
     try {
-      drawing = await this.live();
+      drawing = await (this.unlocking ?? this.live().then(result => this.takeOver(result)));
     } catch (problem) {
       console.warn('Resume could not be drawn:', problem);
       return this.unsupported();
     }
+    this.unlocking = null;
     if (!drawing?.parts) return this.failed();
     if (!this.isOpen) return;
     this.pin = null;
     this.setLocked(false);
+    this.root.classList.remove('is-blurred');
     this.veilTo(0, RESUME_VIEW.veilOut);
-    this.updateEdges();
-    // The rolled edges take the resume once it stands clean.
-    this.pages.show(drawing, 'reveal', { reduced: this.reduced }).then(() => { if (this.isOpen) this.roll(); });
+    this.layersLater(drawing, RESUME_VIEW.unblur);
   }
 
   save() {
@@ -344,6 +399,7 @@ export class ResumeView {
     this.dropPanel();
     this.veilTo(0, RESUME_VIEW.veilOut);
     this.setLocked(null);
+    this.root.classList.remove('is-blurred');
     this.pages.note('couldn’t load the resume', { label: 'try again', run: () => location.reload() });
   }
 
@@ -351,6 +407,7 @@ export class ResumeView {
     this.dropPanel();
     this.veilTo(0, RESUME_VIEW.veilOut);
     this.setLocked(this.bytes ? false : null);
+    this.root.classList.remove('is-blurred');
     this.pages.note('this browser can’t show the resume here', this.bytes && { label: 'download the pdf', run: () => this.save() });
   }
 

@@ -86,26 +86,45 @@ export class ResumeRoller {
     this.root.classList.add('is-rolling');
   }
 
-  // Each strip's slice of what its page shows now.
+  // Each strip's slice of what its page shows, a few strips a frame, so
+  // slicing never holds the page up (the roller fades in after the pages,
+  // resume.css); a page that still shows the same thing keeps its strips.
   paint(sources) {
-    this.pages.forEach(({ strips, box, strip }, index) => {
+    this.queue ??= new Map();
+    this.pages.forEach((page, index) => {
       const source = sources?.[index];
       const width = source?.naturalWidth ?? source?.width, height = source?.naturalHeight ?? source?.height;
-      if (!width || !height) return;
-      const ratio = Math.min(devicePixelRatio || 1, SLICE_DPR);
-      const scale = height / box.h;
-      for (const { canvas, at } of strips) {
-        const w = Math.round(box.w * ratio), h = Math.round((strip + ROLLER.overlap) * ratio);
-        if (canvas.width !== w || canvas.height !== h) Object.assign(canvas, { width: w, height: h });
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, w, h);
-        context.drawImage(source, 0, at * strip * scale, width, (strip + ROLLER.overlap) * scale, 0, 0, w, h);
-      }
+      if (!width || !height || (page.source === source && page.sourceWidth === width)) return;
+      Object.assign(page, { source, sourceWidth: width });
+      for (const strip of page.strips) this.queue.set(strip, { page, source, width, height });
     });
+    if (!this.queue.size || this.painting) return;
+    const run = () => {
+      const until = performance.now() + 6;
+      for (const [strip, job] of this.queue) {
+        if (performance.now() > until) break;
+        this.queue.delete(strip);
+        this.paintStrip(strip, job);
+      }
+      this.painting = this.queue.size ? requestAnimationFrame(run) : null;
+    };
+    this.painting = requestAnimationFrame(run);
+  }
+
+  paintStrip({ canvas, at }, { page: { box, strip }, source, width, height }) {
+    const ratio = Math.min(devicePixelRatio || 1, SLICE_DPR), scale = height / box.h;
+    const w = Math.round(box.w * ratio), h = Math.round((strip + ROLLER.overlap) * ratio);
+    if (canvas.width !== w || canvas.height !== h) Object.assign(canvas, { width: w, height: h });
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, w, h);
+    context.drawImage(source, 0, at * strip * scale, width, (strip + ROLLER.overlap) * scale, 0, 0, w, h);
   }
 
   clear() {
+    cancelAnimationFrame(this.painting);
+    this.painting = null;
+    this.queue?.clear();
     for (const { mark, strips } of this.pages) {
       mark.remove();
       strips.forEach(({ element }) => element.remove());

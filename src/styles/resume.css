@@ -1,7 +1,7 @@
 /* The resume on the homepage (src/resume/resume-view.mjs), loaded with its
    code: the pages as white sheets on the cloth, over the wordmark, under a
-   bar like the works row's, and until the PIN, the works PIN panel at the
-   bottom over a band that blurs the pages and parts their colours. */
+   bar like the works row's, and until the PIN, blurred, with the works PIN
+   panel at the bottom over the exploration sheet's veil. */
 @import "./pin-panel.css";
 
 /* The clock leaves as the paper does, and comes back with it. */
@@ -24,14 +24,20 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
 .resume-scroll::-webkit-scrollbar { display: none; }
 /* Until the PIN, the locked pages stay at their top. */
 .resume-view.is-locked .resume-scroll { overflow: hidden; }
-/* The first page starts just under the bar, over the wordmark; the last
-   rests as far up from the bottom, where the roller's lower curl line is. */
+/* The pages and their rolled edges, blurred together until the PIN, the
+   blur clearing in one pass on the GPU once it is right (resume-view.mjs).
+   They arrive blurred: the class is set while the view is hidden. */
+.resume-stage { position: absolute; inset: 0; transition: filter 900ms cubic-bezier(.33, 0, .2, 1); }
+.resume-view.is-blurred .resume-stage { filter: blur(var(--page-blur, 6px)); will-change: filter; }
+/* The first page starts under the bar as the exploration sheet's first line
+   does (resume-view.mjs placeTop), over the wordmark; the last rests as far
+   up from the bottom, where the roller's lower curl line is. */
 .resume-sheets {
   position: relative;
   display: grid;
   justify-items: center;
   gap: 24px;
-  padding: calc(68px + env(safe-area-inset-top, 0px)) 16px;
+  padding: var(--resume-top, calc(68px + env(safe-area-inset-top, 0px))) 16px;
 }
 .resume-sheet {
   position: relative;
@@ -40,7 +46,9 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
   overflow: hidden;
   border-radius: 2px;
   background: #ffffff;
-  box-shadow: 0 0 0 1px rgb(73 72 63 / .08), 0 2px 4px rgb(0 0 0 / .04), 0 16px 40px rgb(0 0 0 / .08);
+  /* A hairline edge only: a soft shadow would be cut where the page rolls,
+     and the rolled strips carry the same edge (.resume-roller-strip). */
+  box-shadow: 0 0 0 1px rgb(73 72 63 / .12);
   /* Settling onto the cloth top first, as the works sheet's lines do, and
      leaving the same way back. Finished images only: nothing is drawn as
      they move. */
@@ -56,8 +64,6 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
 .resume-view.is-open .resume-sheet { opacity: 1; translate: 0 0; }
 .resume-view:not(.is-open) .resume-sheet { transition-duration: 240ms; transition-delay: 0ms; }
 .resume-page { position: absolute; inset: 0; display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
-/* The dither sharpening into the page after the PIN (cover-reveal.mjs). */
-.resume-sheet .cover-reveal { position: absolute; display: block; pointer-events: none; }
 
 /* The roller (resume-roller.mjs): the pages past the curl lines, drawn as
    strips wrapping over a cylinder, seen from the middle of the screen, each
@@ -77,7 +83,7 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
 }
 .resume-view.is-open .resume-roller { opacity: 1; transition-duration: 360ms; transition-delay: 200ms; }
 .resume-view.is-instant .resume-roller { transition: none; }
-.resume-roller-strip { position: absolute; top: 0; overflow: hidden; opacity: 0; transform-origin: 0 0; backface-visibility: hidden; }
+.resume-roller-strip { position: absolute; top: 0; overflow: hidden; opacity: 0; transform-origin: 0 0; backface-visibility: hidden; box-shadow: inset 1px 0 rgb(73 72 63 / .12), inset -1px 0 rgb(73 72 63 / .12); }
 .resume-roller-strip canvas { display: block; width: 100%; height: 100%; }
 /* Where each page lies in the scroll, for its strips to follow. */
 .resume-roller-mark { position: absolute; left: 0; width: 1px; visibility: hidden; pointer-events: none; }
@@ -281,5 +287,5 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
 }
 @media (prefers-reduced-motion: reduce) {
   body.resume-open .portfolio-clock,
-  .resume-sheet, .resume-nav, .resume-tools, .resume-roller, .resume-edge-veil { transition: none; }
+  .resume-stage, .resume-sheet, .resume-nav, .resume-tools, .resume-roller, .resume-edge-veil { transition: none; }
 }

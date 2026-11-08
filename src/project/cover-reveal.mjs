@@ -109,13 +109,9 @@ const focusOf = position => {
 // Shows `full`, a decoded photo, in the cover's `img`, which holds the
 // decoded locked preview, with the sharpening dither's arrival. Resolves once
 // the photo stands clean. Where WebGL is unavailable, or for reduced motion,
-// the photo simply takes the preview's place. `sample`: the width of the small
-// copy the preview was baked from, when not a cover's; `swap`: how `full`
-// takes the preview's place, when it is not an image (the resume's pages,
-// drawn on canvases: tools/resume/build.mjs, src/resume/resume-pages.mjs).
-export function revealCover(img, full, { reduced = false, sample = LOCKED.sample, swap: replace = () => { img.src = full.src; } } = {}) {
-  let swapped = false;
-  const swap = () => { if (!swapped) { swapped = true; replace(); } };
+// the photo simply takes the preview's place.
+export function revealCover(img, full, { reduced = false } = {}) {
+  const swap = () => { img.src = full.src; };
   if (reduced) return Promise.resolve(swap());
   const canvas = Object.assign(document.createElement('canvas'), { className: 'cover-reveal' });
   canvas.setAttribute('aria-hidden', 'true');
@@ -130,7 +126,6 @@ export function revealCover(img, full, { reduced = false, sample = LOCKED.sample
   const settings = COVER_REVEAL;
   // Over the photo exactly: its box, which overscans the stamp.
   const place = () => {
-    if (!img.isConnected) return;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const { offsetLeft: left, offsetTop: top, offsetWidth: width, offsetHeight: height } = img;
     Object.assign(canvas.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
@@ -146,7 +141,7 @@ export function revealCover(img, full, { reduced = false, sample = LOCKED.sample
   gl.uniform1f(uniforms.lockedCell, LOCKED.cell);
   gl.uniform1f(uniforms.lockedLevels, LOCKED.levels);
   // Half the width, in preview pixels, of one pixel of the small sample.
-  gl.uniform1f(uniforms.lockedBlur, img.naturalWidth / sample / 2);
+  gl.uniform1f(uniforms.lockedBlur, img.naturalWidth / LOCKED.sample / 2);
   gl.uniform1f(uniforms.levelsTo, settings.levelsTo);
   gl.uniform1f(uniforms.sharpen, settings.sharpen);
   place();
@@ -172,7 +167,7 @@ export function revealCover(img, full, { reduced = false, sample = LOCKED.sample
         return;
       }
       // The photo takes the preview's place beneath, once the canvas covers it.
-      swap();
+      if (img.src !== full.src) swap();
       requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
