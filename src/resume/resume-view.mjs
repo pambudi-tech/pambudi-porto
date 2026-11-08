@@ -26,9 +26,10 @@ import { GRID } from '../stitch/model.mjs';
 // `blur`: the locked pages' blur, as a share of their width; `unblur`: ms
 // for it to clear (resume.css).
 // `settled`: ms for a right PIN's digits to settle before the pages are drawn.
-// `swap`: ms for the paper to shrink and fade, as the pages arrive, and back;
-// `shrink`: how small it gets.
-export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
+// `swap`: ms for the paper to shrink and fade, and back; `shrink`: how small
+// it gets; `follow`: the share of that the pages wait before arriving, so
+// they follow the paper out rather than cover it.
+export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, follow: .55, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
 const FILE = 'Ivan-Pambudi-Resume.pdf';
 const PROMPT = 'enter pin to view the resume';
 const PENDING = Symbol('pending');
@@ -174,12 +175,13 @@ export class ResumeView {
     // The roller a frame on: it fades in after the pages (resume.css), so
     // building its strips apart from their first frame cannot be seen.
     requestAnimationFrame(() => { if (this.isOpen) this.roll(); });
-    this.openedAt = performance.now();
+    const follow = instant || this.reduced ? 0 : RESUME_VIEW.swap * RESUME_VIEW.follow;
+    this.openedAt = performance.now() + follow;
     if (instant || this.reduced) {
       this.openedAt -= RESUME_VIEW.settle;
       this.root.classList.add('is-instant', 'is-open');
       requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.remove('is-instant')));
-    } else requestAnimationFrame(() => this.root.classList.add('is-open'));
+    } else setTimeout(() => { if (this.isOpen) this.root.classList.add('is-open'); }, follow);
     this.back.focus({ preventScroll: true, focusVisible: false });
     this.busy = false;
     // Its text and links once the pages have settled.
