@@ -1,7 +1,7 @@
 import { DotClock } from '../clock/clock.mjs';
 import { settleWithin } from '../preloader/loading-progress.mjs';
 import { fitClock, startWelcome, welcomeSeen } from '../preloader/welcome.mjs';
-import { projectId } from '../content/routes.mjs';
+import { projectId, resumeAt } from '../content/routes.mjs';
 import { mountPress } from '../shared/press.mjs';
 import { mountTooltips } from '../shared/tooltip.mjs';
 
@@ -62,6 +62,26 @@ async function boot() {
       frontSeal: surface.querySelector('.paper-front .works-seal'),
     });
   };
+  // About Me's resume opens over the cloth (resume-view.mjs), at /resume. Its
+  // code and pdf.js come on the visitor's way to the link, never before.
+  const paper = surface.querySelector('.portfolio-paper');
+  const resumeLink = paper.querySelector('.about-resume-link');
+  let resumeView = null;
+  const makeResume = () => resumeView ??= import('../resume/resume-view.mjs').then(({ ResumeView }) => new ResumeView(
+    document.getElementById('resume'), { scene, paper, link: resumeLink, motionPreference: preference }));
+  const warmResume = () => makeResume().then(view => view.warm()).catch(error => console.warn('Resume:', error));
+  for (const type of ['pointerenter', 'focus', 'touchstart']) resumeLink.addEventListener(type, warmResume, { once: true, passive: true });
+  // Turned to About Me, the resume is readied while nothing else moves, so
+  // opening it only moves finished pages.
+  paper.addEventListener('paperflipend', event => {
+    if (event.detail.red) (window.requestIdleCallback ?? (run => setTimeout(run, 300)))(warmResume, { timeout: 1500 });
+  });
+  resumeLink.addEventListener('click', event => {
+    event.preventDefault();
+    makeResume().then(view => view.open()).catch(error => console.warn('Resume:', error));
+  });
+  // Its own address: open, the paper away, before the page shows.
+  if (resumeAt(location.pathname)) await (await makeResume()).open({ history: false, instant: true });
   // A project's address: the project is up, over the works row, before the
   // page shows; its entrance plays once the page does.
   const works = opened ? await makeWorks() : null;

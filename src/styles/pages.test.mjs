@@ -6,7 +6,7 @@ const read = path => readFileSync(new URL(`../../${path}`, import.meta.url), 'ut
 const imports = css => [...css.matchAll(/@import "\.\.\/([\w-]+)\.css";/g)].map(match => match[1]);
 
 test('each page links one stylesheet, so the build cannot regroup the cascade', () => {
-  for (const [page, sheet] of [['index.html', 'home'], ['work.html', 'work'], ['surface.html', 'surface'], ['resume.html', 'resume']]) {
+  for (const [page, sheet] of [['index.html', 'home'], ['work.html', 'work'], ['surface.html', 'surface']]) {
     const links = [...read(page).matchAll(/<link[^>]+rel="stylesheet"[^>]+href="(\/src\/[^"]+)"/g)].map(match => match[1]);
     assert.deepEqual(links, [`/src/styles/pages/${sheet}.css`], page);
   }

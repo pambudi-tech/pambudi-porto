@@ -348,7 +348,7 @@ body.is-loading .wax-gl { transition: none; }
   mask-repeat: no-repeat;
 }
 .about-icon-linkedin { mask-image: url('/assets/contact/linkedin.svg'); }
-.about-icon-open { mask-image: url('/assets/contact/external-link.svg'); }
+.about-icon-resume { mask-image: url('/assets/contact/newspaper.svg'); }
 .about-profile:hover { text-decoration-thickness: 2px; }
 .about-profile:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
 .intro-link::after,

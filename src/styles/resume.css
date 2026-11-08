@@ -1,0 +1,285 @@
+/* The resume on the homepage (src/resume/resume-view.mjs), loaded with its
+   code: the pages as white sheets on the cloth, over the wordmark, under a
+   bar like the works row's, and until the PIN, the works PIN panel at the
+   bottom over a band that blurs the pages and parts their colours. */
+@import "./pin-panel.css";
+
+/* The clock leaves as the paper does, and comes back with it. */
+body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; }
+
+.resume-view {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  font: 12px/1.4 "Syne Mono", monospace;
+  color: var(--ink);
+}
+.resume-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.resume-scroll::-webkit-scrollbar { display: none; }
+/* Until the PIN, the locked pages stay at their top. */
+.resume-view.is-locked .resume-scroll { overflow: hidden; }
+/* The first page starts just under the bar, over the wordmark; the last
+   rests as far up from the bottom, where the roller's lower curl line is. */
+.resume-sheets {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 24px;
+  padding: calc(68px + env(safe-area-inset-top, 0px)) 16px;
+}
+.resume-sheet {
+  position: relative;
+  width: min(820px, 100%);
+  aspect-ratio: 595.92 / 842.88;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgb(73 72 63 / .08), 0 2px 4px rgb(0 0 0 / .04), 0 16px 40px rgb(0 0 0 / .08);
+  /* Settling onto the cloth top first, as the works sheet's lines do, and
+     leaving the same way back. Finished images only: nothing is drawn as
+     they move. */
+  opacity: 0;
+  translate: 0 16px;
+  transition: opacity 360ms ease, translate 560ms var(--ease-out);
+  transition-delay: calc(var(--index, 0) * 90ms);
+  will-change: opacity, translate;
+  /* pdf.js sizes its text layer from these (setLayerDimensions). */
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+.resume-view.is-open .resume-sheet { opacity: 1; translate: 0 0; }
+.resume-view:not(.is-open) .resume-sheet { transition-duration: 240ms; transition-delay: 0ms; }
+.resume-page { position: absolute; inset: 0; display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
+/* The dither sharpening into the page after the PIN (cover-reveal.mjs). */
+.resume-sheet .cover-reveal { position: absolute; display: block; pointer-events: none; }
+
+/* The roller (resume-roller.mjs): the pages past the curl lines, drawn as
+   strips wrapping over a cylinder, seen from the middle of the screen, each
+   moved by the scroll itself, as the exploration sheet's (works.css
+   .sheet-roller). Under the pages, which show only between the curl lines;
+   it comes and goes with them. */
+.resume-roller {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  perspective-origin: 50% 50%;
+  contain: strict;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.resume-view.is-open .resume-roller { opacity: 1; transition-duration: 360ms; transition-delay: 200ms; }
+.resume-view.is-instant .resume-roller { transition: none; }
+.resume-roller-strip { position: absolute; top: 0; overflow: hidden; opacity: 0; transform-origin: 0 0; backface-visibility: hidden; }
+.resume-roller-strip canvas { display: block; width: 100%; height: 100%; }
+/* Where each page lies in the scroll, for its strips to follow. */
+.resume-roller-mark { position: absolute; left: 0; width: 1px; visibility: hidden; pointer-events: none; }
+/* The pages show only between the curl lines; past them, the roller. */
+.resume-view.is-rolling .resume-scroll {
+  -webkit-mask-image: linear-gradient(transparent var(--curl-top), #000 var(--curl-top), #000 var(--curl-bottom), transparent var(--curl-bottom));
+  mask-image: linear-gradient(transparent var(--curl-top), #000 var(--curl-top), #000 var(--curl-bottom), transparent var(--curl-bottom));
+}
+/* The exploration sheet's edge veils (works.css .works-veil): as deep as the
+   curl lines, the top one once scrolled, the bottom one while there is more. */
+.resume-edge-veil {
+  position: absolute;
+  left: -24px;
+  right: -24px;
+  z-index: 1;
+  height: var(--curl-top, 68px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.resume-edge-veil[data-edge="top"] {
+  top: 0;
+  -webkit-mask-image: linear-gradient(#000 40%, transparent);
+  mask-image: linear-gradient(#000 40%, transparent);
+  background: linear-gradient(rgb(255 255 255 / .38), rgb(255 255 255 / 0));
+}
+.resume-edge-veil[data-edge="bottom"] {
+  bottom: 0;
+  -webkit-mask-image: linear-gradient(to top, #000 40%, transparent);
+  mask-image: linear-gradient(to top, #000 40%, transparent);
+  background: linear-gradient(to top, rgb(255 255 255 / .38), rgb(255 255 255 / 0));
+}
+.resume-view.is-open.is-unlocked.is-scrolled .resume-edge-veil[data-edge="top"],
+.resume-view.is-open.is-unlocked.has-more .resume-edge-veil[data-edge="bottom"] { opacity: 1; }
+
+/* The PDF's links, laid over their words. */
+.resume-links { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.resume-links a { position: absolute; border-radius: 2px; pointer-events: auto; }
+.resume-links a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* On a phone the header's links are a few pixels tall: a little more to tap,
+   short of the line below. */
+@media (pointer: coarse) {
+  .resume-links a::before { content: ''; position: absolute; inset: -3px -2px; }
+}
+
+/* pdf.js's text layer (pdfjs-dist/web/pdf_viewer.css, 6.4): the page's text,
+   unseen over the page, so it can be selected, copied and read aloud. */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer .markedContent { display: contents; }
+.textLayer ::selection { background: rgb(0 0 255 / .25); background: color-mix(in srgb, AccentColor, transparent 50%); color: transparent; }
+.textLayer br::selection { background: transparent; }
+.textLayer .endOfContent { position: absolute; inset: 100% 0 0; z-index: 0; display: block; cursor: default; -webkit-user-select: none; user-select: none; }
+.textLayer.selecting .endOfContent { top: 0; }
+
+/* The bar, as the works row's: back, then once the resume shows, its page
+   count and the download, unfolding beside it. */
+.resume-nav {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  /* Its own width, not what is left right of the middle. */
+  width: max-content;
+  translate: -50% 0;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.resume-view.is-open .resume-nav { opacity: 1; }
+.resume-back,
+.resume-tools-bar {
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .05);
+}
+.resume-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  margin: 0;
+  padding: 0 14px 0 13px;
+  color: var(--ink);
+  font: 12px/1 "Syne Mono", monospace;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease;
+}
+.resume-back:hover { background: #f4f3f0; }
+/* The size of the project pill's caret, as on every back button. */
+.resume-back-icon { width: 10px; height: 10px; flex: 0 0 10px; background: currentColor; mask: url('/assets/contact/angle-left.svg') center / contain no-repeat; }
+.resume-tools {
+  display: grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transition: grid-template-columns 420ms var(--ease-out), opacity 240ms ease;
+}
+.resume-view.is-unlocked .resume-tools { grid-template-columns: 1fr; opacity: 1; }
+.resume-tools-inner { min-width: 0; overflow: hidden; }
+/* 8 px from the back button, as the works row's toggle sits. */
+.resume-tools-bar { display: flex; align-items: center; gap: 2px; margin-left: 8px; padding: 3px; white-space: nowrap; }
+.resume-count { display: inline-flex; align-items: center; height: 28px; padding: 0 10px 0 12px; color: #8a877e; font-variant-numeric: tabular-nums; }
+/* The download in the chosen toggle's ink. */
+.resume-download,
+.resume-note-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0;
+  padding: 0 12px 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #ffffff;
+  font: 12px/1 "Syne Mono", monospace;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease;
+}
+.resume-download:hover, .resume-note-action:hover { background: #33322c; }
+.resume-download:disabled { opacity: .45; cursor: not-allowed; }
+.resume-download-icon { width: 12px; height: 12px; flex: none; background: currentColor; mask: url('/assets/contact/download.svg') center / contain no-repeat; }
+:is(.resume-back, .resume-download, .resume-note-action):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Behind the PIN panel only: the exploration sheet's bottom veil (works.css
+   .works-veil), its blur and parted colours growing in from script
+   (resume-view.mjs veilTo), strongest at the bottom edge and gone a little
+   above the panel. With no blur, it is not drawn at all. */
+.resume-veil {
+  position: absolute;
+  /* A little past both sides, so the colours' parting never leaves a bare
+     fringe at the screen's edges. */
+  left: -24px;
+  right: -24px;
+  bottom: 0;
+  z-index: 1;
+  height: var(--resume-veil-height, 240px);
+  pointer-events: none;
+  visibility: hidden;
+  -webkit-mask-image: linear-gradient(to top, #000 40%, transparent);
+  mask-image: linear-gradient(to top, #000 40%, transparent);
+}
+.resume-veil.is-blurring { visibility: visible; }
+/* It also lifts the pages toward white a little, as the sheet's does. */
+.resume-veil::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgb(255 255 255 / .38), rgb(255 255 255 / 0)); opacity: var(--veil, 0); }
+/* The works PIN panel, over the veil. */
+.resume-view .project-pin { z-index: 2; }
+
+/* Where the page would be when it can't be shown. */
+.resume-note { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 24px; background: #ffffff; color: var(--muted); text-align: center; }
+.resume-note p { margin: 0; }
+
+/* Opened at its own address (resume-view.mjs `instant`): no entrance. */
+.resume-view.is-instant :is(.resume-sheet, .resume-nav) { transition: none; }
+
+@media (max-width: 540px) {
+  .resume-sheets { gap: 16px; }
+  .resume-back { padding-inline: 12px 10px; }
+  .resume-count { padding-inline: 10px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.resume-open .portfolio-clock,
+  .resume-sheet, .resume-nav, .resume-tools, .resume-roller, .resume-edge-veil { transition: none; }
+}

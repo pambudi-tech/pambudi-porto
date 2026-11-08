@@ -46,9 +46,10 @@ function mountPanelStitches(panel) {
 // six-digit field in two threes (otp-field.mjs), checked as the sixth digit
 // lands. Below the panel, on one line, where to ask for the PIN. It waits
 // unseen until `arrive`. `onUnlock` runs once the PIN is right; then both
-// fold away. The resume viewer (src/pages/resume.mjs) passes its own
-// `prompt` and `parent`.
-export function mountPinPanel({ title, onUnlock, prompt = PROMPT, parent = document.body }) {
+// fold away. The resume view (src/resume/resume-view.mjs) passes its own
+// `prompt` and `parent`, and `onCorrect`, which runs the moment the PIN is
+// found right, before its digits' moment on show, to get ready meanwhile.
+export function mountPinPanel({ title, onUnlock, onCorrect, prompt = PROMPT, parent = document.body }) {
   const root = Object.assign(document.createElement('div'), { className: 'project-pin is-waiting' });
   const panel = Object.assign(document.createElement('form'), { className: 'project-pin-panel', noValidate: true });
   panel.innerHTML = `<p class="project-pin-message" id="project-pin-message" role="status">${prompt}</p>`;
@@ -85,6 +86,7 @@ export function mountPinPanel({ title, onUnlock, prompt = PROMPT, parent = docum
       // gives way to the gallery seal.
       const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
       say('unlocked for a day', 'ok');
+      onCorrect?.();
       field.input.blur();
       field.input.readOnly = true;
       panel.classList.add('is-unlocked');

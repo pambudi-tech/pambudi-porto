@@ -90,6 +90,31 @@ export const SHEET_PHONE_SIDE = 16;
 export const WORKS_VEIL = Object.freeze({
   layers: [{ blur: 5, split: 3, reach: 1 }],
 });
+
+// The parting of colours a veil's backdrop filter adds, as a lens does at its
+// rim: red `split` px one way, blue the other. One SVG filter per id, made
+// once; also the resume's (src/resume/resume-view.mjs). Only Chromium can
+// filter what lies behind with one, so elsewhere this is null.
+export function aberrationFilter(id, split) {
+  if (!navigator.userAgentData?.brands?.some(brand => brand.brand === 'Chromium')) return null;
+  const made = document.getElementById(id);
+  if (made) return made;
+  let defs = document.querySelector('.works-veil-filters');
+  if (!defs) {
+    defs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    defs.setAttribute('class', 'works-veil-filters');
+    defs.setAttribute('aria-hidden', 'true');
+    document.body.append(defs);
+  }
+  const channel = (row, offset, name) => `<feColorMatrix in="SourceGraphic" type="matrix" values="${row}" result="${name}"/>`
+    + (offset ? `<feOffset in="${name}" dx="${offset}" result="${name}"/>` : '');
+  defs.insertAdjacentHTML('beforeend', `<filter id="${id}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">`
+    + channel('1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0', -split, 'red')
+    + channel('0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0', 0, 'green')
+    + channel('0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0', split, 'blue')
+    + '<feBlend in="red" in2="green" mode="screen" result="rg"/><feBlend in="rg" in2="blue" mode="screen"/></filter>');
+  return document.getElementById(id);
+}
 // A sheet of at least `least` stamps runs on round, endlessly: past its last
 // line comes its first again, a line's gap apart as ever. It is laid out up
 // to `copies` times over either way, about `reach` px in all, and the scroll
@@ -857,21 +882,7 @@ export class WorksGallery {
   // would cut them off from what lies behind. Where a filter cannot work on
   // what lies behind (Safari, Firefox), they only blur.
   makeVeils() {
-    const chromium = navigator.userAgentData?.brands?.some(brand => brand.brand === 'Chromium');
-    if (chromium && !document.getElementById('works-aberration-0')) {
-      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      defs.setAttribute('class', 'works-veil-filters');
-      defs.setAttribute('aria-hidden', 'true');
-      const channel = (row, offset, name) => `<feColorMatrix in="SourceGraphic" type="matrix" values="${row}" result="${name}"/>`
-        + (offset ? `<feOffset in="${name}" dx="${offset}" result="${name}"/>` : '');
-      defs.innerHTML = WORKS_VEIL.layers.map(({ split }, level) =>
-        `<filter id="works-aberration-${level}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">`
-        + channel('1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0', -split, 'red')
-        + channel('0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0', 0, 'green')
-        + channel('0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0', split, 'blue')
-        + '<feBlend in="red" in2="green" mode="screen" result="rg"/><feBlend in="rg" in2="blue" mode="screen"/></filter>').join('');
-      document.body.append(defs);
-    }
+    const chromium = WORKS_VEIL.layers.map(({ split }, level) => aberrationFilter(`works-aberration-${level}`, split)).every(Boolean);
     const veils = [];
     for (const edge of ['top', 'bottom']) {
       WORKS_VEIL.layers.forEach(({ blur, reach }, level) => {

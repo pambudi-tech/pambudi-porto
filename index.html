@@ -69,6 +69,29 @@
       </div>
     </section>
 
+    <!-- The resume (src/resume/resume-view.mjs), at /resume: its pages on the
+         cloth under a bar like the works row's, dithered until the PIN. -->
+    <section id="resume" class="resume-view" aria-label="Resume" hidden>
+      <div class="resume-scroll">
+        <div class="resume-sheets">
+          <article class="resume-sheet" aria-label="Page 1 of 2"><img class="resume-page" alt="" draggable="false"></article>
+          <article class="resume-sheet" aria-label="Page 2 of 2" style="--index: 1"><img class="resume-page" alt="" draggable="false"></article>
+        </div>
+      </div>
+      <div class="resume-veil" aria-hidden="true"></div>
+      <nav class="resume-nav" aria-label="Resume">
+        <button class="resume-back" type="button" aria-label="Back to the paper"><span class="resume-back-icon" aria-hidden="true"></span>back</button>
+        <div class="resume-tools">
+          <div class="resume-tools-inner">
+            <div class="resume-tools-bar">
+              <span class="resume-count">1 / 2</span>
+              <button class="resume-download" type="button"><span class="resume-download-icon" aria-hidden="true"></span>download</button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </section>
+
     <time id="portfolio-clock" class="portfolio-clock" role="img" aria-label="Local time" aria-live="off"><canvas aria-hidden="true"></canvas></time>
 
     <aside id="colophon" class="colophon" aria-labelledby="colophon-title" aria-hidden="true" tabindex="-1" hidden inert>
