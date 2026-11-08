@@ -30,7 +30,7 @@ import { GRID } from '../stitch/model.mjs';
 // it gets; `follow`: the share of that the pages wait before arriving, so
 // they follow the paper out rather than cover it.
 // `paperBlur`: px the paper blurs as it fades.
-export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, follow: .55, paperBlur: 2, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
+export const RESUME_VIEW = Object.freeze({ path: '/resume', fade: 280, swap: 460, shrink: .88, follow: .35, paperBlur: 2, settle: 420, veilAbove: 56, veilIn: 600, veilOut: 600, blur: .009, unblur: 900, settled: 460 });
 const FILE = 'Ivan-Pambudi-Resume.pdf';
 const PROMPT = 'enter pin to view the resume';
 const PENDING = Symbol('pending');
