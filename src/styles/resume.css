@@ -46,9 +46,8 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
   overflow: hidden;
   border-radius: 2px;
   background: #ffffff;
-  /* A hairline edge only: a soft shadow would be cut where the page rolls,
-     and the rolled strips carry the same edge (.resume-roller-strip). */
-  box-shadow: 0 0 0 1px rgb(73 72 63 / .12);
+  /* No outline or shadow: either would be cut where the page rolls, as the
+     exploration sheet's stamps have none to cut. */
   /* Settling onto the cloth top first, as the works sheet's lines do, and
      leaving the same way back. Finished images only: nothing is drawn as
      they move. */
@@ -83,7 +82,7 @@ body.resume-open .portfolio-clock { opacity: 0; transition: opacity 240ms ease; 
 }
 .resume-view.is-open .resume-roller { opacity: 1; transition-duration: 360ms; transition-delay: 200ms; }
 .resume-view.is-instant .resume-roller { transition: none; }
-.resume-roller-strip { position: absolute; top: 0; overflow: hidden; opacity: 0; transform-origin: 0 0; backface-visibility: hidden; box-shadow: inset 1px 0 rgb(73 72 63 / .12), inset -1px 0 rgb(73 72 63 / .12); }
+.resume-roller-strip { position: absolute; top: 0; overflow: hidden; opacity: 0; transform-origin: 0 0; backface-visibility: hidden; }
 .resume-roller-strip canvas { display: block; width: 100%; height: 100%; }
 /* Where each page lies in the scroll, for its strips to follow. */
 .resume-roller-mark { position: absolute; left: 0; width: 1px; visibility: hidden; pointer-events: none; }

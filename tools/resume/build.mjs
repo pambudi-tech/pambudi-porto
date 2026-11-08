@@ -24,7 +24,8 @@ const teaserDir = here('../../public/assets/resume/');
 // The teaser pages' width: plenty under the blur they are shown with.
 const WIDTH = 480;
 
-const print = (html, pdf) => execFileSync(chrome, ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', `--print-to-pdf=${pdf}`, pathToFileURL(html).href], { stdio: 'ignore' });
+// The budget lets the page's web fonts load before it is printed.
+const print = (html, pdf) => execFileSync(chrome, ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--virtual-time-budget=10000', `--print-to-pdf=${pdf}`, pathToFileURL(html).href], { stdio: 'ignore' });
 
 print(source, resume);
 console.log(`wrote ${resume}`);

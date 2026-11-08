@@ -8,18 +8,27 @@
 <title>Ivan Pambudi - Resume</title>
 <meta name="author" content="Ivan Pambudi">
 <meta name="description" content="Resume of Ivan Pambudi, UI Designer and Product Designer">
+<!-- Geist Sans and Geist Mono (Vercel, SIL Open Font License), embedded in the
+     PDF by Chrome with their character maps, so ATS parsers read the text as
+     ever. Ligatures off: "fi" and "fl" stay two letters for them. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=block">
 <style>
   @page { size: A4; margin: 13mm 15mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 9.6pt; line-height: 1.3; color: #111; }
-  h1 { font-size: 20pt; margin: 0; letter-spacing: .02em; }
-  .title { font-size: 11.5pt; margin: 2pt 0 4pt; }
-  .contact { margin: 0; }
+  body { margin: 0; font-family: "Geist", Arial, sans-serif; font-size: 9.4pt; line-height: 1.32; color: #111; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  h1 { font-size: 21pt; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .title { font-size: 11.5pt; margin: 2pt 0 5pt; }
+  /* Geist Mono: the contact lines and each role's dates. Headings stay in
+     Geist Sans: some PDF readers take the mono capitals out of order. */
+  .contact, .meta { font-family: "Geist Mono", "Courier New", monospace; }
+  .contact { margin: 0; font-size: 8.4pt; line-height: 1.45; }
   a { color: #0645ad; text-decoration: underline; text-underline-offset: 1.5pt; }
-  h2 { font-size: 10.5pt; text-transform: uppercase; letter-spacing: .08em; margin: 10pt 0 4pt; padding-bottom: 2pt; border-bottom: .75pt solid #111; }
-  h3 { font-size: 10pt; margin: 7pt 0 0; }
-  .meta { margin: 0 0 2pt; color: #333; }
-  h4 { font-size: 10pt; font-style: italic; font-weight: normal; margin: 4pt 0 1pt; }
+  h2 { font-size: 10.5pt; font-weight: 600; letter-spacing: 0; margin: 10pt 0 4pt; padding-bottom: 2pt; border-bottom: .75pt solid #111; }
+  h3 { font-size: 10pt; font-weight: 600; margin: 7pt 0 0; }
+  .meta { margin: 1pt 0 2pt; font-size: 8.4pt; color: #444; }
+  h4 { font-size: 9.6pt; font-weight: 500; color: #333; margin: 4pt 0 1pt; }
   p { margin: 0 0 3pt; }
   ul { margin: 2pt 0 0; padding-left: 14pt; }
   li { margin: 0 0 1pt; }
