@@ -129,11 +129,13 @@ export function siteHtml() {
 // if its card had been chosen (home.mjs). The project page itself is one
 // template, work.html?work=<id>, filled in the browser. /resume opens the
 // index too, with the resume over the cloth (src/resume/resume-view.mjs).
+// /3dprint is the card as a 3D print (print.html), as vercel.json serves it.
 export function projectRoutes() {
   const rewrite = (request, _response, next) => {
     const [path, query] = request.url.split('?');
     if (/^\/work\/[^/.]+\/?$/.test(path)) request.url = `/index.html${query ? `?${query}` : ''}`;
     else if (/^\/resume\/?$/.test(path)) request.url = `/index.html${query ? `?${query}` : ''}`;
+    else if (/^\/3dprint\/?$/.test(path)) request.url = `/print.html${query ? `?${query}` : ''}`;
     next();
   };
   return {

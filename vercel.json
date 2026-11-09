@@ -26,12 +26,21 @@
     {
       "source": "/resume",
       "destination": "/home.html"
+    },
+    {
+      "source": "/3dprint",
+      "destination": "/print.html"
     }
   ],
   "redirects": [
     {
       "source": "/home.html",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/print.html",
+      "destination": "/3dprint",
       "permanent": true
     },
     {

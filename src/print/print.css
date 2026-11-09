@@ -1,0 +1,118 @@
+/* The card page's space, controls, download menu and calibration
+   (card.css), with the print model drawn in a canvas instead of the paper. */
+@import "../card/card.css";
+
+/* The model fills the window; the card in it sits where the card page's does. */
+.model {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: default;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+.model[data-ready] { opacity: 1; }
+.model.over-card { cursor: grab; }
+.model.spinning { cursor: grabbing; }
+/* The dimensions, drawn on the faces in the model's space (print.mjs, as
+   card.css draws them on the card page's faces), laid out at their size on
+   screen. */
+.dims-layer { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.dims3d {
+  --offset: 22px;
+  --tick: 16px;
+  pointer-events: none;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  color: var(--ink);
+  font: 14px/1 var(--mono);
+  letter-spacing: .02em;
+}
+.d3-width, .d3-height { position: absolute; color: #a3a39c; }
+.d3-width { left: 0; right: 0; top: calc(-1 * var(--offset)); border-top: 1px solid currentColor; }
+.d3-width::before, .d3-width::after, .d3-height::before, .d3-height::after { content: ""; position: absolute; }
+.d3-width::before, .d3-width::after { top: calc(var(--tick) / -2); height: var(--tick); border-left: 1px solid currentColor; }
+.d3-width::before { left: 0; }
+.d3-width::after { right: 0; }
+.d3-height { top: 0; bottom: 0; right: calc(-1 * var(--offset)); border-right: 1px solid currentColor; }
+.d3-height::before, .d3-height::after { right: calc(var(--tick) / -2); width: var(--tick); border-top: 1px solid currentColor; }
+.d3-height::before { top: 0; }
+.d3-height::after { bottom: 0; }
+.d3-label { position: absolute; padding: 2px 6px; color: var(--ink); background: var(--paper); white-space: nowrap; }
+.d3-width .d3-label { left: 50%; top: 0; transform: translate(-50%, -50%); }
+.d3-height .d3-label { right: 0; top: 50%; transform: translate(50%, -50%) rotate(90deg); }
+.d3-side {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + var(--offset));
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.d3-thick { color: var(--muted); font-size: 12px; }
+
+/* Taken apart, the seal can be shown alone. */
+.model.over-seal { cursor: pointer; }
+
+/* The cue under the seal (print.mjs places it): as the controls' type, on a
+   paper pill so it reads over the card. */
+.seal-cue {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--muted);
+  font: 12px/1 var(--mono);
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  will-change: transform;
+}
+.seal-cue[data-shown] { opacity: 1; }
+.seal-cue:hover { color: var(--ink); }
+.seal-cue:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.model:focus-visible { outline: 2px solid var(--accent); outline-offset: -6px; }
+
+/* Until the model is drawn: how far the print file has come. */
+.loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+  font: 12px/1 var(--mono);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zoom and calibration either side; mesh, explode and download in the middle.
+   As wide as its buttons: from the middle of the window it would otherwise
+   only get half the width, and squeeze them. */
+.controls { grid-template-columns: 1fr auto auto auto 1fr; width: max-content; }
+.explode { min-width: 9ch; }
+.explode[aria-pressed="true"], .mesh-view[aria-pressed="true"] { color: var(--ink); }
+.mesh-view[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 420px) {
+  .controls { gap: 0; }
+  .controls button { padding-inline: 6px; }
+  .zoom [data-zoom] { padding-inline: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model, .seal-cue { transition: none; }
+}

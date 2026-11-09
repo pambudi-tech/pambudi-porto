@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Ivan Pambudi's card as a 3D print: the embossed paper from card.pambudi.xyz, 1.4 mm thick, with a wax seal that locks on with a push and a turn and carries an NFC tag. Turn it, take it apart, download the files for a Bambu Lab A1.">
+<title>Ivan Pambudi - Card, 3D print</title>
+<!-- partial:icons -->
+<link rel="preload" href="/assets/fonts/syne-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/src/print/print.css">
+</head>
+<body>
+<h1 class="sr-only">Ivan Pambudi's card, for a 3D printer</h1>
+<main class="space">
+  <!-- How far the print file has come, until its model is drawn. -->
+  <p class="loading" role="status">loading the print file</p>
+  <!-- The print file's model: public/downloads/3dprint/pambudi-card-3d.3mf. -->
+  <canvas class="model" tabindex="0" role="button" aria-label="Turn the card to its back" aria-describedby="print-help"></canvas>
+  <!-- Under the seal, taken apart: "wax detail"; shown alone: "back to card". -->
+  <button class="seal-cue" type="button" hidden>wax detail</button>
+  <!-- Under the card, turned by hand: back to its view. -->
+  <button class="view-cue seal-cue" type="button" hidden>default view</button>
+  <div class="controls">
+    <div class="zoom" role="group" aria-label="Zoom">
+      <button type="button" data-zoom="-1" aria-label="Zoom out">−</button>
+      <button type="button" class="zoom-level" data-zoom-reset aria-label="Back to real size"><span data-zoom-level>100%</span></button>
+      <button type="button" data-zoom="1" aria-label="Zoom in">+</button>
+    </div>
+    <button class="mesh-view" type="button" aria-pressed="false" disabled>mesh</button>
+    <button class="explode" type="button" aria-pressed="false" disabled>explode</button>
+    <!-- The print files, written by tools/build-card-3d.py into public/downloads/3dprint/. -->
+    <div class="download">
+      <button class="download-open" type="button" aria-expanded="false" aria-controls="download-menu">download</button>
+      <div class="download-menu" id="download-menu">
+        <p class="download-title">for the printer</p>
+        <ul>
+          <li><a href="/downloads/3dprint/pambudi-card-3d.3mf" download>card and seal, a1 plate <span>3mf</span></a></li>
+          <li><a href="/downloads/3dprint/fit-test.3mf" download>fit test, print first <span>3mf</span></a></li>
+          <li><a href="/downloads/3dprint/print-notes.txt" download>print notes <span>txt</span></a></li>
+        </ul>
+      </div>
+    </div>
+    <button class="calibrate-open" type="button" aria-haspopup="dialog" aria-controls="calibrate">calibrate</button>
+  </div>
+  <!-- Screens don't report their physical size to a page, so the card is
+       matched to one every visitor has: a bank card (ID-1, 85.60 × 53.98 mm). -->
+  <dialog id="calibrate" class="calibrate" aria-labelledby="calibrate-title" aria-describedby="calibrate-help">
+    <h2 id="calibrate-title">real size</h2>
+    <p id="calibrate-help">Hold a bank card against the screen and slide until the outline matches its edges.</p>
+    <div class="bank-card" aria-hidden="true"></div>
+    <div class="calibrate-scale">
+      <button type="button" data-step="-1" aria-label="Smaller">−</button>
+      <input type="range" min="0.5" max="2.5" step="0.001" value="1.326" aria-label="Outline size">
+      <button type="button" data-step="1" aria-label="Larger">+</button>
+    </div>
+    <div class="calibrate-actions">
+      <button type="button" data-reset>reset</button>
+      <button type="button" data-done>done</button>
+    </div>
+  </dialog>
+  <p id="print-help" class="sr-only">The card as it prints: 67.75 by 85 millimetres and 1.4 millimetres thick (1.9 at the relief), its dimensions drawn round it while it is still, the frame raised on the front and pressed into the back, and a 19 millimetre wax seal with a P that locks into a pocket at the middle of the back with a push and a turn, an NFC tag in its underside. Drag across it to turn it any way; it stays as you leave it, and a tap or default view brings it back face on; face on, a tap turns it over, as do Enter and the arrow keys. Mesh shows the file's triangles, without light or shade. Explode turns the seal back and lifts it out of its pocket; then a tap on the seal, or wax detail, shows it alone, and back to card, a tap beside it or Escape goes back. Pinch, Control or Command and scroll, or the plus and minus keys zoom in; 0 goes back to real size.</p>
+</main>
+<script type="module" src="/src/print/print.mjs"></script>
+</body>
+</html>

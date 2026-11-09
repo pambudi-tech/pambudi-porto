@@ -1,0 +1,26 @@
+IVAN PAMBUDI CARD - 3D PRINT (Bambu Lab A1, 0.4 mm nozzle)
+
+1. Print fit-test.3mf first (a few minutes). Put the plug's tabs into the
+   coin's notches, push, and turn it clockwise: it should click and stop
+   with its marker at the coin's marker. Too stiff or too loose: change
+   CLEAR (now 0.15 mm) or DETENT (now 0.12 mm) in tools/build-card-3d.py
+   and rebuild.
+2. Print pambudi-card-3d.3mf: the card front up, the seal face up, as placed.
+   PLA, supports off, 0.08 mm layers (0.08mm Extra Fine) for the crispest
+   relief and the cleanest front over the pocket, 0.12 mm also fine. Card in
+   white, seal in red (separate prints, or one plate with a filament each).
+3. NFC: a round sticker tag up to 12.0 mm wide and 0.3 mm thick
+   (e.g. NTAG213, 12 mm). Stick it in the recess in the end of the seal's peg.
+4. On: tabs into the notches, push, turn clockwise about 40 degrees
+   until it clicks and stops; the P stands upright.
+   Off: turn it back anticlockwise past the click and lift.
+
+Card     67.752 x 84.999 mm, the cut of card.pambudi.xyz; 1.4 mm thick
+         (1.9 mm at the relief, raised 0.5 mm on the front, pressed into the back)
+Pocket   0.8999999999999999 mm deep, 0.5 mm floor on the front: a 0.4 mm ledge with three
+         notches, a 0.5 mm groove beneath it
+Seal     19.0 mm wide, 2.303 mm tall; a 0.8599999999999999 mm peg with three
+         0.38 mm tabs, 0.15 mm clearance; the tag's recess in its end
+What the A1 shows: the pocket's top (the front's inside) bridges 15.7 mm;
+the seal's rim overhangs its peg by 1.06-2.51 mm underneath, and its
+underside eases off 0.15 mm towards the rim so a slight sag there can't lift it.
