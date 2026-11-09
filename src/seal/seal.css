@@ -30,3 +30,9 @@ body { background: var(--paper); overflow: hidden; overscroll-behavior: none; }
 /* Held back until the WebGL seal pours in its place, or shown at once
    without WebGL: the formed seal never flashes before the pour. */
 .seal[data-waiting] > .fallback { opacity: 0; }
+
+/* The round P seal (p-seal.html): square, and a little smaller. */
+.seal[data-seal="round"] {
+  width: min(560px, calc(100vw - 32px), calc(100dvh - 32px));
+  aspect-ratio: 1;
+}

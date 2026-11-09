@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="The round wax seal from pambudi.xyz, its P lit live. Press it to pour it again.">
+<title>Ivan Pambudi - Seal</title>
+<!-- partial:icons -->
+<link rel="stylesheet" href="/src/seal/seal.css">
+</head>
+<body>
+<h1 class="sr-only">Ivan Pambudi's wax seal</h1>
+<main class="space">
+  <button class="seal" type="button" data-seal="round" data-waiting aria-label="Pour the wax again">
+    <img class="fallback" src="/assets/round-seal.webp" width="1024" height="1024" alt="" draggable="false" fetchpriority="high">
+    <canvas class="gl" aria-hidden="true"></canvas>
+  </button>
+</main>
+<noscript><style>.seal[data-waiting] > .fallback { opacity: 1; }</style></noscript>
+<script type="module" src="/src/seal/seal.mjs"></script>
+</body>
+</html>

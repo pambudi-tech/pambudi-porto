@@ -1,6 +1,36 @@
 import { WAX_ASPECT } from './wax-layout.mjs';
 import { hardwareWebGL2 } from '../shared/gpu.mjs';
 
+// The seals the shader draws. Each has its own photograph, colour and relief,
+// and its own proportions; the button's middle stretches to fit a label, the
+// round seal's monogram is baked into a fourth texture.
+export const WAX_SEALS = Object.freeze({
+  button: {
+    // The photo is the one the page already shows, so it costs no extra bytes.
+    assets: ['/assets/works-wax-seal.webp', '/assets/wax-seal-albedo.webp', '/assets/wax-seal-relief.webp'],
+    aspect: WAX_ASPECT,
+    // The relief's tallest point in seal heights, as build-wax-seal.py reports it.
+    peak: .0577,
+    // Where the end caps begin, the stretch eases over three source pixels
+    // (243 to 246 px from the centre), as it did on the approved mesh.
+    ease: [243 / 280, 246 / 280],
+    // The colour's alpha spans ±40 source pixels of the outline.
+    outline: 80 / 280,
+    // The puddle's radii, and how far off the middle it may pour.
+    puddle: [1.02, .4], poured: [.3, .08],
+    // The label stands this far from the field, its tops this much ink.
+    letter: .024, ink: .85,
+  },
+  // The favicon's seal, its P cut in Pirata One (tools/build-round-seal.py).
+  round: {
+    assets: ['/assets/round-seal.webp', '/assets/round-seal-albedo.webp', '/assets/round-seal-relief.webp', '/assets/round-seal-letters.webp'],
+    aspect: 1, peak: .034, ease: [100, 101], outline: 256 / 1254,
+    puddle: [.47, .45], poured: [.07, .06],
+    letter: .022, ink: .5,
+  },
+});
+const f = value => Number(value).toFixed(5);
+
 // One flat card, no mesh: the seal is only seen from the front, its outline
 // comes from the image's alpha and its depth from the baked relief. The
 // card is in the seal's own space: x right, y up, one unit = its height.
@@ -16,18 +46,16 @@ void main() {
 // Every pixel is lit live by one point light: wrapped diffuse for wax, a
 // sharp and a broad gloss lobe, and shadows the relief casts on itself.
 // The middle stretches to fit a label; the end caps stay rigid.
-const FRAGMENT = `#version 300 es
+const fragment = seal => `#version 300 es
 precision highp float;
 in vec2 vPos;
 uniform sampler2D photo, albedo, relief, letters;
 uniform vec3 light;
 uniform float extension, aspect, peak, depth, gloss, detail, level, sheen, spread, form, press, wet, stamp, pixel, seed, lettered;
 out vec4 outColor;
-const float ASPECT = ${WAX_ASPECT};
-const float SPAN = ${WAX_ASPECT - 1};
-// Where the end caps begin, the stretch eases over three source pixels
-// (243 to 246 px from the centre), as it did on the approved mesh.
-const float EASE_FROM = 243. / 280., EASE_TO = 246. / 280.;
+const float ASPECT = ${f(seal.aspect)};
+const float SPAN = ${f(Math.max(seal.aspect - 1, 1))};
+const float EASE_FROM = ${f(seal.ease[0])}, EASE_TO = ${f(seal.ease[1])};
 // While it forms (wax-pour.mjs), the lip rolls up as the stamp squeezes the
 // wax out, and the middle, the inner ridge with it, sinks as it presses.
 float formed(float height) { return mix(press, form, smoothstep(.24, .42, height)); }
@@ -35,7 +63,7 @@ float surface(vec2 uv) { float b = texture(relief, uv).b; return b * peak * dept
 // The label's letters, raised from the field as an engraved stamp leaves
 // them, from a height map of the seal's own size (wax-letters.mjs): firm
 // shoulders and a flat top, standing well clear of the field.
-const float LETTER = .024;
+const float LETTER = ${f(seal.letter)};
 const vec3 INK = vec3(.718, .102, .125);
 vec4 lettersAt(vec2 pos) { return texture(letters, vec2(pos.x / aspect + .5, .5 - pos.y)); }
 float letterAt(vec2 pos) { return smoothstep(.06, .62, lettersAt(pos).r) * LETTER * lettered * form; }
@@ -70,9 +98,9 @@ void main() {
   // the middle, flowing out unevenly, a glossy dome with a thick rounded rim,
   // rippling faintly while it still flows. Its slopes come from neighbouring
   // pixels.
-  vec2 poured = (vec2(hash(seed + 11.), hash(seed + 12.)) - .5) * vec2(.3, .08) * (1. - .6 * spread);
+  vec2 poured = (vec2(hash(seed + 11.), hash(seed + 12.)) - .5) * vec2(${seal.poured.map(f)}) * (1. - .6 * spread);
   vec2 p = (uv - .5) * vec2(ASPECT, 1.) - poured;
-  vec2 radii = vec2(1.02, .4);
+  vec2 radii = vec2(${seal.puddle.map(f)});
   float local = max(reachAt(atan(p.y / radii.y, p.x / radii.x)), 1e-3);
   float e = length(p / radii) / local;
   float puddle = (1. - e) * radii.y * local;
@@ -81,7 +109,7 @@ void main() {
   vec3 poolNormal = normalize(vec3(-dFdx(poolHeight), -dFdy(poolHeight), pixel));
   // The stamp squeezes it out to the seal's own outline (signed, in the
   // colour's alpha), which then gives way to the photograph's exact edge.
-  float outline = (textureLod(albedo, uv, 0.).a - .5) * 80. / 280.;
+  float outline = (textureLod(albedo, uv, 0.).a - .5) * ${f(seal.outline)};
   float edge = mix(puddle, outline, form);
   float alpha = mix(smoothstep(-pixel, pixel, edge), textureLod(photo, uv, 0.).a, smoothstep(.85, 1., form));
   if (alpha < .004 || any(lessThan(uv, vec2(0))) || any(greaterThan(uv, vec2(1)))) discard;
@@ -106,7 +134,7 @@ void main() {
     vec4 map = lettersAt(vPos);
     on = smoothstep(.15, .5, map.r) * form;
     cavity *= 1. - .8 * map.g * (1. - on) * form;
-    base = mix(base, INK * 1.22, on * .85);
+    base = mix(base, INK * 1.22, on * ${f(seal.ink)});
   }
   // The rolled lip is glossy and the pressed field satin; melted, all of it
   // is wet.
@@ -142,17 +170,14 @@ void main() {
   outColor = vec4(colour * alpha, alpha);
 }`;
 
-// The photo is the one the page already shows, so it costs no extra bytes.
-export const WAX_ASSETS = ['/assets/works-wax-seal.webp', '/assets/wax-seal-albedo.webp', '/assets/wax-seal-relief.webp'];
-// The relief's tallest point in seal heights, as build-wax-seal.py reports it.
-export const WAX_RELIEF_PEAK = .0577;
+export const WAX_ASSETS = WAX_SEALS.button.assets;
 
 const fetchOK = async url => {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Wax asset ${response.status}: ${url}`);
   return response;
 };
-const assets = () => Promise.all(WAX_ASSETS.map(url => fetchOK(url).then(r => r.blob())
+const assets = urls => Promise.all(urls.map(url => fetchOK(url).then(r => r.blob())
   .then(blob => createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))));
 
 // Waits for the driver to finish compiling off the main thread, when it can.
@@ -171,25 +196,28 @@ function linked(gl, program) {
 // single context and one upload of the textures.
 // Without a graphics card it stays without one, so every seal hears that from
 // one attempt; anything else is tried afresh.
-let shared = null;
-const renderer = () => shared ??= createRenderer().catch(error => { if (!error.lasting) shared = null; throw error; });
-async function createRenderer() {
+const shared = {};
+const renderer = name => shared[name] ??= createRenderer(name).catch(error => { if (!error.lasting) delete shared[name]; throw error; });
+async function createRenderer(name) {
+  const seal = WAX_SEALS[name];
   const canvas = document.createElement('canvas');
   // Only on a graphics card; otherwise the seal keeps its photograph's relief.
   const gl = hardwareWebGL2(canvas, { alpha: true, premultipliedAlpha: true, antialias: false });
   if (!gl) throw Object.assign(new Error('WebGL 2 on a graphics card unavailable'), { lasting: true });
   const program = gl.createProgram();
-  const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]].map(([type, source]) => {
+  const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, fragment(seal)]].map(([type, source]) => {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source); gl.compileShader(shader); gl.attachShader(program, shader);
     return shader;
   });
   gl.linkProgram(program);
-  const [images] = await Promise.all([assets(), linked(gl, program)]);
+  const [images] = await Promise.all([assets(seal.assets), linked(gl, program)]);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS))
     throw new Error(shaders.map(shader => gl.getShaderInfoLog(shader)).join('') || gl.getProgramInfoLog(program));
   shaders.forEach(shader => gl.deleteShader(shader));
   gl.useProgram(program);
+  // A seal with its own monogram keeps it as the letters every view reads.
+  const monogram = images.length > 3 ? images.pop() : null;
   images.forEach((image, unit) => {
     gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
     gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
@@ -210,15 +238,22 @@ async function createRenderer() {
   gl.activeTexture(gl.TEXTURE3);
   const blank = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, blank);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-  gl.uniform1f(u.peak, WAX_RELIEF_PEAK);
-  const state = { canvas, gl, u, blank, views: new Set(), lost: false };
+  if (monogram) {
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, monogram);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    monogram.close?.();
+  } else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  gl.uniform1f(u.peak, seal.peak);
+  const state = { canvas, gl, u, blank, lettered: Boolean(monogram), views: new Set(), lost: false };
   // A lost context leaves every seal's last picture in place; a fresh
   // renderer redraws them once the browser allows WebGL again.
   canvas.addEventListener('webglcontextlost', event => {
     event.preventDefault();
     state.lost = true;
-    if (shared) shared = null;
+    if (shared[name]) delete shared[name];
   });
   canvas.addEventListener('webglcontextrestored', () => {
     for (const view of state.views) view.prepare().then(() => view.draw(view.last), () => {});
@@ -247,10 +282,11 @@ function render({ canvas, gl, u }, w, h, { width, height, extension, light, dept
 }
 
 // One seal's picture, in its own canvas on the page.
+// `seal` names one of WAX_SEALS.
 export class WaxGL {
-  constructor(canvas) { this.canvas = canvas; }
+  constructor(canvas, seal = 'button') { this.canvas = canvas; this.seal = seal; }
   async prepare() {
-    const state = await renderer();
+    const state = await renderer(this.seal);
     if (this.disposed) return;
     this.renderer?.views.delete(this);
     this.renderer = state;
@@ -292,7 +328,7 @@ export class WaxGL {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     else this.context.clearRect(0, 0, w, h);
     const letters = this.lettersTexture();
-    this.renderer.gl.uniform1f(this.renderer.u.lettered, this.letters ? 1 : 0);
+    this.renderer.gl.uniform1f(this.renderer.u.lettered, this.letters || this.renderer.lettered ? 1 : 0);
     const source = render(this.renderer, w, h, this.last, letters);
     this.context.drawImage(this.renderer.canvas, ...source, 0, 0, w, h);
     this.canvas.dataset.ready = 'true';

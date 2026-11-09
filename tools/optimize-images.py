@@ -43,6 +43,13 @@ IMAGES = {
     # tools/build-wax-seal.py. Exact: any loss shows in the moving gloss.
     'wax-seal-albedo': ((768,), EXACT),
     'wax-seal-relief': ((768,), EXACT),
+    # The round P seal (p-seal.html), shown up to 560 CSS pixels wide, and
+    # its colour, relief and monogram from tools/build-round-seal.py. The
+    # still is a frame of the relit seal, its alpha kept exact for the edge.
+    'round-seal': ((1024,), LOSSY),
+    'round-seal-albedo': ((1024,), EXACT),
+    'round-seal-relief': ((1024,), EXACT),
+    'round-seal-letters': ((1024,), EXACT),
     # The paper model's baked relief (front emboss, back deboss), lit live on
     # the paper; 1024 wide covers the sheet at up to two device pixels.
     'paper-front-relief': ((1024,), RELIEF),
