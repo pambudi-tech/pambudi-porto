@@ -14,7 +14,8 @@
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   opacity: 0;
-  transition: opacity 500ms ease;
+  /* print.mjs SWITCH_FADE waits this out before another version comes in. */
+  transition: opacity 300ms ease;
 }
 .model[data-ready] { opacity: 1; }
 .model.over-card { cursor: grab; }
@@ -22,7 +23,8 @@
 /* The dimensions, drawn on the faces in the model's space (print.mjs, as
    card.css draws them on the card page's faces), laid out at their size on
    screen. */
-.dims-layer { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.dims-layer { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity 300ms ease; }
+.dims-layer[data-ready] { opacity: 1; }
 .dims3d {
   --offset: 22px;
   --tick: 16px;
@@ -59,6 +61,37 @@
   white-space: nowrap;
 }
 .d3-thick { color: var(--muted); font-size: 12px; }
+/* The thickness, on an edge, over the card's head: lines up from the
+   paper's back and front, a span across them (run out past them, so it
+   reads at real size), the figure over it. */
+.d3-edge .d3-span {
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: calc(-1 * var(--offset));
+  border-top: 1px solid #a3a39c;
+}
+.d3-edge .d3-span::before, .d3-edge .d3-span::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--tick) / -2);
+  height: calc(var(--offset) + var(--tick) / 2);
+  border-left: 1px solid #a3a39c;
+}
+.d3-edge .d3-span::before { left: 12px; }
+.d3-edge .d3-span::after { right: 11px; }
+.d3-edge .d3-note {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--offset) + var(--tick));
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  translate: -50% 0;
+  white-space: nowrap;
+}
 
 /* Taken apart, the seal can be shown alone. */
 .model.over-seal { cursor: pointer; }
@@ -87,6 +120,56 @@
 .seal-cue:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .model:focus-visible { outline: 2px solid var(--accent); outline-offset: -6px; }
 
+/* The two cards, at the top: the home page's selected works / exploration
+   pill (works.css .works-nav-toggle), its ink sliding to the chosen one. */
+.version-toggle {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  translate: -50% 0;
+  border: 1px solid rgb(73 72 63 / .14);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .05);
+}
+.version-toggle button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a877e;
+  font: 12px/1 var(--mono);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 300ms ease;
+}
+.version-toggle button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.version-toggle button[aria-pressed="true"] { color: #ffffff; cursor: default; }
+.version-toggle button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.version-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: calc(3px + var(--pill-left, 0px));
+  width: var(--pill-width, 0px);
+  border-radius: 999px;
+  background: var(--ink);
+  transition: left 260ms var(--ease-out), width 260ms var(--ease-out);
+}
+/* Placed before it's drawn, so it doesn't slide in on load. */
+.version-toggle:not([data-ready]) .version-pill { transition: none; }
+
 /* Until the model is drawn: how far the print file has come. */
 .loading {
   position: absolute;
@@ -114,5 +197,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .model, .seal-cue { transition: none; }
+  .model, .dims-layer, .seal-cue, .version-pill { transition: none; }
 }

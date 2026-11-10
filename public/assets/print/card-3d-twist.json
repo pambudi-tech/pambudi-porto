@@ -1,0 +1,103 @@
+{
+  "variant": "twist",
+  "card": "card",
+  "file": "/downloads/3dprint/pambudi-card-twist.3mf",
+  "objects": {
+    "card body": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        -0.000405
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        -0.000342
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        -0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "seal": [
+      [
+        -1.0,
+        0.0,
+        0.0,
+        43.413868
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        33.033978
+      ],
+      [
+        0.0,
+        0.0,
+        -1.0,
+        0.52
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "card_mm": [
+    67.753,
+    85.0
+  ],
+  "centre_mm": [
+    33.8761,
+    42.4996
+  ],
+  "middle_mm": [
+    33.8763,
+    42.4994
+  ],
+  "stock_mm": 1.0,
+  "relief_mm": 0.5,
+  "unlock_deg": 40.0,
+  "peg_mm": 0.52,
+  "seal_mm": 19.0,
+  "seal_size_mm": [
+    18.983,
+    18.182,
+    2.823
+  ],
+  "downloads": [
+    {
+      "label": "a1 plate, 8 cards \u00b7 3 h 25 min",
+      "href": "/downloads/3dprint/a1-cards-twist.gcode.3mf",
+      "kind": "3mf"
+    },
+    {
+      "label": "a1 plate, 135 seals \u00b7 7 h 12 min",
+      "href": "/downloads/3dprint/a1-seals-twist.gcode.3mf",
+      "kind": "3mf"
+    },
+    {
+      "label": "a1 plate, 3 key ring cards \u00b7 1 h 18 min",
+      "href": "/downloads/3dprint/a1-keyrings-twist.gcode.3mf",
+      "kind": "3mf"
+    },
+    {
+      "label": "fit test, print first \u00b7 13 min",
+      "href": "/downloads/3dprint/fit-test-twist.gcode.3mf",
+      "kind": "3mf"
+    }
+  ]
+}

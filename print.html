@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<meta name="description" content="Ivan Pambudi's card as a 3D print: the embossed paper from card.pambudi.xyz, 1.4 mm thick, with a wax seal that locks on with a push and a turn and carries an NFC tag. Turn it, take it apart, download the files for a Bambu Lab A1.">
+<meta name="description" content="Ivan Pambudi's card as a 3D print: the embossed paper from card.pambudi.xyz, 1.0 mm thick, and a wax seal locked on for good over an NFC tag; also as a key ring, with a round tab on top. Turn it, take it apart, download the files for a Bambu Lab A1.">
 <title>Ivan Pambudi - Card, 3D print</title>
 <!-- partial:icons -->
 <link rel="preload" href="/assets/fonts/syne-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -13,9 +13,17 @@
 <body>
 <h1 class="sr-only">Ivan Pambudi's card, for a 3D printer</h1>
 <main class="space">
+  <!-- The two cards, each its own print file (tools/build-card-3d.py); the
+       link keeps the choice (?v=keyring). As the works' collections on the
+       home page. -->
+  <div class="version-toggle" role="group" aria-label="Card">
+    <span class="version-pill" aria-hidden="true"></span>
+    <button type="button" data-variant="card" aria-pressed="true">card</button>
+    <button type="button" data-variant="keyring" aria-pressed="false">key ring</button>
+  </div>
   <!-- How far the print file has come, until its model is drawn. -->
   <p class="loading" role="status">loading the print file</p>
-  <!-- The print file's model: public/downloads/3dprint/pambudi-card-3d.3mf. -->
+  <!-- The print file's model: public/downloads/3dprint/pambudi-card-twist.3mf. -->
   <canvas class="model" tabindex="0" role="button" aria-label="Turn the card to its back" aria-describedby="print-help"></canvas>
   <!-- Under the seal, taken apart: "wax detail"; shown alone: "back to card". -->
   <button class="seal-cue" type="button" hidden>wax detail</button>
@@ -29,15 +37,17 @@
     </div>
     <button class="mesh-view" type="button" aria-pressed="false" disabled>mesh</button>
     <button class="explode" type="button" aria-pressed="false" disabled>explode</button>
-    <!-- The print files, written by tools/build-card-3d.py into public/downloads/3dprint/. -->
+    <!-- The A1 plates, sliced by tools/slice-a1.py into public/downloads/3dprint/;
+         print.mjs lists them from the shown card's card-3d*.json. -->
     <div class="download">
       <button class="download-open" type="button" aria-expanded="false" aria-controls="download-menu">download</button>
       <div class="download-menu" id="download-menu">
-        <p class="download-title">for the printer</p>
+        <p class="download-title">for the A1, sliced: one colour each</p>
         <ul>
-          <li><a href="/downloads/3dprint/pambudi-card-3d.3mf" download>card and seal, a1 plate <span>3mf</span></a></li>
-          <li><a href="/downloads/3dprint/fit-test.3mf" download>fit test, print first <span>3mf</span></a></li>
-          <li><a href="/downloads/3dprint/print-notes.txt" download>print notes <span>txt</span></a></li>
+          <li><a href="/downloads/3dprint/a1-cards-twist.gcode.3mf" download>a1 plate, 8 cards · 3 h 25 min <span>3mf</span></a></li>
+          <li><a href="/downloads/3dprint/a1-seals-twist.gcode.3mf" download>a1 plate, 135 seals · 7 h 12 min <span>3mf</span></a></li>
+          <li><a href="/downloads/3dprint/a1-keyrings-twist.gcode.3mf" download>a1 plate, 3 key ring cards · 1 h 18 min <span>3mf</span></a></li>
+          <li><a href="/downloads/3dprint/fit-test-twist.gcode.3mf" download>fit test, print first · 13 min <span>3mf</span></a></li>
         </ul>
       </div>
     </div>
@@ -59,7 +69,7 @@
       <button type="button" data-done>done</button>
     </div>
   </dialog>
-  <p id="print-help" class="sr-only">The card as it prints: 67.75 by 85 millimetres and 1.4 millimetres thick (1.9 at the relief), its dimensions drawn round it while it is still, the frame raised on the front and pressed into the back, and a 19 millimetre wax seal with a P that locks into a pocket at the middle of the back with a push and a turn, an NFC tag in its underside. Drag across it to turn it any way; it stays as you leave it, and a tap or default view brings it back face on; face on, a tap turns it over, as do Enter and the arrow keys. Mesh shows the file's triangles, without light or shade. Explode turns the seal back and lifts it out of its pocket; then a tap on the seal, or wax detail, shows it alone, and back to card, a tap beside it or Escape goes back. Pinch, Control or Command and scroll, or the plus and minus keys zoom in; 0 goes back to real size.</p>
+  <p id="print-help" class="sr-only">The card as it prints: 67.75 by 85 millimetres and 1 millimetre thick (1.5 over the embossed frame), its dimensions drawn round it while it is still, the frame raised on the front and pressed into the back, and a 19 millimetre wax seal with a P locked for good into a pocket at the middle of the back with a push and a turn, an NFC tag in its underside. At the top, card or key ring: the same card with a round tab on top and a 3 millimetre hole, 89.57 millimetres tall. Drag across it to turn it any way; it stays as you leave it, and a tap or default view brings it back face on; face on, a tap turns it over, as do Enter and the arrow keys. Mesh shows the file's triangles, without light or shade. Explode takes the seal back out of the pocket; then a tap on the seal, or wax detail, shows it alone, and back to card, a tap beside it or Escape goes back. Pinch, Control or Command and scroll, or the plus and minus keys zoom in; 0 goes back to real size.</p>
 </main>
 <script type="module" src="/src/print/print.mjs"></script>
 </body>

@@ -11,8 +11,12 @@ import { paperFlipPoseAt, paperFlipDirection, PAPER_FLIP } from '../paper/paper-
 
 // The card as it prints: the 3MF the page offers for download
 // (tools/build-card-3d.py), drawn from the file itself, every triangle as
-// written: the card page's paper, 1.4 mm thick, with the wax seal locked
-// into the middle of its back (push, and a turn). A mouse anywhere brings
+// written: the card page's paper, 1.0 mm thick, the wax seal locked for good
+// into the middle of its back (a push and a turn); chosen at the top, the
+// card, or the key ring card (a round tab on top, a hole in it), each its own
+// file. tools/build-card-3d.py also builds versions the page doesn't offer
+// (1.4 mm removable, 1.24 mm pressed on with a clip ring); VERSIONS can show
+// them, the clip and all. A mouse anywhere brings
 // the lamp and over the card it tilts, as on the card page. A drag turns it
 // any way and it stays as left; a tap brings it back face on, or, face on
 // already, turns it over. Explode turns the seal back and lifts it out, the
@@ -50,17 +54,19 @@ const camera = new PerspectiveCamera(30, 1, 1, 1000);
 // PLA: white for the card, red for the seal, both matte.
 // Pushed back a hair, so the sharp edges' lines lie on them cleanly.
 const behind = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
+// The clip (the press version's) is red as the seal, but its own, as it
+// fades with the card when the seal is shown alone.
+const wax = () => new MeshStandardMaterial({ color: 0x9e1b24, roughness: .42, metalness: 0, ...behind });
 const MATERIALS = {
   card: new MeshStandardMaterial({ color: 0xe8e6e0, roughness: .7, metalness: 0, ...behind }),
-  seal: new MeshStandardMaterial({ color: 0x9e1b24, roughness: .42, metalness: 0, ...behind }),
+  seal: wax(),
+  clip: wax(),
 };
 // The sharp edges, as a drawing's lines: the pattern's walls, the outline,
 // the P, the tabs (print-file.worker.mjs finds them in the file).
-const EDGE_OPACITY = { card: .55, seal: .5 };
-const EDGES = {
-  card: new LineBasicMaterial({ color: 0x5f5d55, transparent: true, opacity: EDGE_OPACITY.card, depthWrite: false, toneMapped: false }),
-  seal: new LineBasicMaterial({ color: 0x4f0a10, transparent: true, opacity: EDGE_OPACITY.seal, depthWrite: false, toneMapped: false }),
-};
+const EDGE_OPACITY = { card: .55, seal: .5, clip: .5 };
+const line = (color, kind) => new LineBasicMaterial({ color, transparent: true, opacity: EDGE_OPACITY[kind], depthWrite: false, toneMapped: false });
+const EDGES = { card: line(0x5f5d55, 'card'), seal: line(0x4f0a10, 'seal'), clip: line(0x4f0a10, 'clip') };
 
 // The mesh view: no lamp and no shadow. Each part is shaded only by how far
 // it turns from the eye, alike on every side (a slope is a touch darker
@@ -86,15 +92,18 @@ const edges = color => new MeshBasicMaterial({ color, toneMapped: false, wirefra
 const MESH_VIEW = {
   card: { fill: fill(0xf2f1ec), edges: edges(0x55534b), step: .1 },
   seal: { fill: fill(0xf0cfd1), edges: edges(0x8a1820), step: .06 },
+  clip: { fill: fill(0xf0cfd1), edges: edges(0x8a1820), step: .06 },
 };
+// What goes with the card when the seal is shown alone.
+const WITH_CARD = ['card', 'clip'];
 // Edges a pixel apart would only grey the surface: they come in as they part.
 function fadeEdges() {
   for (const [kind, { edges: material, step }] of Object.entries(MESH_VIEW)) {
     const px = step * pxPerMm() * shownZoom();
-    material.opacity = Math.max(.05, Math.min(.6, (px - .8) / 5)) * (kind === 'card' ? 1 - focusing() : 1);
+    material.opacity = Math.max(.05, Math.min(.6, (px - .8) / 5)) * (WITH_CARD.includes(kind) ? 1 - focusing() : 1);
   }
 }
-const solids = [];   // [{ mesh, kind }], as loaded
+let solids = [];     // [{ mesh, kind, sharp }]: the shown version's parts
 let wires = null;    // their edges, made the first time they're shown
 
 // Hover and press on the outside, the turn inside it, the parts in the turn
@@ -103,11 +112,13 @@ const posed = new Group();
 const turned = new Group();
 const parts = new Group();
 const sealAxis = new Group();
+const clipAxis = new Group();
 posed.add(turned);
 turned.add(parts);
+parts.add(sealAxis, clipAxis);
 scene.add(posed);
 
-let fit = null;   // card-3d.json: sizes, the seal's place and its last turn
+let fit = null;   // the shown version's card-3d*.json: sizes, the parts' places, the seal's last turn
 
 // —— Pose ——
 const pointer = { x: 0, y: 0, hovered: false, lit: false, pressed: false };
@@ -140,6 +151,8 @@ function placeSeal() {
   // alone, it comes round again to stand its P upright.
   sealAxis.rotation.z = -rad(fit.unlock_deg) * unlock * (1 - focusing());
   sealAxis.position.z = -rise * EXPLODE.lift;
+  // The clip, halfway: out of the card, off the seal's stem.
+  clipAxis.position.z = -rise * EXPLODE.lift * .45;
 }
 
 // —— Size on screen ——
@@ -157,7 +170,7 @@ let zoom = 1, pan = [0, 0];       // shown
 let zoomTo = 1, panTo = [0, 0];   // aimed for
 let rect = null;                  // the card on screen, at rest
 const pxPerMm = () => PX_PER_MM * scale;
-const CARD_MM = [67.75, 85];
+let CARD_MM = [67.75, 85];   // the shown card's (card_mm), its key ring tab and all
 
 // Alone, the seal fills about half the window's shorter side.
 const sealZoom = () => Math.max(1.5, Math.min(FOCUS.maxZoom, Math.min(...viewSize) * FOCUS.fill / ((fit?.seal_mm ?? 19) * pxPerMm())));
@@ -195,18 +208,20 @@ let sealMiddle = 0;   // the seal's middle through its thickness, from its axis 
 let cardShown = 1;
 function fadeCard(alpha) {
   if (alpha === cardShown) return;
-  const card = solids.find(solid => solid.kind === 'card');
-  for (const material of [MATERIALS.card, MESH_VIEW.card.fill]) {
-    const see = alpha < 1;
-    if (material.transparent !== see) { material.transparent = see; material.needsUpdate = true; }
-    material.opacity = alpha;
-    material.depthWrite = !see;
-  }
-  card.mesh.visible = alpha > .001;
   const meshView = meshButton.getAttribute('aria-pressed') === 'true';
-  EDGES.card.opacity = EDGE_OPACITY.card * alpha;
-  card.sharp.visible = card.mesh.visible && !meshView;
-  if (wires) wires[solids.indexOf(card)].visible = card.mesh.visible && meshView;
+  const see = alpha < 1;
+  for (const solid of solids.filter(({ kind }) => WITH_CARD.includes(kind))) {
+    const { kind } = solid;
+    for (const material of [MATERIALS[kind], MESH_VIEW[kind].fill]) {
+      if (material.transparent !== see) { material.transparent = see; material.needsUpdate = true; }
+      material.opacity = alpha;
+      material.depthWrite = !see;
+    }
+    solid.mesh.visible = alpha > .001;
+    EDGES[kind].opacity = EDGE_OPACITY[kind] * alpha;
+    solid.sharp.visible = solid.mesh.visible && !meshView;
+    if (wires) wires[solids.indexOf(solid)].visible = solid.mesh.visible && meshView;
+  }
   cardShown = alpha;
 }
 function write() {
@@ -218,8 +233,12 @@ function write() {
   turned.rotation.set(rad(-(view.tilt + view.rock)), rad(view.angle), 0, 'XYZ');
   placeSeal();
   if (fit) {
-    // The turn's centre moves from the card's middle to the seal's.
+    // The turn's centre moves from the card's middle to the seal's (the
+    // seal's pocket sits below the middle of a card with a tab on top).
     const f = focusing();
+    const [mx, my] = fit.middle_mm ?? fit.centre_mm, [sx, sy] = fit.centre_mm;
+    parts.position.x = -(mx + (sx - mx) * f);
+    parts.position.y = -(my + (sy - my) * f);
     parts.position.z = -(fit.stock_mm / 2 + (sealAxis.position.z + sealMiddle - fit.stock_mm / 2) * f);
     fadeCard(1 - f);
   }
@@ -297,9 +316,9 @@ const css = new CSS3DRenderer();
 css.domElement.className = 'dims-layer';
 css.domElement.setAttribute('aria-hidden', 'true');
 canvas.after(css.domElement);
-const dimSets = [];   // [{ object, element, size: [w, h], kind: 'card' | 'seal' }]
+let dimSets = [];     // the shown version's: [{ object, element, size: [w, h], kind: 'card' | 'seal' }]
 const mmText = value => `${Number(value.toFixed(2))} mm`;
-function addDims(parent, kind, [x, y, z], turnedRound, [w, h], side, thick) {
+function addDims(sets, parent, kind, [x, y, z], turnedRound, [w, h], side, thick) {
   const element = document.createElement('div');
   element.className = 'dims3d';
   element.innerHTML = '<div class="d3-width"><span class="d3-label"></span></div>'
@@ -315,8 +334,26 @@ function addDims(parent, kind, [x, y, z], turnedRound, [w, h], side, thick) {
   object.position.set(x, y, z);
   // A back face reads from behind, unmirrored, as the card page's.
   if (turnedRound) object.rotation.y = Math.PI;
-  parent.add(object);
-  dimSets.push({ object, element, size: [w, h], kind });
+  sets.push({ object, element, size: [w, h], kind, parent });
+}
+// The thickness, on the card's side edges (left and right), across the
+// paper from back to front, over the card's head (so nothing of the card
+// is drawn over, nor the cue under it): seen only with the card turned edge
+// on (holdDims fades it in as the edge comes round square to the eye).
+function addThickness(sets, parent, kind, [x, y, z], turn, stock, thick, atRelief) {
+  const element = document.createElement('div');
+  element.className = 'dims3d d3-edge';
+  element.innerHTML = '<div class="d3-span"></div><p class="d3-note"><span></span><span class="d3-thick"></span></p>';
+  const [label, note] = element.querySelectorAll('.d3-note span');
+  label.textContent = thick;
+  note.textContent = atRelief;
+  const object = new CSS3DObject(element);
+  element.style.pointerEvents = 'none';
+  object.position.set(x, y, z);
+  // Its face turned out from the edge (+x on the right, -x on the left), its
+  // width along the thickness.
+  object.rotation.y = turn;
+  sets.push({ object, element, size: [stock, 0], kind, parent, edge: true });
 }
 // Laid out in CSS px at the size they show (px per mm times the zoom), then
 // scaled back into millimetres: the camera brings them to that size again.
@@ -332,17 +369,24 @@ function sizeDims() {
   }
 }
 // Each set shows only while its face is turned to the eye (worked out here:
-// the browser's backface-visibility didn't hold for every set).
+// the browser's backface-visibility didn't hold for every set); the
+// thickness on the edges only near square to it.
 const facing = new Vector3(), toEye = new Vector3();
+const EDGE_ON = Object.freeze({ from: .8, to: .95 });   // cos of the angle off square: faded out (37°), fully in (18°)
+const FACE_GRAZING = Object.freeze({ from: .15, to: .4 });   // a face's: gone at 81° off square, whole by 66°
 function holdDims() {
   sizeDims();
   const shown = { card: cardShown, seal: focusing() };
   for (const set of dimSets) {
-    const opacity = shown[set.kind];
+    let opacity = shown[set.kind];
     set.object.updateMatrixWorld();
     facing.set(0, 0, 1).transformDirection(set.object.matrixWorld);
     toEye.setFromMatrixPosition(set.object.matrixWorld).negate().add(camera.position);
-    set.object.visible = opacity > .001 && facing.dot(toEye) > 0;
+    const square = facing.dot(toEye.normalize());
+    const fade = (from, to) => smooth(Math.max(0, Math.min(1, (square - from) / (to - from))));
+    // The faces' own fade out as they turn edge on (squashed past reading).
+    opacity *= set.edge ? fade(EDGE_ON.from, EDGE_ON.to) : fade(FACE_GRAZING.from, FACE_GRAZING.to);
+    set.object.visible = opacity > .001 && square > 0;
     if (set.opacity !== opacity) { set.opacity = opacity; set.element.style.opacity = opacity.toFixed(3); }
   }
 }
@@ -620,6 +664,9 @@ meshButton.addEventListener('click', () => {
   if (!fit) return;
   const on = meshButton.getAttribute('aria-pressed') !== 'true';
   meshButton.setAttribute('aria-pressed', String(on));
+  applyMeshView(on);
+});
+function applyMeshView(on) {
   if (on && !wires) {
     wires = solids.map(({ mesh, kind }) => {
       const wire = new Mesh(mesh.geometry, MESH_VIEW[kind].edges);
@@ -631,11 +678,11 @@ meshButton.addEventListener('click', () => {
   }
   for (const { mesh, kind, sharp } of solids) {
     mesh.material = on ? MESH_VIEW[kind].fill : MATERIALS[kind];
-    sharp.visible = !on && (kind !== 'card' || cardShown > .001);
+    sharp.visible = !on && (!WITH_CARD.includes(kind) || cardShown > .001);
   }
   for (const wire of wires ?? []) wire.visible = on;
   request();
-});
+}
 
 // —— Calibration ——
 const dialog = document.querySelector('.calibrate');
@@ -667,7 +714,7 @@ dialog.querySelector('[data-done]').addEventListener('click', () => {
 // —— Downloads (as the card page's menu) ——
 const download = document.querySelector('.download');
 const downloadOpen = download.querySelector('.download-open');
-const downloadLinks = [...download.querySelectorAll('a')];
+let downloadLinks = [...download.querySelectorAll('a')];
 function showDownloads(open, { focus = false } = {}) {
   download.toggleAttribute('data-open', open);
   downloadOpen.setAttribute('aria-expanded', String(open));
@@ -690,6 +737,19 @@ download.addEventListener('keydown', event => {
   event.stopPropagation();
 });
 for (const link of downloadLinks) link.addEventListener('click', () => showDownloads(false));
+// The shown version's files (its card-3d*.json).
+function listDownloads({ downloads }) {
+  const list = download.querySelector('ul');
+  list.replaceChildren(...downloads.map(({ label, href, kind }) => {
+    const item = document.createElement('li');
+    const link = Object.assign(document.createElement('a'), { href, download: '' });
+    link.append(`${label} `, Object.assign(document.createElement('span'), { textContent: kind }));
+    link.addEventListener('click', () => showDownloads(false));
+    item.append(link);
+    return item;
+  }));
+  downloadLinks = [...list.querySelectorAll('a')];
+}
 addEventListener('pointerdown', event => {
   if (download.hasAttribute('data-open') && !download.contains(event.target)) showDownloads(false);
 });
@@ -848,23 +908,23 @@ addEventListener('resize', resize);
 // —— Loading ——
 // The print file is read in a worker (print-file.worker.mjs); until its
 // model is drawn, a line says how far along it is, and nothing stands in
-// for it.
+// for it. Each version, once read, is kept: back to it, it's there at once.
 const megabytes = bytes => `${(bytes / 1e6).toFixed(1)} MB`;
-function readPrintFile(url) {
+function readPrintFile(url, says) {
   const worker = new Worker(new URL('./print-file.worker.mjs', import.meta.url), { type: 'module' });
   return new Promise((resolve, reject) => {
     worker.onmessage = ({ data }) => {
       if (data.error) { worker.terminate(); reject(new Error(data.error)); return; }
       if (data.objects) { worker.terminate(); resolve(data.objects); return; }
-      status.textContent = data.reading
+      says(data.reading
         ? `reading the print file, ${megabytes(data.total)}`
-        : `loading the print file, ${data.total ? `${megabytes(data.loaded)} of ${megabytes(data.total)}` : megabytes(data.loaded)}`;
+        : `loading the print file, ${data.total ? `${megabytes(data.loaded)} of ${megabytes(data.total)}` : megabytes(data.loaded)}`);
     };
     worker.onerror = event => { worker.terminate(); reject(new Error(event.message)); };
     worker.postMessage({ url });
   });
 }
-function part({ positions, normals, indices, lines }, kind, matrix) {
+function part({ positions, normals, indices, lines }, kind, matrix, into) {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new BufferAttribute(normals, 3));
@@ -877,12 +937,11 @@ function part({ positions, normals, indices, lines }, kind, matrix) {
   group.matrixAutoUpdate = false;
   group.matrix.copy(matrix);
   group.add(mesh, sharp);
-  solids.push({ mesh, kind, sharp });
+  into.push({ mesh, kind, sharp });
   return group;
 }
-async function load() {
-  const json = await fetch('/assets/print/card-3d.json').then(response => response.json());
-  const objects = await readPrintFile(json.file);
+// A version's parts, placed as the file says, and its dimensions.
+function makeModel(json, objects) {
   const named = name => {
     const object = objects.find(o => o.name === name);
     if (!object) throw new Error(`no "${name}" in the print file`);
@@ -890,36 +949,166 @@ async function load() {
   };
   const placed = name => new Matrix4().set(...json.objects[name].flat());
   const [cx, cy] = json.centre_mm;
-  // The card's middle at the origin, halfway through its thickness.
-  parts.position.set(-cx, -cy, -json.stock_mm / 2);
-  parts.add(part(named('card body'), 'card', placed('card body')));
-  // The seal turns about the pocket's axis.
-  sealAxis.position.set(cx, cy, 0);
-  sealAxis.add(part(named('seal'), 'seal', new Matrix4().makeTranslation(-cx, -cy, 0).multiply(placed('seal'))));
-  parts.add(sealAxis);
-  const seal = solids.find(solid => solid.kind === 'seal').mesh;
-  seal.geometry.computeBoundingBox();
+  const pieces = [];
+  const card = part(named('card body'), 'card', placed('card body'), pieces);
+  // The seal (and the clip) turn and lift about the pocket's axis.
+  const onAxis = name => new Matrix4().makeTranslation(-cx, -cy, 0).multiply(placed(name));
+  const seal = part(named('seal'), 'seal', onAxis('seal'), pieces);
+  const clip = json.objects.clip ? part(named('clip'), 'clip', onAxis('clip'), pieces) : null;
+  const sealMesh = pieces.find(piece => piece.kind === 'seal').mesh;
+  sealMesh.geometry.computeBoundingBox();
   // In the seal's axis's space: through the group that places it from the file.
-  const box = seal.geometry.boundingBox.clone().applyMatrix4(seal.parent.matrix);
-  sealMiddle = (box.min.z + box.max.z) / 2;
-  const thick = `${mmText(json.stock_mm)} thick, ${mmText(json.stock_mm + json.relief_mm)} at the relief`;
-  addDims(parts, 'card', [cx, cy, json.stock_mm + .02], false, json.card_mm, 'front side', thick);
-  addDims(parts, 'card', [cx, cy, -.02], true, json.card_mm, 'back side', thick);
+  const box = sealMesh.geometry.boundingBox.clone().applyMatrix4(seal.matrix);
+  const sets = [];
+  const thick = `${mmText(json.stock_mm)} thick, ${mmText(json.stock_mm + json.relief_mm)} over the emboss`;
+  const [mx, my] = json.middle_mm ?? json.centre_mm;
+  addDims(sets, parts, 'card', [mx, my, json.stock_mm + .02], false, json.card_mm, 'front side', thick);
+  addDims(sets, parts, 'card', [mx, my, -.02], true, json.card_mm, 'back side', thick);
+  // The thickness on the side edges, over the card's head.
+  const across = json.card_mm[0] / 2 + .02, head = my + json.card_mm[1] / 2 + .02;
+  for (const side of [1, -1]) {
+    addThickness(sets, parts, 'card', [mx + side * across, head, json.stock_mm / 2], side * Math.PI / 2, json.stock_mm,
+      `${mmText(json.stock_mm)} thick`, `${mmText(json.stock_mm + json.relief_mm)} over the emboss`);
+  }
   // The seal's, about its own box, turning with it (its face towards the card's back).
   const [sw, sh, st] = json.seal_size_mm, sx = (box.min.x + box.max.x) / 2, sy = (box.min.y + box.max.y) / 2;
-  const tall = `${mmText(st)} tall with its peg`;
-  addDims(sealAxis, 'seal', [sx, sy, box.min.z - .02], true, [sw, sh], 'wax seal, front side', tall);
-  addDims(sealAxis, 'seal', [sx, sy, box.max.z + .02], false, [sw, sh], 'wax seal, back side', tall);
+  const tall = `${mmText(st)} tall with its ${json.variant === 'press' ? 'stem' : 'peg'}`;
+  addDims(sets, sealAxis, 'seal', [sx, sy, box.min.z - .02], true, [sw, sh], 'wax seal, front side', tall);
+  addDims(sets, sealAxis, 'seal', [sx, sy, box.max.z + .02], false, [sw, sh], 'wax seal, back side', tall);
+  // Its thickness on its side edges, over its head, as the card's: all of it
+  // with the peg (or stem), and the wax alone (from its face to its
+  // underside, which lies on the card's back at z = 0).
+  const through = box.max.z - box.min.z, waxOnly = -box.min.z, rim = sw / 2 + .02;
+  for (const side of [1, -1]) {
+    addThickness(sets, sealAxis, 'seal', [sx + side * rim, sy + sh / 2 + .02, (box.min.z + box.max.z) / 2], side * Math.PI / 2,
+      through, `${mmText(through)} with its ${json.variant === 'press' ? 'stem' : 'peg'}`, `${mmText(waxOnly)} without it`);
+  }
+  return { json, card, seal, clip, solids: pieces, dims: sets, sealMiddle: (box.min.z + box.max.z) / 2, wires: null };
+}
+
+// —— Versions ——
+// Chosen at the top, each its own file (card-3d*.json says which). The one
+// shown fades; the other comes in at the default view, as the page opens.
+const VERSIONS = Object.freeze({
+  card: '/assets/print/card-3d-twist.json',
+  keyring: '/assets/print/card-3d-twist-keyring.json',
+});
+const versionToggle = document.querySelector('.version-toggle');
+const versionButtons = [...versionToggle.querySelectorAll('[data-variant]')];
+const SWITCH_FADE = 300;   // ms, as .model's opacity (print.css)
+const models = new Map();
+let model = null, wanted = null;
+
+function placePill() {
+  const chosen = versionButtons.find(button => button.getAttribute('aria-pressed') === 'true');
+  versionToggle.style.setProperty('--pill-left', `${chosen.offsetLeft - versionButtons[0].offsetLeft}px`);
+  versionToggle.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);
+}
+// Everything as the page opens: face on, together, at real size.
+function toDefault() {
+  tween = spin = null;
+  pointer.pressed = pointer.hovered = false;
+  canvas.classList.remove('spinning', 'focused');
+  apart = focus = 0;
+  focused = false;
+  focusedFrom = explodedFrom = null;
+  cueSettled = false;
+  Object.assign(view, { angle: 0, tilt: 0, y: 0, z: 0, rock: 0 });
+  explodeButton.setAttribute('aria-pressed', 'false');
+  explodeButton.textContent = 'explode';
+  zoom = zoomTo = 1;
+  pan = [0, 0];
+  panTo = [0, 0];
+  gliding = false;
+  applyZoom();
+}
+function swapIn(next) {
+  // The one shown first back to how it was made (the card's materials are shared).
+  focus = 0;
+  fadeCard(1);
+  if (model) {
+    model.wires = wires;
+    parts.remove(model.card);
+    sealAxis.remove(model.seal);
+    if (model.clip) clipAxis.remove(model.clip);
+    for (const set of model.dims) set.parent.remove(set.object);
+  }
+  model = next;
+  const [cx, cy] = next.json.centre_mm;
+  // The card's middle at the origin, halfway through its thickness.
+  const [mx, my] = next.json.middle_mm ?? next.json.centre_mm;
+  parts.position.set(-mx, -my, -next.json.stock_mm / 2);
+  CARD_MM = next.json.card_mm;
+  sealAxis.position.set(cx, cy, 0);
+  clipAxis.position.set(cx, cy, 0);
+  parts.add(next.card);
+  sealAxis.add(next.seal);
+  if (next.clip) clipAxis.add(next.clip);
+  for (const set of next.dims) set.parent.add(set.object);
+  solids = next.solids;
+  dimSets = next.dims;
+  wires = next.wires;
+  sealMiddle = next.sealMiddle;
+  laidAt = null;
+  fit = next.json;
+  applyMeshView(meshButton.getAttribute('aria-pressed') === 'true');
+  listDownloads(next.json);
+  label();
+}
+async function show(variant) {
+  wanted = variant;
+  explodeButton.disabled = meshButton.disabled = true;
+  if (model) {
+    canvas.removeAttribute('data-ready');
+    css.domElement.removeAttribute('data-ready');
+    await new Promise(resolve => setTimeout(resolve, motion.matches ? 0 : SWITCH_FADE));
+    if (wanted !== variant) return;
+  }
+  let next = models.get(variant);
+  if (!next) {
+    const says = text => { if (wanted === variant) { status.textContent = text; status.hidden = false; } };
+    says('loading the print file');
+    const json = await fetch(VERSIONS[variant]).then(response => response.json());
+    next = makeModel(json, await readPrintFile(json.file, says));
+    models.set(variant, next);
+    if (wanted !== variant) return;
+  }
+  toDefault();
+  swapIn(next);
   sizeDims();
-  fit = json;
   write();
   requestAnimationFrame(() => {
+    if (wanted !== variant) return;
     canvas.toggleAttribute('data-ready', true);
+    css.domElement.toggleAttribute('data-ready', true);
     status.hidden = true;
     explodeButton.disabled = meshButton.disabled = false;
+  });
+}
+function choose(variant, { keepLink = false } = {}) {
+  const first = Object.keys(VERSIONS)[0];
+  if (!VERSIONS[variant]) variant = first;
+  if (variant === wanted) return;
+  for (const button of versionButtons) button.setAttribute('aria-pressed', String(button.dataset.variant === variant));
+  placePill();
+  if (!keepLink) {
+    const link = new URL(location.href);
+    if (variant === first) link.searchParams.delete('v');
+    else link.searchParams.set('v', variant);
+    history.replaceState(history.state, '', link);
+  }
+  show(variant).catch(error => {
+    if (wanted !== variant) return;
+    status.hidden = false;
+    status.textContent = 'the print file could not be shown here; it is in download';
+    console.info(error.message);
   });
 }
 
 resize();
 applyZoom();
-load().catch(error => { status.textContent = 'the print file could not be shown here; it is in download'; console.info(error.message); });
+for (const button of versionButtons) button.addEventListener('click', () => choose(button.dataset.variant));
+addEventListener('resize', placePill);
+document.fonts?.ready.then(placePill);
+choose(new URL(location.href).searchParams.get('v'), { keepLink: true });
+requestAnimationFrame(() => versionToggle.toggleAttribute('data-ready', true));
