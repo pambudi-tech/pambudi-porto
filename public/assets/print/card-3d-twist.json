@@ -98,6 +98,11 @@
       "label": "fit test, print first \u00b7 13 min",
       "href": "/downloads/3dprint/fit-test-twist.gcode.3mf",
       "kind": "3mf"
+    },
+    {
+      "label": "print notes",
+      "href": "/downloads/3dprint/print-notes-twist.txt",
+      "kind": "txt"
     }
   ]
 }

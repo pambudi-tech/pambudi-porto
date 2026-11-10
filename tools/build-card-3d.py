@@ -1623,14 +1623,16 @@ def main():
         key: dict(items=items, sizes=[[float(x) for x in v[:2]] for v in span(parts)], shapes=shapes[key])
         for key, (parts, items) in plates.items()})))
 
-    # For the page: one file per card (the page draws each), and the four
-    # downloads: the plates, sliced for the A1 (tools/slice-a1.py).
+    # For the page: one file per card (the page draws each), and the
+    # downloads: the four plates, sliced for the A1 (tools/slice-a1.py), and
+    # the print notes (in Indonesian).
     singles = {'': (BV, outline), '-keyring': (RV, ring_outline)}
     downloads = [
         dict(label=f'a1 plate, {counts["cards"]} cards', href=f'/downloads/3dprint/a1-cards{SUFFIX}.gcode.3mf', kind='3mf'),
         dict(label=f'a1 plate, {counts["seals"]} seals', href=f'/downloads/3dprint/a1-seals{SUFFIX}.gcode.3mf', kind='3mf'),
         dict(label=f'a1 plate, {counts["keyrings"]} key ring cards', href=f'/downloads/3dprint/a1-keyrings{SUFFIX}.gcode.3mf', kind='3mf'),
         dict(label='fit test, print first', href=f'/downloads/3dprint/fit-test{SUFFIX}.gcode.3mf', kind='3mf'),
+        dict(label='print notes', href=f'/downloads/3dprint/print-notes{SUFFIX}.txt', kind='txt'),
     ]
     for tail, (card_v, loop) in singles.items():
         (OUT / f'card-3d{SUFFIX}{tail}.json').write_text(json.dumps(dict(
@@ -1653,6 +1655,7 @@ def main():
             (WEB / f'card-3d{SUFFIX}{tail}.json').write_bytes((OUT / f'card-3d{SUFFIX}{tail}.json').read_bytes())
             # Only for the page to draw: the card (or key ring card) with its seal.
             (DOWNLOADS / f'{FILE}{tail}.3mf').write_bytes((OUT / f'{FILE}{tail}.3mf').read_bytes())
+        (DOWNLOADS / f'print-notes{SUFFIX}.txt').write_bytes((OUT / f'print-notes{SUFFIX}.txt').read_bytes())
     log('wrote', OUT, counts)
 
     fitted = [('card body', BV, BF, 'paper'), ('seal', LV, LF, 'wax')]

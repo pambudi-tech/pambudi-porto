@@ -1,0 +1,51 @@
+KARTU IVAN PAMBUDI - CETAK 3D (Bambu Lab A1, nozzle 0.4 mm)
+
+FILE (sudah di-slice untuk A1: PLA, layer 0.08 mm, tanpa support)
+- a1-cards-twist.gcode.3mf: 8 kartu (putih)
+- a1-seals-twist.gcode.3mf: 135 seal (merah)
+- a1-keyrings-twist.gcode.3mf: 3 kartu gantungan kunci (putih)
+- fit-test-twist.gcode.3mf: potongan uji, satu warna, cetak paling dulu
+Cara print: buka file-nya di Bambu Studio lalu Print, atau salin ke kartu
+microSD A1 dan pilih dari layar printer. Satu warna per file: ganti
+gulungan filamen sebelum mencetak file berikutnya.
+
+LANGKAH
+1. Cetak fit-test-twist.gcode.3mf dulu: 3 koin (bagian tengah kartu) dan 3 sumbat
+   (seal polos), ditandai 1, 2, 3 takik di pinggirnya (1 = paling ketat).
+   Kuncinya permanen, jadi tiap pasang cuma bisa dicoba sekali: masukkan kaki
+   sumbat ke celah koin, dorong, lalu putar searah jarum jam sampai klik.
+   Pilih nomor paling ketat yang masih bisa diputar tanpa dipaksa, lalu
+   kabari nomornya, supaya ukuran gigi pegas di kartu disesuaikan (R_TIP,
+   sekarang 6.85 mm; koin 1 = 6.75, koin 3 = 6.95).
+2. Cetak plate kartu dan plate gantungan (putih), lalu plate seal (merah).
+3. Tempel stiker NFC di ceruk di ujung pasak seal.
+4. Pasang seal: masukkan kedua kaki pasaknya ke celah di lubang belakang
+   kartu, dorong, lalu putar searah jarum jam sekitar 40 derajat sampai klik
+   dan berhenti; huruf P berdiri tegak. Setelah itu seal tidak bisa diputar
+   balik, jadi stiker NFC terkunci di dalam.
+
+SETELAN CETAK
+- PLA, support MATI. Posisi seperti di file: kartu telentang (punggungnya di
+  plate, mukanya ke atas), seal menghadap ke atas (pasaknya di plate).
+- Tidak perlu support: kartu dan seal duduk rata di plate. Atap lubang seal
+  di kartu dan pinggiran bawah seal (menggantung 1.06-2.96 mm di sekeliling
+  pasak) cukup dicetak sebagai jembatan dan overhang pendek. Bagian bawah
+  seal mungkin sedikit kasar, tapi tidak kelihatan dan sudah diberi ruang.
+- Layer 0.08 mm (profil "0.08mm Extra Fine") supaya relief paling tajam.
+  Semua ketinggian sudah disesuaikan dengan layer ini (layer pertama 0.2 mm,
+  lalu 0.08 mm).
+- Elephant foot compensation di Bambu Studio biarkan seperti bawaannya.
+- Sekitar 5.4 g PLA per kartu, 0.5 g per seal.
+
+UKURAN
+Kartu      67.75 x 85.00 mm, potongan card.pambudi.xyz; tebal 1.0 mm
+           (1.5 mm di motif emboss: naik 0.5 mm di depan, tertekan di belakang)
+Gantungan  kartu yang sama dengan tonjolan bulat di atas, 67.75 x 89.57 mm;
+           lubang 3.0 mm, dinding kertas 2.1 mm di sekelilingnya
+Seal       lebar 19.0 mm; lilinnya 2.30 mm, 2.82 mm dengan pasaknya
+NFC        stiker bulat maksimal 12.0 mm, tebal maksimal 0.36 mm
+           (misalnya NTAG213 12 mm)
+Lubang     bibir 0.28 mm dengan 2 celah dan 2 pegas pipih, di atas rongga
+           0.32 mm, di bawah lantai depan 0.4 mm
+Pasak      0.52 mm, 2 kaki 0.2 mm, jarak bebas 0.15 mm; saat diputar pegasnya
+           melentur 0.25 mm lalu mengunci 0.25 mm
