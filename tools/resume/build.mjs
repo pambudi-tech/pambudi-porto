@@ -27,13 +27,25 @@ const WIDTH = 480;
 // The budget lets the page's web fonts load before it is printed.
 const print = (html, pdf) => execFileSync(chrome, ['--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--virtual-time-budget=10000', `--print-to-pdf=${pdf}`, pathToFileURL(html).href], { stdio: 'ignore' });
 
-print(source, resume);
-console.log(`wrote ${resume}`);
+// The works PIN, printed beside the site link so a reader can open the works.
+// It comes from the environment (WORKS_PIN, as in .env.local) so the HTML
+// source never holds it; the public teaser gets made-up digits in its place.
+const pin = process.env.WORKS_PIN;
+if (!/^\d+$/.test(pin ?? '')) throw new Error('Set WORKS_PIN to the works PIN (digits) before building.');
+const html = readFileSync(source, 'utf8');
+if (!html.includes('{{WORKS_PIN}}')) throw new Error('resume.html has no {{WORKS_PIN}} spot.');
 
 const scratch = mkdtempSync(join(tmpdir(), 'resume-locked-'));
 try {
+  const resumeHtml = join(scratch, 'resume.html');
+  writeFileSync(resumeHtml, html.replaceAll('{{WORKS_PIN}}', pin));
+  print(resumeHtml, resume);
+  console.log(`wrote ${resume}`);
+
+  // Fixed digits, not derived from the PIN, so the teaser says nothing about it.
+  const fakePin = '4729105836'.slice(0, pin.length).padEnd(pin.length, '0');
   const teaserHtml = join(scratch, 'teaser.html'), teaserPdf = join(scratch, 'teaser.pdf');
-  writeFileSync(teaserHtml, scrambleResume(readFileSync(source, 'utf8')));
+  writeFileSync(teaserHtml, scrambleResume(html.replaceAll('{{WORKS_PIN}}', fakePin)));
   print(teaserHtml, teaserPdf);
   const task = getDocument({ data: new Uint8Array(readFileSync(teaserPdf)), useWasm: false, isEvalSupported: false, verbosity: 0 });
   const doc = await task.promise;
