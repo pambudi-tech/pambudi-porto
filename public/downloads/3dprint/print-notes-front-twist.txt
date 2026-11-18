@@ -1,0 +1,88 @@
+KARTU IVAN PAMBUDI - 1 MM, TEKS TIMBUL, SEAL PUTAR DI DEPAN, NFC DI PUNGGUNG - CETAK 3D
+Bambu Lab A1, nozzle 0.4 mm, layer 0.08 mm (layer pertama 0.2 mm). Satu warna per cetakan.
+
+FILE
+- a1-seal-fit-test.gcode.3mf: cetak dan tes ini DULU (lihat FIT TEST di bawah)
+- a1-cards-front-twist.gcode.3mf: 8 kartu, PLA putih, sekitar 3 jam 37 menit, 49.8 g
+    cekungan stiker NFC 0.36 mm sampai fit test menunjukkan kedalaman lain
+- a1-seals-front-twist.gcode.3mf: 8 seal, PLA merah, sekitar 29 menit, 4.7 g
+    gigi pengunci 0.22 mm (nomor 2 di fit test) sampai fit test menunjukkan ukuran lain
+
+KARTU
+67.75 x 85 mm, tebal 1 mm. Bingkai emboss timbul 1.26 mm.
+Teks Space Mono Bold 3.5 mm, jarak baris 1.4, timbul 0.56 mm, w dari dua v yang menumpuk:
+  atas:  ivan pambudi / web & brand / designer
+  bawah: pambudi.xyz / +62 878 4000 9811 / @___pambudi
+  Spasi di "web & brand" dan nomor HP 60% dari lebar huruf. Kedua kelompok 2 mm dari bingkai.
+Di tengah muka: dua tiang kecil berkepala pipih (tinggi 0.88 mm, kepala 3 mm) di garis tengah,
+kiri dan kanan, untuk seal. Muka di bawah seal rata.
+Di tengah punggung (tepat di belakang seal): cekungan bulat 25.6 mm, dalam 0.36 mm, untuk
+stiker NFC NTAG213 25 mm (tebal sekitar 0.27 mm, jadi stiker sedikit masuk ke dalam).
+  Atap cekungan dicetak sebagai bridge selebar 25.6 mm di layer z 0.44: itu memang
+  disengaja, tanpa support. Hasilnya dicek di fit test.
+
+SEAL
+Lebar 19 mm, tebal 2.70 mm (lilin sama dengan seal terakhir + 0.4 mm di bawahnya).
+Di punggungnya: dua lubang masuk, dua alur 45 derajat, dan dua gigi berpegas untuk klik.
+Dicetak punggung di plate, tanpa support.
+
+KUNCI PUTAR
+Kepala tiang masuk lewat lubang di punggung seal, lalu waktu seal diputar kepala itu
+meluncur di atas bibir seal. Bawah kepala 0.23 mm lebih lebar dari celah alur, jadi
+bibir seal tertahan. Gigi berpegas yang bikin klik menahan seal supaya tidak bisa diputar balik.
+
+MERAKIT
+1. Pasang seal: taruh miring 45 derajat ke kiri (berlawanan jarum jam), geser sedikit sampai
+   seal turun rata ke kartu (kepala tiang masuk ke lubangnya), lalu putar searah jarum jam
+   45 derajat sampai klik (P tegak). Permanen.
+2. Tempel stiker NFC 25 mm di cekungan punggung. Tekan rata dari tengah ke tepi.
+3. Tes baca dengan HP dari depan (tempel HP ke seal). Tulis link-nya (misalnya
+   https://pambudi.xyz), lalu KUNCI tag-nya supaya tidak bisa ditimpa orang lain:
+   - kunci permanen di NFC Tools (tidak bisa ditulis ulang lagi), atau
+   - password lewat aplikasi NFC kit dari Electron (bisa diubah lagi nanti).
+
+PENGATURAN (tersimpan di file)
+- Layer 0.08 mm, wall generator Arachne (min bead width 50%, min feature size 10%).
+- Semua sudah dicek juga dengan setelan bawaan Bambu (kalau Bambu men-slice ulang):
+  teks, tiang, alur, pegas, gigi dan atap cekungan tetap tercetak.
+
+
+FIT TEST SEAL PUTAR + CEKUNGAN NFC - CETAK 3D
+Bambu Lab A1, nozzle 0.4 mm, layer 0.08 mm (layer pertama 0.2 mm). Satu warna saja cukup.
+
+FILE
+- a1-seal-fit-test.gcode.3mf: sekitar 20 menit, 4.1 g, tanpa support.
+  Baris depan: 3 kupon (bulat 32 mm, tebal 1 mm = tengah kartu), masing-masing dengan dua
+  tiang putar dan cekungan bulat 25.6 mm di punggungnya. Titik 1 / 2 / 3 di tepi atas kupon.
+  Baris belakang: 3 seal putar, lubang kecil 1 / 2 / 3 di punggungnya.
+  Pasangan nomor sekian = kupon dan seal dengan jumlah titik / lubang yang sama.
+
+             cekungan NFC (punggung kupon)   gigi pengunci seal
+  nomor 1    0.28 mm (paling dangkal)         0.15 mm (paling ringan)
+  nomor 2    0.36 mm                          0.22 mm (sedang)
+  nomor 3    0.44 mm (paling dalam)           0.30 mm (paling kuat)
+  Dua hal ini tidak saling mempengaruhi: cekungan di punggung, kunci di muka.
+
+TES 1: CEKUNGAN NFC (sebelum seal dipasang)
+- Lihat atap cekungan di punggung kupon: rata, atau ada garis plastik yang melengkung turun
+  atau menempel?
+- Tempel stiker NFC 25 mm di tiap cekungan: masuk pas? rata, menonjol, atau masuk ke dalam?
+  Kalau ada tonjolan di tengah stiker (chip), apakah terasa?
+- Ukur tebal stikernya kalau ada jangka sorong (tanpa kertas alasnya).
+
+TES 2: KUNCI PUTAR (permanen: tiap pasangan hanya bisa dites sekali)
+1. Putar seal 45 derajat berlawanan jarum jam (P miring ke kiri), cari posisi di mana seal
+   turun rata ke kupon (kepala tiang masuk ke lubang di punggung seal).
+2. Putar searah jarum jam 45 derajat sampai klik: P tegak.
+Untuk ketiganya catat:
+- masuk dan memutarnya: mudah, seret, atau macet
+- terasa klik atau tidak
+- setelah klik: bisa diputar balik atau tidak
+- ditarik ke atas (pelan dulu, lalu agak kuat): seal goyang, tertahan, atau tercabut
+- ada yang patah atau tidak, dan apakah muka seal berbekas di atas mekanismenya
+
+TES 3: BACA NFC
+Tempel HP ke seal dari depan: tag terbaca? Coba juga dari punggung.
+
+Dari situ kita pilih kedalaman cekungan dan ukuran gigi untuk file final
+(sekarang dipasang cekungan 0.36 dan gigi 0.22).

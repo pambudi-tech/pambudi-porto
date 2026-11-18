@@ -1,0 +1,105 @@
+{
+ "variant": "front",
+ "card": "twist",
+ "lock": "twist",
+ "file": "/downloads/3dprint/pambudi-card-front-twist.3mf",
+ "objects": {
+  "card body": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "seal": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    33.875
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    42.5
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ]
+ },
+ "card_mm": [
+  67.753,
+  85.0
+ ],
+ "centre_mm": [
+  33.875,
+  42.5
+ ],
+ "middle_mm": [
+  33.8763,
+  42.4994
+ ],
+ "stock_mm": 1.0,
+ "relief_mm": 1.26,
+ "unlock_deg": 45.0,
+ "peg_mm": 0.0,
+ "seal_side": "front",
+ "seal_mm": 19.0,
+ "seal_size_mm": [
+  18.983,
+  18.182,
+  2.703
+ ],
+ "downloads": [
+  {
+   "label": "8 cards, white",
+   "href": "/downloads/3dprint/a1-cards-front-twist.gcode.3mf",
+   "kind": "a1"
+  },
+  {
+   "label": "8 seals, red",
+   "href": "/downloads/3dprint/a1-seals-front-twist.gcode.3mf",
+   "kind": "a1"
+  },
+  {
+   "label": "seal fit test, print first",
+   "href": "/downloads/3dprint/a1-seal-fit-test.gcode.3mf",
+   "kind": "a1"
+  },
+  {
+   "label": "print notes",
+   "href": "/downloads/3dprint/print-notes-front-twist.txt",
+   "kind": "txt"
+  }
+ ]
+}

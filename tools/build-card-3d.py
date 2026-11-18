@@ -6,7 +6,7 @@ NFC tag. Sized for a Bambu Lab A1 (0.4 mm nozzle). Three versions:
   press      1.24 mm: sealed for good with a press. A split clip ring on the
              seal's stem squeezes through the pocket's rim and opens under
              it; a key on the stem lets it in only with the P upright.
-  twist      1.0 mm: sealed for good with a push and a turn. Two flat
+  twist      1.32 mm: sealed for good with a push and a turn. Two flat
              springs in the card's back layer catch the stem at the end of
              the turn, and it can't turn back.
 The two sealed versions can't be opened without breaking them, so the tag
@@ -22,7 +22,11 @@ Writes ../output/card-3d-print/ (removable) or card-3d-print-<variant>/
     <file>.3mf, <file>-keyring.3mf   a card (or key ring card) and its seal, as the page draws them
     a1-cards*.3mf              an A1 plate of 8 cards        } one colour each, printed in turn;
     a1-seals*.3mf              an A1 plate of seals (+clips)  } tools/slice-a1.py slices them
-    a1-keyrings*.3mf           an A1 plate of 3 key ring cards} for the A1 (.gcode.3mf)
+    a1-seals-25*.3mf           25 seals, for a 5 m roll       } for the A1 (.gcode.3mf)
+    a1-keyrings*.3mf           an A1 plate of 3 key ring cards}
+    a1-plate*.3mf              7 cards, 1 key ring card, 9 seals on one A1 plate
+    pambudi-card*-stl.zip      the page's download, for any printer: the card, key ring
+                               card and seal as STL, and how many of each (a note)
     fit-test*.3mf              coins of the card's pocket + plugs: print first
     *.stl, *.blend, render-*.png, checks.json, print-notes*.txt
 and, for pambudi.xyz/3dprint (print.html, src/print/):
@@ -102,7 +106,8 @@ ROUND_SEAL = ROOT.parent / 'output' / 'wax-seal-circle-v1' / 'wax-seal-circle.pn
 # —— The card ——
 # mm, flat areas. The sealed versions' thicknesses fall on the A1's layers
 # (a 0.2 mm first layer, then 0.08 mm ones): every height below does.
-STOCK = {'removable': 1.4, 'press': 1.24, 'twist': 1.0}[VARIANT]
+STOCK = {'removable': 1.4, 'press': 1.24, 'twist': 2.04}[VARIANT]
+EMBOSS = None               # the front's height over the paper: the back's deepest (card_fields)
 RELIEF = 0.50               # mm, raised on the front, pressed into the back; past
                             # 0.5 the shoulders pass 51° and the back's channels sag
 CARD_W, CARD_H = g.CARD_MM
@@ -146,8 +151,8 @@ THETA_STEPS = 1440
 Z_STEP = .02
 R_MOUTH = R_GROOVE          # the pocket's widest at the card's back
 
-# —— Twist (1.0 mm): the bayonet, thinner, with two wide tabs, and a ratchet
-# that makes it one-way. The ledge is the card's first two layers; in them,
+# —— Twist (2.04 mm): the bayonet, with two wide tabs, and a ratchet that
+# makes it one-way. The ledge is the card's first 0.6 mm; in it,
 # beside the bore, two flat springs: arms lying in the layer, held at one
 # end, each with a tooth at its free end reaching in to the seal's stem. In,
 # the teeth run down a keyway in the stem; on the turn they ride up a ramp
@@ -155,13 +160,24 @@ R_MOUTH = R_GROOVE          # the pocket's widest at the card's back
 # drop into a recess with square sides: it can't turn back. Turned back, a
 # tooth pulls its arm along its length, the way it's strongest.
 if VARIANT == 'twist':
-    FLOOR = .4
-    POCKET = STOCK - FLOOR          # 0.6: the cavity's top
-    LEDGE = .28                     # two layers
+    POCKET = 1.32                   # the cavity's top
+    FLOOR = round(STOCK - POCKET, 2)   # 0.72: thick enough that the pocket doesn't show through the front
+    LEDGE = .6                      # the ledge and its springs: 6 layers (0.2 + 5 x 0.08)
     TAB_GAP = .04
-    TAB_TOP = LEDGE + TAB_GAP       # the tabs from 0.32 to the peg's end at 0.52
-    STEM = .52
-    R_TAB = R_PEG + .45
+    TAB_TOP = LEDGE + TAB_GAP       # the tabs from 0.64 to the peg's end at 1.24: 0.6 mm
+    STEM = POCKET - .08
+    # The middle of the pocket is a post, down to the card's back: the pocket
+    # is a ring round it, so its roof spans only the ring (no wide bridge),
+    # and the seal's peg is a tube round the post. The tag (an 8 mm NTAG)
+    # sits in a recess in the wax at the tube's root, the post's face (flush
+    # with the card's back) over it.
+    R_PEG = 6.2                     # the tube; smaller than the removable's peg, so the springs are wider
+    R_BORE = R_PEG + CLEAR
+    R_RECESS = 4.25                 # the tag's recess: an 8 mm tag
+    R_TUBE_IN = R_RECESS            # the tube's bore, round the post, straight on into the tag's
+                                    # recess: no step inside the tube for supports to grow under
+    R_POST = R_TUBE_IN - .2
+    R_TAB = R_PEG + .6
     R_GROOVE = R_TAB + CLEAR        # the notches
     R_CAVITY = R_GROOVE + .15       # under the ledge
     # The seal's outline comes within 8.2 mm of the pocket's axis at the top
@@ -172,7 +188,7 @@ if VARIANT == 'twist':
     STOP = (25., 33.)
     R_STOP = R_BORE + .1            # the stop's face, short of the ledge's edge
     DETENT = 0.
-    TAG_DEPTH = .36
+    TAG_DEPTH = .72                 # into the wax, past the card's back
     R_CONTACT = R_GROOVE + .4
     # The springs (card frame, degrees CCW seen from the front; the turn that
     # locks is clockwise seen from the back, so the stem runs past each tooth
@@ -181,7 +197,7 @@ if VARIANT == 'twist':
     # behind it lets it bend out.
     PAWLS_AT, TOOTH, ARM, PAWL_GAP = (156., 327.), 10., 60., 4.
     R_TIP = R_PEG - .25             # the teeth's reach, at rest
-    R_ARM_OUT, R_SLOT_OUT = R_BORE + .8, R_BORE + 1.3
+    R_ARM_OUT, R_SLOT_OUT = R_BORE + 1.0, R_BORE + 1.5
     R_PAWL_ROOM = R_SLOT_OUT + .2   # the cavity over the springs, so they're free
     R_KEYWAY = R_PEG - .45          # the stem's keyway and recesses
     SIDE, RAMP = 2., 10.            # their clearance each side of a tooth, and the ramp (degrees)
@@ -225,8 +241,9 @@ LETTER_RES = 100            # px per mm for the distance to the P's outline
 # The nudge is 15 px here, not the script's 24: on the 3D seal 24 sat the P
 # a touch right of the optical middle (the user's eye, 2026-11-09).
 SEAL_FIELD = (632., 589., 429., 400.)
-P_SHARE, P_NUDGE, P_BOLD, P_BEVEL = .80, 15., 7., 26.
+P_SHARE, P_NUDGE, P_BOLD, P_BEVEL = .80, 15., 11., 26.   # bold 11 (was 7): a touch heavier for the print (user, 2026-11-11)
 H_FIELD, H_EDGE, H_LIP, H_RING, H_LETTER = 1.25, .6, 1.4, .3, .6
+P_LEVEL_WITH_LIP = True
 
 
 t0 = time.time()
@@ -560,6 +577,10 @@ def twist_check(r_tip=None):
     r_tip = R_TIP if r_tip is None else r_tip
     th = np.radians(np.arange(0, 360, .1))
     ds = depths(STEM)
+    # The tube round the post: room to turn, and its wall where the keyway thins it.
+    assert R_TUBE_IN - R_POST >= CLEAR - 1e-6, f'the tube rubs the post ({R_TUBE_IN - R_POST:.2f} mm)'
+    assert R_KEYWAY - R_TUBE_IN >= .6 - 1e-6, f'the tube wall is {R_KEYWAY - R_TUBE_IN:.2f} mm at the keyway'
+    assert 2 * R_POST >= 2 * R_RECESS - .4, 'the post must cover the tag'
     locked = min((r_pocket_twist(th, d) - r_seal_twist(th, d)).min() for d in ds)
     assert locked >= CLEAR - 1e-6, f'locked seal touches the pocket ({locked:.3f} mm)'
     # In: the tabs through the notches at every depth, the teeth down the keyway.
@@ -746,6 +767,89 @@ def soft_relief(loops, box, res, sigma, height):
     return dict(height=lambda x, y: height * field(x, y))
 
 
+# The back's deboss, as it prints (back down on the plate): each layer may
+# reach only so far past the one under it, or it hangs in the air. The soft
+# relief's channels have flat roofs (bridges) and, where strokes run close,
+# ridges hanging from them that start mid-air; so the back is cut deeper
+# where it must be: every point's roof is no lower than a climb from the
+# first layer at DEBOSS_SLOPE (rise per run; 0.5 is 27° off the plate, 0.16 mm
+# further each 0.08 mm layer), which makes the roofs pitched (^). The first
+# layer counts as DEBOSS_SEED high: the second is sampled 0.14 mm above it.
+# And only what the first layer really prints holds anything up: the slicer
+# pulls its outlines in (elephant foot compensation, 0.15 mm) and drops what
+# is then thinner than a line, so strips and tips narrower than
+# 2 * DEBOSS_FIRST_KEEP count as air there (else the second layer prints
+# them over nothing: the vendor's floating lines).
+DEBOSS_SLOPE, DEBOSS_FIRST, DEBOSS_SEED, DEBOSS_FIRST_KEEP = .5, .1, .18, .25
+# Never cut closer than this to the front: past it, a short flat roof.
+DEBOSS_COVER = .8
+DEBOSS_MAX = 1.26           # and no deeper than this (the look the user approved)
+# The paper along the card's edge, kept whole in the first layer so the edge
+# there is wide enough to print (the outer stroke runs close to it).
+DEBOSS_EDGE = .5
+DEBOSS_RES = 50             # px per mm
+
+
+def opened(mask, r):
+    """Morphological opening by a disc of radius r px: what a disc that size
+    can reach while staying inside."""
+    k = int(round(r))
+    disc = [(dy, dx) for dy in range(-k, k + 1) for dx in range(-k, k + 1) if dy * dy + dx * dx <= k * k]
+    def shifted(m, dy, dx, fill):
+        out = np.full_like(m, fill)
+        h, w = m.shape
+        out[max(dy, 0):h + min(dy, 0), max(dx, 0):w + min(dx, 0)] = m[max(-dy, 0):h + min(-dy, 0), max(-dx, 0):w + min(-dx, 0)]
+        return out
+    eroded = mask.copy()
+    for dy, dx in disc:
+        eroded &= shifted(mask, dy, dx, True)
+    out = eroded.copy()
+    for dy, dx in disc:
+        out |= shifted(eroded, dy, dx, False)
+    return out
+
+
+def printable_deboss(height, box, outline, res=DEBOSS_RES):
+    """The back's height (mm from the plate) for a deboss of `height`, as
+    above. Returns its height anywhere."""
+    pad = .5
+    origin = (box[0] - pad, box[1] - pad)
+    w, h = int((box[2] - box[0] + 2 * pad) * res), int((box[3] - box[1] + 2 * pad) * res)
+    X, Y = np.meshgrid(origin[0] + (np.arange(w) + .5) / res, origin[1] + (np.arange(h) + .5) / res)
+    d = height(X, Y).astype(np.float32)
+    inner = fill(segments([outline]), origin, (w, h), res)
+    k = int(DEBOSS_EDGE * res)
+    band = inner.copy()
+    for dy in range(-k, k + 1):
+        for dx in range(-k, k + 1):
+            if dy * dy + dx * dx <= k * k:
+                band &= np.roll(np.roll(inner, dy, 0), dx, 1)
+    d = np.where(inner & ~band, np.minimum(d, DEBOSS_FIRST), d)      # the edge band: flat in the first layer
+    seed = opened(d <= DEBOSS_FIRST, DEBOSS_FIRST_KEEP * res)
+    H = np.where(seed, DEBOSS_SEED, np.inf).astype(np.float32)
+    # Each pass takes the cheapest climb from a neighbour (16 of them, so the
+    # pitches run any way without stair steps), never below the relief itself.
+    steps = [(dy, dx) for dy in range(-2, 3) for dx in range(-2, 3)
+             if (dy or dx) and np.gcd(abs(dy), abs(dx)) == 1]
+    for _ in range(1000):
+        best = H.copy()
+        for dy, dx in steps:
+            c = DEBOSS_SLOPE * np.hypot(dy, dx) / res
+            src = H[max(dy, 0):h + min(dy, 0), max(dx, 0):w + min(dx, 0)]
+            dst = best[max(-dy, 0):h + min(-dy, 0), max(-dx, 0):w + min(-dx, 0)]
+            np.minimum(dst, src + c, out=dst)
+        new = np.minimum(H, np.maximum(d, best))
+        if not np.count_nonzero(new < H):
+            break
+        H = new
+    H = np.where(seed, d, np.where(np.isfinite(H), H, d.max() + 1))
+    # Smooth the raster's corners off the pitches, never below the relief.
+    H = np.maximum(d, np.where(seed, d, blur(H, 1.)))
+    H = np.maximum(d, np.minimum(np.minimum(H, STOCK + d - DEBOSS_COVER), DEBOSS_MAX))
+    log(f'deboss: deepest {H.max():.2f} mm (relief {d.max():.2f}), cut deeper over {(H - d > .02).sum() / res ** 2:.0f} mm2')
+    return Field(H, origin, res)
+
+
 def stamped_relief(loops, box, res, bold, bevel, height):
     """The P as the round seal stamps it (tools/build-round-seal.py): its
     outline grown `bold`, raised `height` over a rounded bevel `bevel` wide
@@ -767,7 +871,15 @@ def card_fields():
                for sp in g.EMBOSS]
     lo, hi = np.vstack(pattern).min(0), np.vstack(pattern).max(0)
     relief = soft_relief(pattern, (*lo, *hi), FIELD_RES, SHOULDER, RELIEF)
-    return ccw(resample(max(cut_loops, key=len), OUTLINE_STEP)), relief
+    outline = ccw(resample(max(cut_loops, key=len), OUTLINE_STEP))
+    back = printable_deboss(relief['height'], (*lo, *hi), outline)
+    # The front's emboss takes the deboss's sharp shape (its pitches and
+    # creases) and its height. The back is flat (the user's call, 2026-11-12):
+    # nothing pressed into it, so nothing on the plate side to bridge.
+    global EMBOSS
+    EMBOSS = round(float(back.v.max()), 2)
+    relief = dict(height=back, back=None)
+    return outline, relief
 
 
 # The key ring: a round tab above the top edge on the card's middle line,
@@ -886,16 +998,22 @@ def refined(outline, height, seeds, holes=(), tol=REFINE_TOL, shortest=REFINE_MI
 
 def build_body(name, outline, relief=None, holes=(), **tune):
     """A slab inside `outline` (CCW, card frame), its front at STOCK and its
-    back at 0, both moved out by the `relief`'s height where it has one
-    (raised on the front, pressed into the back: the paper's way), meshed to
+    back at 0, the front raised by the `relief`'s height where it has one,
+    the back pressed in as deep unless the relief's 'back' is None (flat), meshed to
     the A1 (`refined`), with `holes` straight through (punched, as through
     embossed paper); and the seal's pocket at CENTRE (`tune`: a fit test's
     rim or teeth)."""
     mesh = Mesh(name)
     height = relief['height'] if relief else (lambda x, y: np.zeros(np.shape(x)))
     pts = staggered_grid(outline, FLAT_STEP, holes)
+    back_height = relief.get('back', height) if relief else height
+    flat = lambda x, y: np.zeros(np.shape(x))
+    if back_height is None:
+        back_height = flat
     if relief:
         pts = refined(outline, height, pts, holes)
+        if back_height is not height and back_height is not flat:
+            pts = refined(outline, back_height, pts, holes)
     v2, tris, (front_ring, *front_holes) = triangulate([outline, *holes], pts)
     front = mesh.surface(v2, tris, STOCK + height(v2[:, 0], v2[:, 1]), up=True)
 
@@ -908,7 +1026,7 @@ def build_body(name, outline, relief=None, holes=(), **tune):
         mouth = np.column_stack([CENTRE[0] + r0 * np.cos(THETA), CENTRE[1] + r0 * np.sin(THETA)])
     clear = np.hypot(*(pts - CENTRE).T) > R_MOUTH + FLAT_CLEAR
     v2, tris, (back_ring, mouth_ring, *back_holes) = triangulate([outline, mouth, *holes], pts[clear])
-    zb = height(v2[:, 0], v2[:, 1])
+    zb = back_height(v2[:, 0], v2[:, 1])
     assert np.abs(zb[mouth_ring]).max() < 1e-9, 'relief reaches the pocket'
     back = mesh.surface(v2, tris, zb, up=False)
     mesh.wall(back[back_ring], front[front_ring])
@@ -923,7 +1041,16 @@ def build_body(name, outline, relief=None, holes=(), **tune):
         v2, tris, (cavity_ring, lip_ring) = triangulate([cavity, mouth], np.empty((0, 2)))
         top = mesh.surface(v2, tris, np.full(len(v2), LEDGE), up=True)
         mesh.wall(back[mouth_ring], top[lip_ring], outward=False)
-        rings = [top[cavity_ring], ring(rc, POCKET)]
+        # The roof: a ring from the cavity's wall in to the post; the post
+        # down to the card's back, its face there.
+        post = circle(R_POST, CENTRE)
+        v2, tris, (roof_out, roof_in) = triangulate([cavity, post], np.empty((0, 2)))
+        roof = mesh.surface(v2, tris, np.full(len(v2), POCKET), up=False)
+        mesh.wall(top[cavity_ring], roof[roof_out], outward=False)
+        v2, tris, (post_ring,) = triangulate([post], np.empty((0, 2)))
+        face = mesh.surface(v2, tris, np.zeros(len(v2)), up=False)
+        mesh.wall(face[post_ring], roof[roof_in], outward=True)
+        return mesh
     else:
         rings = [back[mouth_ring]] + [ring(r_pocket(THETA, d, **tune), d) for d in depths(POCKET)[1:]]
     mesh.tube(rings, outward=False)
@@ -1007,8 +1134,10 @@ def seal_fields():
     loops, letter_size = letter_loops(P_SHARE * 2 * fb, (P_NUDGE * mm, 0))
     lo, hi = np.vstack(loops).min(0), np.vstack(loops).max(0)
     bold, bevel = P_BOLD * mm, P_BEVEL * mm
-    letter = stamped_relief(loops, (*lo, *hi), LETTER_RES, bold, bevel, H_LETTER)
     base = Field(height, origin, SEAL_RES)
+    # The P's top level with the lip's crest (the user, 2026-11-11: as high as the wax).
+    h_letter = float(height.max()) - H_FIELD if P_LEVEL_WITH_LIP else H_LETTER
+    letter = stamped_relief(loops, (*lo, *hi), LETTER_RES, bold, bevel, h_letter)
     return dict(phi=phi, edge=edge, height=lambda u, v: base(u, v) + letter['height'](u, v), base=base,
                 letter_size=letter_size + 2 * bold, bevel=bevel, origin=origin, mm_per_px=mm)
 
@@ -1070,7 +1199,8 @@ def build_seal(name, outline_uv, height_uv, inside_uv, centre, refine=True):
     # The peg and its tabs, closed by its end round the tag's recess.
     re = r_seal(THETA, STEM)
     end_loop = np.column_stack([centre[0] + re * np.cos(THETA), centre[1] + re * np.sin(THETA)])
-    v2, tris, (end_ring, recess_ring) = triangulate([end_loop, circle(R_RECESS, centre)], np.empty((0, 2)))
+    r_in = R_TUBE_IN if VARIANT == 'twist' else R_RECESS
+    v2, tris, (end_ring, recess_ring) = triangulate([end_loop, circle(r_in, centre)], np.empty((0, 2)))
     end = mesh.surface(v2, tris, np.full(len(v2), STEM), up=True)
     rings = [under[root_ring]]
     for d in depths(STEM)[1:-1]:
@@ -1079,9 +1209,20 @@ def build_seal(name, outline_uv, height_uv, inside_uv, centre, refine=True):
                                                  centre[1] + rr * np.sin(THETA), np.full(THETA_STEPS, d)])))
     rings.append(end[end_ring])
     mesh.tube(rings, outward=True)
-    ceiling = mesh.verts(np.column_stack([circle(R_RECESS, centre), np.full(THETA_STEPS, STEM - TAG_DEPTH)]))
-    mesh.tube([ceiling, end[recess_ring]], outward=False)
-    mesh.fan(ceiling, (*centre, STEM - TAG_DEPTH), up=True)
+    # The tag's recess: in the peg's end; twist, the whole peg is a tube round
+    # the card's post, and the recess is in the wax at its root.
+    if VARIANT == 'twist' and R_TUBE_IN > R_RECESS + 1e-6:
+        v2, tris, (step_out, step_in) = triangulate([circle(R_TUBE_IN, centre), circle(R_RECESS, centre)], np.empty((0, 2)))
+        step = mesh.surface(v2, tris, np.zeros(len(v2)), up=True)
+        mesh.wall(step[step_out], end[recess_ring], outward=False)
+        ceiling = mesh.verts(np.column_stack([circle(R_RECESS, centre), np.full(THETA_STEPS, -TAG_DEPTH)]))
+        mesh.wall(ceiling, step[step_in], outward=False)
+        mesh.fan(ceiling, (*centre, -TAG_DEPTH), up=True)
+    else:
+        top_z = -TAG_DEPTH if VARIANT == 'twist' else STEM - TAG_DEPTH
+        ceiling = mesh.verts(np.column_stack([circle(R_RECESS, centre), np.full(THETA_STEPS, top_z)]))
+        mesh.tube([ceiling, end[recess_ring]], outward=False)
+        mesh.fan(ceiling, (*centre, top_z), up=True)
     return mesh
 
 
@@ -1117,6 +1258,10 @@ BED, PLATE_GAP, PLATE_EDGE = 256., 3., 4.
 # The A1's head wrap detect zone, at the back right (its profile's
 # head_wrap_detect_zone): nothing goes there.
 HEAD_WRAP = (226., 224., 256., 256.)
+# A small seal plate, for one 5 m roll of red (a 3D pen refill): a seal takes
+# about 18 cm of filament, and loading the roll and its last bit, which the
+# extruder can't push, take about half a metre.
+SEALS_SMALL = 25
 
 
 def plate_items(card, seal=None, clip=None, keyring=None):
@@ -1189,6 +1334,16 @@ def seal_plate_items(seal, clip=None):
     return items
 
 
+def seal_block_items(seal, count):
+    """`count` seals in a square block in the middle of the plate."""
+    (si, (sw, sh)), p = seal, max(seal[1]) + PLATE_GAP
+    cols = math.ceil(math.sqrt(count))
+    rows = math.ceil(count / cols)
+    x0, y0 = (BED - (cols * p - PLATE_GAP)) / 2, (BED - (rows * p - PLATE_GAP)) / 2
+    return [(si, 0, x0 + (k % cols) * p + (p - PLATE_GAP - sw) / 2, y0 + (k // cols) * p + (p - PLATE_GAP - sh) / 2)
+            for k in range(count)]
+
+
 def plate_check(items, sizes, round_parts=()):
     """Every copy on the bed, PLATE_GAP clear of the next (by their boxes;
     for round parts, by their circles)."""
@@ -1224,14 +1379,48 @@ def write_stl(path, V, F):
         f.write(rec.tobytes())
 
 
-def write_3mf(path, parts, items=None):
+# Where a roof spans air (the pocket over the seal's peg; the tag's recess
+# in the seal), a 0.08 mm layer
+# makes threads too thin to bridge it: those heights print as one taller
+# layer each (min z, max z, layer height), 0.08 mm everywhere else. Each
+# printed copy is its own object in the plates, so Bambu Studio gives every
+# copy these ranges (it gives a shared mesh's ranges to its first copy only).
+BRIDGE_LAYERS = {
+    'card': ((1.32, 1.56, .24),),        # the pocket's ring roof
+    'seal': ((1.96, 2.12, .16),),        # the tag's recess roof (peg end on the plate)
+} if VARIANT == 'twist' else None
+
+
+def layer_ranges(name):
+    """The taller layers for a part, by its name (the fit test's coin is the
+    card's middle, its plug the seal)."""
+    if not BRIDGE_LAYERS:
+        return ()
+    if 'card' in name or 'coin' in name:
+        return BRIDGE_LAYERS['card']
+    if 'seal' in name or 'plug' in name:
+        return BRIDGE_LAYERS['seal']
+    return ()
+
+
+def needs_support(name):
+    """The seal prints peg down, its wax 2-3 mm past the peg over air: tree
+    supports from the plate hold its rim (its underside sits against the
+    card, out of sight). Twist only; the fit test's plugs are seals too."""
+    return VARIANT == 'twist' and ('seal' in name or 'plug' in name)
+
+
+def write_3mf(path, parts, items=None, bridges=False):
     """parts: [(name, V, F, (tx, ty))], each already in print orientation,
     placed once with its near corner at (tx, ty); or, with `items`
     [(part index, quarter turns, x, y)], as many copies as listed, each
     turned that many quarter turns anticlockwise, its near corner at (x, y)
-    (one mesh, written once)."""
-    objects, out, sizes = [], [], []
+    (one mesh, written once). With `bridges`, each copy is its own object
+    (a component of the shared mesh) with its part's BRIDGE_LAYERS, for
+    Bambu Studio."""
+    objects, out, sizes, axes = [], [], [], []
     for i, (name, V, F, *_) in enumerate(parts, 1):
+        axes.append(-V.min(0)[:2])      # a printed seal's axis (lid_print puts it at x = y = 0)
         V = V - V.min(0)
         sizes.append(V.max(0))
         vs = '\n'.join(f'<vertex x="{x:.4f}" y="{y:.4f}" z="{z:.4f}"/>' for x, y, z in V.tolist())
@@ -1240,10 +1429,39 @@ def write_3mf(path, parts, items=None):
                        f'</vertices><triangles>\n{ts}\n</triangles></mesh></object>')
     if items is None:
         items = [(i, 0, *part[3]) for i, part in enumerate(parts)]
-    for part, q, x, y in items:
+    ranges, supported = [], []
+    # A support blocker in each supported part's tube: supports hold the wax's
+    # rim, never fill the tag's recess (Bambu Studio would, bridge or not).
+    blocker = {}
+    if bridges:
+        for i, (name, *_) in enumerate(parts):
+            if needs_support(name):
+                bid = len(parts) + len(items) + len(blocker) + 1
+                t = np.linspace(0, 2 * np.pi, 96, endpoint=False)
+                cx, cy = axes[i]
+                r, top = R_RECESS + .35, STEM + TAG_DEPTH + .3
+                BV = [(cx + r * math.cos(a), cy + r * math.sin(a), zz) for zz in (0, top) for a in t] + [(cx, cy, 0), (cx, cy, top)]
+                n = len(t)
+                BF = [f for j in range(n) for f in ((j, (j + 1) % n, n + (j + 1) % n), (j, n + (j + 1) % n, n + j),
+                                                    (2 * n, (j + 1) % n, j), (2 * n + 1, n + j, n + (j + 1) % n))]
+                vs = '\n'.join(f'<vertex x="{a:.4f}" y="{b:.4f}" z="{c:.4f}"/>' for a, b, c in BV)
+                ts = '\n'.join(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>' for a, b, c in BF)
+                objects.append(f'<object id="{bid}" name="support blocker" type="model"><mesh><vertices>\n{vs}\n'
+                               f'</vertices><triangles>\n{ts}\n</triangles></mesh></object>')
+                blocker[i] = bid
+    for k, (part, q, x, y) in enumerate(items):
         w, h = sizes[part][:2]
         m = f'1 0 0 0 1 0 0 0 1 {x:.3f} {y:.3f} 0' if q % 2 == 0 else f'0 1 0 -1 0 0 0 0 1 {x + h:.3f} {y:.3f} 0'
-        out.append(f'<item objectid="{part + 1}" transform="{m}"/>')
+        if bridges:
+            oid = len(parts) + k + 1
+            extra = f'<component objectid="{blocker[part]}"/>' if part in blocker else ''
+            objects.append(f'<object id="{oid}" name="{parts[part][0]} {k + 1}" type="model">'
+                           f'<components><component objectid="{part + 1}"/>{extra}</components></object>')
+            ranges.append((k + 1, layer_ranges(parts[part][0])))   # Bambu Studio numbers the copies from 1, in order
+            supported.append((oid, f'{parts[part][0]} {k + 1}', part + 1, blocker.get(part)))
+        else:
+            oid = part + 1
+        out.append(f'<item objectid="{oid}" transform="{m}"/>')
     items = out
     model = ('<?xml version="1.0" encoding="UTF-8"?>\n'
              '<model unit="millimeter" xml:lang="en-US" '
@@ -1262,6 +1480,67 @@ def write_3mf(path, parts, items=None):
                    'Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>'
                    '</Relationships>')
         z.writestr('3D/3dmodel.model', model)
+        if any(b for *_, b in supported):
+            # Supports per object (Bambu Studio reads these by the objects' ids,
+            # its parts by the ids of the objects they draw): the seals only, never
+            # the cards or the fit test's coins; each seal's blocker as such.
+            z.writestr('Metadata/model_settings.config', '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n' + ''.join(
+                f'  <object id="{oid}">\n    <metadata key="name" value="{name}"/>\n'
+                f'    <metadata key="enable_support" value="{int(b is not None)}"/>\n'
+                + (f'    <part id="{mesh}" subtype="normal_part"><metadata key="name" value="{name}"/></part>\n'
+                   f'    <part id="{b}" subtype="support_blocker"><metadata key="name" value="support blocker"/></part>\n'
+                   if b is not None else '') + '  </object>\n' for oid, name, mesh, b in supported) + '</config>\n')
+        if any(r for _, r in ranges):
+            z.writestr('Metadata/layer_config_ranges.xml', '<?xml version="1.0" encoding="utf-8"?>\n<objects>\n' + ''.join(
+                f' <object id="{oid}">\n' + ''.join(
+                    f'  <range min_z="{lo}" max_z="{hi}">\n   <option opt_key="extruder">0</option>\n'
+                    f'   <option opt_key="layer_height">{h}</option>\n  </range>\n' for lo, hi, h in r) + ' </object>\n'
+                for oid, r in ranges if r) + '</objects>\n')
+
+
+def write_stl_zip(path, counts, m):
+    """The download for any printer: the card, the key ring card and the seal
+    as STL (as they print), and a note (in Indonesian) of how many of each go
+    on a plate and the one setting that matters. Fixed dates, so a rebuild
+    with the same parts writes the same file."""
+    files = [('card.stl', 'card-body.stl'), ('card-key-ring.stl', 'card-body-key-ring.stl'), ('seal.stl', 'seal.stl')]
+    note = f'''KARTU IVAN PAMBUDI - FILE CETAK 3D (STL)
+
+Satu plate:
+- card.stl           x{counts[0]}  putih
+- card-key-ring.stl  x{counts[1]}  putih
+- seal.stl           x{counts[2]}  merah
+
+Posisi di file sudah posisi cetak: kartu telentang (muka ke atas), seal
+menghadap ke atas (pasaknya di plate). Ukuran 100%, jangan di-scale atau diputar.
+
+Setting
+- Nozzle 0.4 mm, layer height 0.08 mm, layer pertama 0.2 mm.
+  Layer 0.08 penting: ada pengunci kecil di dalam yang ukurannya pas
+  untuk layer ini.
+- Atap yang menyeberangi udara butuh satu layer lebih tebal, atur di
+  Bambu Studio (klik kanan objek > Height range modifier):
+    kartu: {BRIDGE_LAYERS['card'][0][0]}-{BRIDGE_LAYERS['card'][0][1]} mm layer {BRIDGE_LAYERS['card'][0][2]}
+    seal:  {BRIDGE_LAYERS['seal'][0][0]}-{BRIDGE_LAYERS['seal'][0][1]} mm layer {BRIDGE_LAYERS['seal'][0][2]}
+  Tanpa ini atap lubang seal dan ceruk NFC putus di 0.08. Punggung kartu
+  rata, jadi tidak ada yang melayang di sana.
+- PLA / PLA+, ironing mati. Kartu tanpa support. Seal DENGAN support:
+  tree, "on build plate only", plus support blocker (silinder kecil) di
+  dalam tabung pasak supaya ruang chip bersih. Lebih mudah: pakai file
+  .gcode.3mf/.3mf dari kami, support-nya sudah diatur.
+- Satu warna per cetakan: kartu putih, seal merah.
+
+Ukuran
+- Kartu {m['card'][0]:.2f} x {m['card'][1]:.2f} mm, tebal {STOCK} mm ({m['at_the_relief']} mm di emboss)
+- Kartu gantungan {m['card_key_ring'][0]:.2f} x {m['card_key_ring'][1]:.2f} mm, lubang {KEY_RING_HOLE} mm
+- Seal lebar {SEAL_WIDTH} mm, tinggi {m['seal_with_peg']:.2f} mm dengan pasaknya
+'''
+    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for name, source in files:
+            z.writestr(zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0)), (OUT / source).read_bytes(),
+                       compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+        z.writestr(zipfile.ZipInfo('baca-dulu.txt', (2026, 1, 1, 0, 0, 0)), note,
+                   compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
 
 
 def lid_print(V, centre):
@@ -1358,9 +1637,11 @@ def notes_twist(m, counts):
     the person printing them)."""
     return f'''KARTU IVAN PAMBUDI - CETAK 3D (Bambu Lab A1, nozzle 0.4 mm)
 
-FILE (sudah di-slice untuk A1: PLA, layer 0.08 mm, tanpa support)
+FILE (sudah di-slice untuk A1: PLA, layer 0.08 mm; support sudah diatur di file)
 - a1-cards{SUFFIX}.gcode.3mf: {counts['cards']} kartu (putih)
-- a1-seals{SUFFIX}.gcode.3mf: {counts['seals']} seal (merah)
+- a1-seals{SUFFIX}.gcode.3mf: {counts['seals']} seal (merah), butuh sekitar 24 m filamen
+- a1-seals-{SEALS_SMALL}{SUFFIX}.gcode.3mf: {SEALS_SMALL} seal (merah), cukup untuk satu gulungan 5 m
+  (misalnya refill pen 3D: pastikan PLA 1.75 mm, bukan PCL)
 - a1-keyrings{SUFFIX}.gcode.3mf: {counts['keyrings']} kartu gantungan kunci (putih)
 - fit-test{SUFFIX}.gcode.3mf: potongan uji, satu warna, cetak paling dulu
 Cara print: buka file-nya di Bambu Studio lalu Print, atau salin ke kartu
@@ -1376,6 +1657,11 @@ LANGKAH
    kabari nomornya, supaya ukuran gigi pegas di kartu disesuaikan (R_TIP,
    sekarang {R_TIP} mm; koin 1 = {R_TIP - .1:.2f}, koin 3 = {R_TIP + .1:.2f}).
 2. Cetak plate kartu dan plate gantungan (putih), lalu plate seal (merah).
+   Semua seal di satu plate dicetak bersamaan, lapis demi lapis: kalau
+   filamen habis di tengah, semuanya baru setengah jadi. Dengan gulungan
+   5 m, pakai plate {SEALS_SMALL} seal. Plate {counts['seals']} seal tetap bisa dengan beberapa
+   gulungan: saat filamen habis A1 berhenti sendiri, masukkan gulungan
+   berikutnya lalu lanjutkan.
 3. Tempel stiker NFC di ceruk di ujung pasak seal.
 4. Pasang seal: masukkan kedua kaki pasaknya ke celah di lubang belakang
    kartu, dorong, lalu putar searah jarum jam sekitar {LOCK_DEG:.0f} derajat sampai klik
@@ -1383,26 +1669,36 @@ LANGKAH
    balik, jadi stiker NFC terkunci di dalam.
 
 SETELAN CETAK
-- PLA, support MATI. Posisi seperti di file: kartu telentang (punggungnya di
-  plate, mukanya ke atas), seal menghadap ke atas (pasaknya di plate).
-- Tidak perlu support: kartu dan seal duduk rata di plate. Atap lubang seal
-  di kartu dan pinggiran bawah seal (menggantung {m['seal_overhang_under_rim'][0]}-{m['seal_overhang_under_rim'][1]} mm di sekeliling
-  pasak) cukup dicetak sebagai jembatan dan overhang pendek. Bagian bawah
-  seal mungkin sedikit kasar, tapi tidak kelihatan dan sudah diberi ruang.
-- Layer 0.08 mm (profil "0.08mm Extra Fine") supaya relief paling tajam.
-  Semua ketinggian sudah disesuaikan dengan layer ini (layer pertama 0.2 mm,
-  lalu 0.08 mm).
+- PLA. Posisi seperti di file: kartu telentang (punggungnya di plate,
+  mukanya ke atas), seal menghadap ke atas (pasaknya di plate).
+- Kartu TANPA support: punggungnya rata di plate, emboss di muka (menghadap
+  ke atas) naik dengan sisi miring, jadi tidak ada yang melayang.
+- Seal (dan sumbat fit test) DENGAN support: pinggiran lilinnya menggantung
+  di luar pasak. Di file .gcode.3mf/.3mf sudah diatur per objek: tree
+  support dari plate saja, dan ada "support blocker" di dalam tabung pasak
+  supaya ruang chip tetap bersih. Tidak perlu diubah. Setelah cetak, cabut
+  support dari bawah pinggiran seal (bagian itu menempel ke kartu, tidak
+  kelihatan).
+- Layer 0.08 mm (profil "0.08mm Extra Fine") supaya relief paling tajam,
+  KECUALI atap-atap yang menyeberangi udara (jembatan): di file sudah diatur
+  satu layer lebih tebal di sana, supaya tidak melayang/putus:
+    kartu: {BRIDGE_LAYERS['card'][0][0]}-{BRIDGE_LAYERS['card'][0][1]} mm satu layer {BRIDGE_LAYERS['card'][0][2]} mm (atap lubang seal)
+    seal:  {BRIDGE_LAYERS['seal'][0][0]}-{BRIDGE_LAYERS['seal'][0][1]} mm satu layer {BRIDGE_LAYERS['seal'][0][2]} mm (atap ceruk NFC)
+  Jangan ganti layer height atau hapus pengaturan "layer range" ini: semua
+  ketinggian kunci seal disesuaikan dengan layer ini (layer pertama 0.2 mm,
+  lalu 0.08 mm). Kalau mau slice ulang, buka file .gcode.3mf ini di Bambu
+  Studio: pengaturan layer-nya ikut (dari STL harus diatur sendiri).
 - Elephant foot compensation di Bambu Studio biarkan seperti bawaannya.
 - Sekitar {m['card_grams']} g PLA per kartu, {m['seal_grams']} g per seal.
 
 UKURAN
 Kartu      {m['card'][0]:.2f} x {m['card'][1]:.2f} mm, potongan card.pambudi.xyz; tebal {STOCK} mm
-           ({m['at_the_relief']} mm di motif emboss: naik {RELIEF} mm di depan, tertekan di belakang)
+           ({m['at_the_relief']} mm di motif emboss: naik {EMBOSS} mm di depan; punggungnya rata)
 Gantungan  kartu yang sama dengan tonjolan bulat di atas, {m['card_key_ring'][0]:.2f} x {m['card_key_ring'][1]:.2f} mm;
            lubang {KEY_RING_HOLE} mm, dinding kertas {KEY_RING_WALL} mm di sekelilingnya
 Seal       lebar {SEAL_WIDTH} mm; lilinnya {m['seal_height']:.2f} mm, {m['seal_with_peg']:.2f} mm dengan pasaknya
 NFC        stiker bulat maksimal {m['nfc_tag_max_diameter']} mm, tebal maksimal {m['nfc_tag_max_thickness']} mm
-           (misalnya NTAG213 12 mm)
+           (NTAG bulat 8 mm)
 Lubang     bibir {LEDGE} mm dengan 2 celah dan 2 pegas pipih, di atas rongga
            {round(POCKET - LEDGE, 2)} mm, di bawah lantai depan {FLOOR} mm
 Pasak      {STEM} mm, 2 kaki {round(STEM - TAB_TOP, 2)} mm, jarak bebas {CLEAR} mm; saat diputar pegasnya
@@ -1433,7 +1729,7 @@ Bambu Studio give each part its filament.
 - Without the AMS lite (one spool at a time): print the plate twice, once
   with the seals deleted (white), once with the cards deleted (red).'''
     sizes = f'''Card     {m['card'][0]} x {m['card'][1]} mm, the cut of card.pambudi.xyz; {STOCK} mm thick
-         ({m['at_the_relief']} mm at the relief, raised {RELIEF} mm on the front, pressed into the back)
+         ({m['at_the_relief']} mm at the relief, raised {EMBOSS} mm on the front, the back flat)
 Key ring the same card with a round tab on top, {m['card_key_ring'][0]} x {m['card_key_ring'][1]} mm:
          a {KEY_RING_HOLE} mm hole, {KEY_RING_WALL} mm of paper round it
 Seal     {SEAL_WIDTH} mm wide, {m['seal_height']} mm tall
@@ -1546,9 +1842,9 @@ def main():
     m = report['measurements_mm'] = dict(
         card=[round(float(s), 3) for s in np.ptp(outline, axis=0)],
         card_key_ring=[round(float(s), 3) for s in np.ptp(ring_outline, axis=0)],
-        stock=STOCK, at_the_relief=round(STOCK + RELIEF, 2),
-        relief=RELIEF, relief_shoulder_mm=round(SHOULDER, 3),
-        seal_width=SEAL_WIDTH, seal_height=round(float(max(sf['base'].v.max(), H_FIELD + H_LETTER)), 3),
+        stock=STOCK, at_the_relief=round(STOCK + EMBOSS, 2),
+        relief=EMBOSS, relief_shoulder_mm=round(SHOULDER, 3),
+        seal_width=SEAL_WIDTH, seal_height=round(float(sf['base'].v.max()), 3),
         seal_size=[round(float(np.ptp(outline_uv[:, 0])), 3), round(float(np.ptp(outline_uv[:, 1])), 3)],
         seal_outline_radius_min=round(float(edge.min()), 3),
         seal_cover_of_mouth_min=seal_cover(phi, edge),
@@ -1601,12 +1897,18 @@ def main():
         'seals': (seal_parts, seal_plate_items((0, size(lid_p)), (1, size(clip[0])) if clip else None)),
         'keyrings': ([('card body, key ring', RV, RF)], row_items((0, size(RV)), 3)),
     }
+    if not clip:
+        plates[f'seals-{SEALS_SMALL}'] = (seal_parts, seal_block_items((0, size(lid_p)), SEALS_SMALL))
+        # One plate of everything: 7 cards, the key ring card, 9 seals.
+        plates['plate'] = ([('card body', BV, BF), ('card body, key ring', RV, RF)] + seal_parts,
+                           plate_items((0, size(BV)), seal=(2, size(lid_p)), keyring=(1, size(RV))))
     counts = {}
     for key, (parts, items) in plates.items():
-        plate_check(items, span(parts), round_parts=(0,) if key == 'seals' and not clip else ())
-        write_3mf(OUT / f'a1-{key}{SUFFIX}.3mf', parts, items)
+        # The mixed plate's seals sit in a square grid: checked by their boxes.
+        plate_check(items, span(parts), round_parts=(0,) if key.startswith('seals') and not clip else ())
+        write_3mf(OUT / f'a1-{key}{SUFFIX}.3mf', parts, items, bridges=True)
         counts[key] = sum(1 for item in items if item[0] == 0)
-    write_3mf(OUT / f'fit-test{SUFFIX}.3mf', tests)
+    write_3mf(OUT / f'fit-test{SUFFIX}.3mf', tests, bridges=True)
     report['plates'] = counts
     (OUT / 'checks.json').write_text(json.dumps(report, indent=2))
     # The plates as laid out (each part's outline from above, and where each copy
@@ -1619,21 +1921,24 @@ def main():
     flat = lambda loop: (loop - loop.min(0)).round(3).tolist()
     shapes = {'cards': [flat(outline)], 'seals': [seal_rim.round(3).tolist()] + ([flat(circle(CLIP_LAYERS[0][1]))] if clip else []),
               'keyrings': [flat(ring_outline)]}
+    shapes[f'seals-{SEALS_SMALL}'] = shapes['seals']
+    shapes['plate'] = shapes['cards'] + shapes['keyrings'] + shapes['seals']
     (OUT / 'plates.json').write_text(json.dumps(dict(bed=BED, head_wrap=HEAD_WRAP, **{
         key: dict(items=items, sizes=[[float(x) for x in v[:2]] for v in span(parts)], shapes=shapes[key])
         for key, (parts, items) in plates.items()})))
 
     # For the page: one file per card (the page draws each), and the
-    # downloads: the four plates, sliced for the A1 (tools/slice-a1.py), and
-    # the print notes (in Indonesian).
+    # download, for now just one: the plate's parts as STL in a zip, for any
+    # printer (vendors take STL, not 3MF). The sliced plates
+    # (tools/slice-a1.py) and the print notes stay in public/downloads/3dprint/,
+    # off the menu.
     singles = {'': (BV, outline), '-keyring': (RV, ring_outline)}
+    on_plate = [sum(1 for item in plates['plate'][1] if item[0] == k) for k in range(3)] if not clip else None
+    stl_zip = f'{FILE}-stl.zip'
     downloads = [
-        dict(label=f'a1 plate, {counts["cards"]} cards', href=f'/downloads/3dprint/a1-cards{SUFFIX}.gcode.3mf', kind='3mf'),
-        dict(label=f'a1 plate, {counts["seals"]} seals', href=f'/downloads/3dprint/a1-seals{SUFFIX}.gcode.3mf', kind='3mf'),
-        dict(label=f'a1 plate, {counts["keyrings"]} key ring cards', href=f'/downloads/3dprint/a1-keyrings{SUFFIX}.gcode.3mf', kind='3mf'),
-        dict(label='fit test, print first', href=f'/downloads/3dprint/fit-test{SUFFIX}.gcode.3mf', kind='3mf'),
-        dict(label='print notes', href=f'/downloads/3dprint/print-notes{SUFFIX}.txt', kind='txt'),
-    ]
+        dict(label=f'{on_plate[0]} cards, {on_plate[1]} key ring card, {on_plate[2]} seals',
+             href=f'/downloads/3dprint/{stl_zip}', kind='stl'),
+    ] if on_plate else []
     for tail, (card_v, loop) in singles.items():
         (OUT / f'card-3d{SUFFIX}{tail}.json').write_text(json.dumps(dict(
             variant=VARIANT, card='key ring' if tail else 'card', file=f'/downloads/3dprint/{FILE}{tail}.3mf',
@@ -1642,7 +1947,7 @@ def main():
             card_mm=[round(float(s), 3) for s in np.ptp(loop, axis=0)], centre_mm=[round(float(c), 4) for c in CENTRE],
             # The card's middle (its box's, the tab and all): the seal's pocket may be below it.
             middle_mm=[round(float(c), 4) for c in (loop.min(0) + loop.max(0)) / 2],
-            stock_mm=STOCK, relief_mm=RELIEF, unlock_deg=0 if VARIANT == 'press' else LOCK_DEG, peg_mm=STEM,
+            stock_mm=STOCK, relief_mm=EMBOSS, unlock_deg=0 if VARIANT == 'press' else LOCK_DEG, peg_mm=STEM,
             seal_mm=SEAL_WIDTH,
             # Across, up and down, and its height with the peg, for the page's dimensions.
             seal_size_mm=[m['seal_size'][0], m['seal_size'][1], round(float(np.ptp(LV[:, 2])), 3)],
@@ -1656,6 +1961,8 @@ def main():
             # Only for the page to draw: the card (or key ring card) with its seal.
             (DOWNLOADS / f'{FILE}{tail}.3mf').write_bytes((OUT / f'{FILE}{tail}.3mf').read_bytes())
         (DOWNLOADS / f'print-notes{SUFFIX}.txt').write_bytes((OUT / f'print-notes{SUFFIX}.txt').read_bytes())
+        if on_plate:
+            write_stl_zip(DOWNLOADS / stl_zip, on_plate, m)
     log('wrote', OUT, counts)
 
     fitted = [('card body', BV, BF, 'paper'), ('seal', LV, LF, 'wax')]

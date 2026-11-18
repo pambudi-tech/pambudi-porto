@@ -11,12 +11,14 @@ import { paperFlipPoseAt, paperFlipDirection, PAPER_FLIP } from '../paper/paper-
 
 // The card as it prints: the 3MF the page offers for download
 // (tools/build-card-3d.py), drawn from the file itself, every triangle as
-// written: the card page's paper, 1.0 mm thick, the wax seal locked for good
-// into the middle of its back (a push and a turn); chosen at the top, the
-// card, or the key ring card (a round tab on top, a hole in it), each its own
-// file. tools/build-card-3d.py also builds versions the page doesn't offer
-// (1.4 mm removable, 1.24 mm pressed on with a clip ring); VERSIONS can show
-// them, the clip and all. A mouse anywhere brings
+// written: the card page's paper, 1 mm thick, the name and links raised on
+// the front, the wax seal twisted onto two pins in the front's empty middle,
+// locked for good with a click, and behind it a recess in the flat back for
+// a 25 mm NFC sticker. Its files are built
+// outside this repo (card-3d-front-twist.json lists them); the back-seal
+// cards tools/build-card-3d.py builds (card, key ring, 1.4 mm removable,
+// 1.24 mm with a clip ring) stay buildable, and VERSIONS can show any of
+// them again, the clip and all. A mouse anywhere brings
 // the lamp and over the card it tilts, as on the card page. A drag turns it
 // any way and it stays as left; a tap brings it back face on, or, face on
 // already, turns it over. Explode turns the seal back and lifts it out, the
@@ -129,10 +131,14 @@ const view = { angle: 0, tilt: 0, y: 0, z: 0, rock: 0 };
 // The seal: 0 locked on, 1 turned back and lifted out.
 let apart = 0;
 
-// Explode: the card turns to show its back at an angle while the seal turns
-// back (as the bayonet opens), then the seal lifts clear.
+// Explode: the card turns to show the seal's side at an angle while the seal
+// turns back (as a bayonet opens; a snap seal doesn't turn), then the seal
+// lifts clear.
 const EXPLODE = Object.freeze({ duration: 1700, yaw: 38, tilt: 16, lift: 16,
   view: [0, .62], unlock: [.1, .45], rise: [.4, 1] });
+// Which face of the card the seal sits on (card-3d*.json's seal_side): 1 its
+// front, -1 its back (the bayonet and press cards).
+const sealSide = () => (fit?.seal_side === 'front' ? 1 : -1);
 // The seal alone: 0 with the card, 1 on its own (`focused` is where it's going).
 let focus = 0, focused = false, focusedFrom = null;
 const FOCUS = Object.freeze({ duration: 760, fill: .52, maxZoom: 8 });
@@ -147,10 +153,11 @@ function placeSeal() {
   if (!fit) return;
   const unlock = smooth(share(apart, EXPLODE.unlock));
   const rise = easeOut(share(apart, EXPLODE.rise));
-  // Anticlockwise seen from the back, back to the notches, then out; shown
-  // alone, it comes round again to stand its P upright.
-  sealAxis.rotation.z = -rad(fit.unlock_deg) * unlock * (1 - focusing());
-  sealAxis.position.z = -rise * EXPLODE.lift;
+  // Anticlockwise seen from the seal's side (the back, or the front for the
+  // front twist seal), back to the notches, then out; shown alone, it comes
+  // round again to stand its P upright.
+  sealAxis.rotation.z = sealSide() * rad(fit.unlock_deg) * unlock * (1 - focusing());
+  sealAxis.position.z = sealSide() * rise * EXPLODE.lift;
   // The clip, halfway: out of the card, off the seal's stem.
   clipAxis.position.z = -rise * EXPLODE.lift * .45;
 }
@@ -277,7 +284,7 @@ function placeCue() {
   const seal = solids.find(solid => solid.kind === 'seal')?.mesh;
   let text = null, x = 0, y = 0;
   if (seal && cueSettled && apart === 1) {
-    backNormal.set(0, 0, -1).transformDirection(turned.matrixWorld);
+    backNormal.set(0, 0, sealSide()).transformDirection(turned.matrixWorld);   // the seal's side of the card
     if (focused) text = 'back to card';
     else if (backNormal.z > .05) text = 'wax detail';
   }
@@ -592,8 +599,8 @@ function explodeOrAssemble() {
   const here = { angle: view.angle, tilt: view.tilt };
   let there;
   if (out) {
-    // To the back's turned view, by the shorter way round.
-    const back = 180 - EXPLODE.yaw;
+    // To the seal's side's turned view (the back's, or the front's), by the shorter way round.
+    const back = (sealSide() > 0 ? 0 : 180) - EXPLODE.yaw;
     there = { angle: here.angle + ((((back - here.angle) % 360) + 540) % 360 - 180), tilt: EXPLODE.tilt };
     explodedFrom = { ...here, to: there.angle };
   } else {
@@ -970,18 +977,23 @@ function makeModel(json, objects) {
     addThickness(sets, parts, 'card', [mx + side * across, head, json.stock_mm / 2], side * Math.PI / 2, json.stock_mm,
       `${mmText(json.stock_mm)} thick`, `${mmText(json.stock_mm + json.relief_mm)} over the emboss`);
   }
-  // The seal's, about its own box, turning with it (its face towards the card's back).
+  // The seal's, about its own box, turning with it: its face towards the
+  // card's back, or (a snap seal on the front) out from the card's front.
   const [sw, sh, st] = json.seal_size_mm, sx = (box.min.x + box.max.x) / 2, sy = (box.min.y + box.max.y) / 2;
-  const tall = `${mmText(st)} tall with its ${json.variant === 'press' ? 'stem' : 'peg'}`;
-  addDims(sets, sealAxis, 'seal', [sx, sy, box.min.z - .02], true, [sw, sh], 'wax seal, front side', tall);
-  addDims(sets, sealAxis, 'seal', [sx, sy, box.max.z + .02], false, [sw, sh], 'wax seal, back side', tall);
+  const onFront = json.seal_side === 'front';
+  const stem = json.variant === 'press' ? 'stem' : 'peg';
+  const twist = json.lock === 'twist';
+  const tall = onFront ? `${mmText(st)} thick, ${twist ? 'twists on' : 'snaps on'}` : `${mmText(st)} tall with its ${stem}`;
+  addDims(sets, sealAxis, 'seal', [sx, sy, onFront ? box.max.z + .02 : box.min.z - .02], !onFront, [sw, sh], 'wax seal, front side', tall);
+  addDims(sets, sealAxis, 'seal', [sx, sy, onFront ? box.min.z - .02 : box.max.z + .02], onFront, [sw, sh], 'wax seal, back side', tall);
   // Its thickness on its side edges, over its head, as the card's: all of it
   // with the peg (or stem), and the wax alone (from its face to its
-  // underside, which lies on the card's back at z = 0).
+  // underside, which lies on the card's back at z = 0); a snap seal is all wax.
   const through = box.max.z - box.min.z, waxOnly = -box.min.z, rim = sw / 2 + .02;
   for (const side of [1, -1]) {
     addThickness(sets, sealAxis, 'seal', [sx + side * rim, sy + sh / 2 + .02, (box.min.z + box.max.z) / 2], side * Math.PI / 2,
-      through, `${mmText(through)} with its ${json.variant === 'press' ? 'stem' : 'peg'}`, `${mmText(waxOnly)} without it`);
+      through, onFront ? `${mmText(through)} thick` : `${mmText(through)} with its ${stem}`,
+      onFront ? (twist ? 'turns onto two pins' : 'two pins hold it') : `${mmText(waxOnly)} without it`);
   }
   return { json, card, seal, clip, solids: pieces, dims: sets, sealMiddle: (box.min.z + box.max.z) / 2, wires: null };
 }
@@ -989,9 +1001,10 @@ function makeModel(json, objects) {
 // —— Versions ——
 // Chosen at the top, each its own file (card-3d*.json says which). The one
 // shown fades; the other comes in at the default view, as the page opens.
+// One for now: the 1 mm card, its type on the front, the wax seal twisted on
+// there, and the NFC sticker's recess in its back. With one version the toggle stays hidden.
 const VERSIONS = Object.freeze({
-  card: '/assets/print/card-3d-twist.json',
-  keyring: '/assets/print/card-3d-twist-keyring.json',
+  twist: '/assets/print/card-3d-front-twist.json',
 });
 const versionToggle = document.querySelector('.version-toggle');
 const versionButtons = [...versionToggle.querySelectorAll('[data-variant]')];
@@ -1000,6 +1013,7 @@ const models = new Map();
 let model = null, wanted = null;
 
 function placePill() {
+  if (versionToggle.hidden) return;
   const chosen = versionButtons.find(button => button.getAttribute('aria-pressed') === 'true');
   versionToggle.style.setProperty('--pill-left', `${chosen.offsetLeft - versionButtons[0].offsetLeft}px`);
   versionToggle.style.setProperty('--pill-width', `${chosen.offsetWidth}px`);

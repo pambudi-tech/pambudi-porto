@@ -1,11 +1,12 @@
 """Slices the print's A1 plates (tools/build-card-3d.py writes them) with
 Bambu Studio, ready to print: each a .gcode.3mf for the Bambu Lab A1 (0.4 mm
-nozzle), Bambu PLA Basic, 0.08 mm layers (0.08mm Extra Fine), no supports,
+nozzle), Bambu PLA Basic, 0.08 mm layers (0.08mm Extra Fine), supports only on
+the seal plates (tree, under the wax rim),
 the textured PEI plate; one colour each (cards white, seals red), printed in
 turn. Open one in Bambu Studio and print, or put it on the A1's microSD card.
 
 Run (Bambu Studio installed in /Applications), after the build:
-    python3 tools/slice-a1.py [--variant=twist]
+    python3 tools/slice-a1.py [--variant=twist] [--only=a1-seals-25,...]
 
 Writes public/downloads/3dprint/<plate>.gcode.3mf, the page's downloads,
 puts each plate's print time in its label (public/assets/print/card-3d*.json),
@@ -31,6 +32,8 @@ DOWNLOADS = ROOT / 'public' / 'downloads' / '3dprint'
 
 ARGS = sys.argv[1:]
 VARIANT = next((a.split('=', 1)[1] for a in ARGS if a.startswith('--variant=')), 'twist')
+# Only these plates (the others' sliced files stay as they are).
+ONLY = next((a.split('=', 1)[1].split(',') for a in ARGS if a.startswith('--only=')), None)
 SUFFIX = '' if VARIANT == 'removable' else f'-{VARIANT}'
 OUT = ROOT.parent / 'output' / f'card-3d-print{SUFFIX}'
 
@@ -43,7 +46,15 @@ PLATES = {
     'a1-cards': '#F2F1EC',          # white
     'a1-keyrings': '#F2F1EC',
     'a1-seals': '#9E1B24',          # red
+    'a1-seals-25': '#9E1B24',       # for a 5 m roll
     'fit-test': '#F2F1EC',          # one colour: it only tries the fit
+}
+# Supports are set per object in the plates (tools/build-card-3d.py: the seals
+# only); these are how they print: tree supports from the plate, never under
+# a bridge (so not into the tag's recess nor the cards' ring pockets).
+SUPPORT_SETTINGS = {
+    'enable_support': '0', 'support_type': 'tree(auto)', 'support_on_build_plate_only': '1',
+    'bridge_no_support': '1', 'support_threshold_angle': '30',
 }
 
 
@@ -77,7 +88,7 @@ def summary(sliced):
     seconds = int(float(get('prediction')))
     hours, minutes = seconds // 3600, seconds % 3600 // 60
     return dict(time=f'{hours} h {minutes:02d} min' if hours else f'{minutes} min', grams=get('weight'),
-                bytes=sliced.stat().st_size)
+                metres=float(re.search(r'used_m="([^"]*)"', info)[1]), bytes=sliced.stat().st_size)
 
 
 def main():
@@ -87,11 +98,15 @@ def main():
         machine = flattened(MACHINE, every)
         process = flattened(PROCESS, every)
         process['curr_bed_type'] = BED
+        process.update(SUPPORT_SETTINGS)
         for key, data in (('machine', machine), ('process', process)):
             data['from'] = 'system'
             (tmp / f'{key}.json').write_text(json.dumps(data, indent=1))
-        results = {}
+        record = OUT / 'sliced.json'
+        results = json.loads(record.read_text()) if ONLY and record.exists() else {}
         for plate, colour in PLATES.items():
+            if ONLY and plate not in ONLY:
+                continue
             source = OUT / f'{plate}{SUFFIX}.3mf'
             filament = flattened(FILAMENT, every)
             filament.update({'from': 'system', 'filament_colour': [colour], 'default_filament_colour': [colour]})
@@ -111,8 +126,8 @@ def main():
             (DOWNLOADS / name).write_bytes((out / name).read_bytes())
             results[plate] = summary(DOWNLOADS / name)
             print(f'{name}: {results[plate]["time"]}, {results[plate]["grams"]} g, '
-                  f'{results[plate]["bytes"] / 1e6:.1f} MB', flush=True)
-        (OUT / 'sliced.json').write_text(json.dumps(results, indent=2))
+                  f'{results[plate]["metres"]} m, {results[plate]["bytes"] / 1e6:.1f} MB', flush=True)
+        record.write_text(json.dumps(results, indent=2))
     # The page's download labels carry each plate's print time.
     for path in (ROOT / 'public' / 'assets' / 'print').glob(f'card-3d{SUFFIX}*.json'):
         data = json.loads(path.read_text())
@@ -123,4 +138,5 @@ def main():
         path.write_text(json.dumps(data, indent=2) + '\n')
 
 
-main()
+if __name__ == '__main__':
+    main()
