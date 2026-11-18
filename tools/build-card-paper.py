@@ -34,6 +34,10 @@ WHITE = np.array([232.7, 232.6, 232.0]) / 255
 RED = np.array([186.7, 42.6, 46.3]) / 255
 LIGHT = dict(rest=(-.22, -.42, 1.25), relief=1, contrast=.8, shadow=1, shadow_length=1.6)
 FACES = {'front': 'paper-front-relief.webp', 'back': 'paper-back-relief.webp'}
+# The homepage's paper wears the 3D-printed card's emboss (tools/build-print-relief.py).
+HOME_FACES = {'front': 'paper-print-front-relief.webp', 'back': 'paper-print-back-relief.webp'}
+# and its eased light (PRINT_LIGHT in src/paper/paper-gl.mjs).
+HOME_LIGHT = dict(LIGHT, contrast=.32, shadow=.05)
 
 
 def cut_alpha(canvas=g.CANVAS, squash=g.SQUASH):
@@ -87,12 +91,12 @@ def grain(u, v, aspect):
     return (hash2(cx, cy) * 7 + fibre * 4) / 255
 
 
-def render(face, canvas=g.CANVAS, colour=WHITE):
+def render(face, canvas=g.CANVAS, colour=WHITE, faces=FACES, LIGHT=LIGHT):
     w, h = canvas
     aspect = w / h
     v, u = np.mgrid[0:h, 0:w].astype(np.float64)
     u, v = (u + .5) / w, (v + .5) / h
-    at = sampler(Image.open(ASSETS / FACES[face]).convert('RGB'))
+    at = sampler(Image.open(ASSETS / faces[face]).convert('RGB'))
     n, (th, tw) = at(u, v)
 
     light = np.array(LIGHT['rest'])
@@ -142,7 +146,7 @@ def main():
     # The homepage: its own proportions, the back red.
     alpha = cut_alpha(g.PAPER, 1)
     for face, colour, name in (('front', WHITE, 'embossed-paper-frame'), ('back', RED, 'debossed-red-paper-frame')):
-        image = render(face, g.PAPER, colour).convert('RGBA')
+        image = render(face, g.PAPER, colour, HOME_FACES, HOME_LIGHT).convert('RGBA')
         image.putalpha(alpha)
         image.save(g.ROOT / 'tools' / 'source-images' / f'{name}.png', optimize=True)
     x0, y0, x1, y1 = g.cut_on_canvas()

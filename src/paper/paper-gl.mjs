@@ -15,9 +15,13 @@ export const RELIEF_MARGIN = Object.freeze({ x: 47, y: 50 });
 // cut by the supplied die line, with its emboss right on the registration.
 // (The red back's original photograph had its deboss 2 px right and 8 px up.)
 // The white back is the card page's.
+// The homepage's faces wear the 3D-printed card's emboss, far taller than the
+// card page's: its cast shadows and shading are eased so it stays soft.
+const PRINT_LIGHT = Object.freeze({ contrast: .32, shadow: .05 });
 export const PAPER_FACES = Object.freeze({
-  white: { relief: '/assets/paper-front-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0] },
-  red: { relief: '/assets/paper-back-relief.webp', colour: [186.7, 42.6, 46.3], offset: [0, 0] },
+  white: { relief: '/assets/paper-print-front-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0], light: PRINT_LIGHT },
+  red: { relief: '/assets/paper-print-back-relief.webp', colour: [186.7, 42.6, 46.3], offset: [0, 0], light: PRINT_LIGHT },
+  cardFront: { relief: '/assets/paper-front-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0] },
   whiteBack: { relief: '/assets/paper-back-relief.webp', colour: [232.7, 232.6, 232], offset: [0, 0] },
 });
 
@@ -223,10 +227,11 @@ export class PaperGL {
     gl.uniform4f(u.uRect, ...reliefRect(this.face.offset));
     gl.uniform2f(u.uTexel, 1 / reliefImage.width, 1 / reliefImage.height);
     gl.uniform1f(u.uAspect, this.aspect);
-    gl.uniform1f(u.uRelief, PAPER_LIGHT.relief);
-    gl.uniform1f(u.uContrast, PAPER_LIGHT.contrast);
-    gl.uniform1f(u.uShadow, PAPER_LIGHT.shadow);
-    gl.uniform1f(u.uShadowLength, PAPER_LIGHT.shadowLength);
+    const light = { ...PAPER_LIGHT, ...this.face.light };
+    gl.uniform1f(u.uRelief, light.relief);
+    gl.uniform1f(u.uContrast, light.contrast);
+    gl.uniform1f(u.uShadow, light.shadow);
+    gl.uniform1f(u.uShadowLength, light.shadowLength);
     reliefImage.close?.();
     // A lost context leaves the photograph showing, as before WebGL started.
     this.canvas.addEventListener('webglcontextlost', () => { this.lost = true; delete this.canvas.dataset.materialReady; });

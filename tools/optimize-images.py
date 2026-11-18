@@ -54,6 +54,10 @@ IMAGES = {
     # the paper; 1024 wide covers the sheet at up to two device pixels.
     'paper-front-relief': ((1024,), RELIEF),
     'paper-back-relief': ((1024,), RELIEF),
+    # The homepage paper's relief, the 3D-printed card's emboss
+    # (tools/build-print-relief.py).
+    'paper-print-front-relief': ((1024,), RELIEF),
+    'paper-print-back-relief': ((1024,), RELIEF),
     # Shown at most 160 CSS pixels wide.
     'ivan-signature': ((640, 320), EXACT),
     'wordmark-source': ((None,), EXACT),

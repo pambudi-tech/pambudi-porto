@@ -5,7 +5,7 @@
 
 export const SITE = {
   name: 'ivan pambudi',
-  role: 'ui & brand designer',
+  role: 'web & brand designer',
   title: 'Ivan Pambudi - The Portfolio',
   description: 'House of selected works & exploration by Ivan Pambudi',
   // Link previews need absolute URLs. The image is 1200×630
@@ -36,7 +36,7 @@ export const SITE = {
       { company: 'natuno', period: 'may–sep 2026' },
       { company: 'bca', period: 'jul 2024–may 2026' },
     ],
-    skillset: ['ui design', 'branding', 'art direction', 'design systems', 'prototyping'],
+    skillset: ['web design', 'branding', 'art direction', 'design systems', 'prototyping'],
     stack: ['figma', 'illustrator', 'claude', 'github', 'vercel'],
     // The profile linked beside the signature, by contact id.
     profile: 'linkedin',

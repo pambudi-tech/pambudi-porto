@@ -108,7 +108,7 @@ test('a sheet put away while it decodes lets its pictures go and is never shown'
   await assert.rejects(prepared, /put away/);
   await settle();
   assert.equal(log.lost, 1);
-  assert.deepEqual(log.closed.sort(), ['/assets/paper-back-relief.webp', '/assets/paper-back.webp']);
+  assert.deepEqual(log.closed.sort(), ['/assets/paper-back.webp', '/assets/paper-print-back-relief.webp']);
   assert.deepEqual([log.inserted, log.observing, log.drawn], [0, 0, 0]);
 }));
 
@@ -140,7 +140,7 @@ test('a sheet held back fetches its pictures meanwhile, and makes its context on
   const prepared = paper.prepare({ after: front.promise });
   idle();
   await settle();
-  assert.deepEqual(log.fetched.sort(), ['/assets/paper-back-relief.webp', '/assets/paper-back.webp']);
+  assert.deepEqual(log.fetched.sort(), ['/assets/paper-back.webp', '/assets/paper-print-back-relief.webp']);
   assert.deepEqual([log.contexts, log.inserted], [0, 0]);
   front.resolve();
   await prepared;
@@ -158,7 +158,7 @@ test('a sheet held back by a front that fails is never made, and lets its pictur
   await assert.rejects(prepared, /Paper relief: 404/);
   await settle();
   assert.deepEqual([log.contexts, log.inserted, log.observing], [0, 0, 0]);
-  assert.deepEqual(log.closed.sort(), ['/assets/paper-back-relief.webp', '/assets/paper-back.webp']);
+  assert.deepEqual(log.closed.sort(), ['/assets/paper-back.webp', '/assets/paper-print-back-relief.webp']);
 }));
 
 test('a sheet put away while held back is never made, and lets its pictures go', () => withCard(async ({ paper, log, idle }) => {
